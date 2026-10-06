@@ -1,0 +1,305 @@
+.msgs {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--sp-5) clamp(var(--sp-4), 6vw, 120px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: auto;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.empty strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.empty .muted {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.empty-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  color: var(--accent);
+}
+
+/* ── Message row ────────────────────────────────────────────── */
+.msg-row {
+  display: flex;
+  gap: var(--sp-3);
+  max-width: 860px;
+}
+
+.msg-row.user {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.msg-row.user .msg-avatar {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.msg-row.assistant {
+  align-self: flex-start;
+}
+
+.msg-row.assistant .msg-avatar {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.msg-row.system .msg-avatar {
+  background: var(--bg-elev);
+  color: var(--text-faint);
+}
+
+.msg-avatar {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pi-mark {
+  font-family: 'SF Mono', monospace;
+  font-size: 14px;
+}
+
+.msg-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.msg-row.user .msg-body {
+  text-align: right;
+}
+
+.msg-meta {
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.msg-row.user .msg-meta {
+  display: none;
+}
+
+.txt {
+  display: inline-block;
+  text-align: left;
+  white-space: pre-wrap;
+  line-height: 1.7;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.md {
+  line-height: 1.75;
+  color: var(--text);
+}
+
+/* 流式输出期间渲染原文（无 markdown 解析）：保留换行/空白，避免被压成一段。 */
+.md.streaming {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.md :first-child {
+  margin-top: 0;
+}
+
+.md :last-child {
+  margin-bottom: 0;
+}
+
+.md code {
+  font-family: var(--mono);
+  background: var(--bg-elev);
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 12.5px;
+}
+
+.md pre {
+  background: var(--bg-elev);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: auto;
+}
+
+.md pre code {
+  background: none;
+  padding: 0;
+}
+
+.msg-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--accent);
+  background: var(--accent-dim);
+  padding: 6px 12px;
+  border-radius: var(--r-full);
+}
+
+/* 等待模型响应：回答首字到达前的占位气泡 */
+.wait-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: dot-bounce 1.2s infinite ease-in-out;
+}
+
+.dots i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.dots i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes dot-bounce {
+  0%,
+  80%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* 静止画面看不出「在跑」：等待期间机器人头像轻微呼吸 */
+.msg-row.waiting .msg-avatar {
+  animation: avatar-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes avatar-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.cursor {
+  color: var(--accent);
+  animation: blink 1s steps(2) infinite;
+}
+
+/* 单条 assistant 消息的真实 token 用量（内核 provider 上报） */
+.msg-usage {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  background: var(--bg-elev);
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.msg-usage .app-icon {
+  color: var(--text-faint);
+}
+
+@keyframes blink {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.acstrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.msg-row.user .acstrip {
+  justify-content: flex-end;
+}
+
+/* 用户消息下方：附件引用条（图片/文件落盘路径，Pi 按路径读取） */
+.msg-attach {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.att-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 240px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-elev);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.att-ref.image {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  color: var(--accent);
+}
+
+.att-ref-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,0 +1,10 @@
+.mode-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mode-icon {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}

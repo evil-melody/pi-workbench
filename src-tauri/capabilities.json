@@ -1,0 +1,28 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "version": 1,
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "opener:default"
+  ],
+  "kernel": {
+    "pi_version": "0.87.1"
+  },
+  "skills": {
+    "dirs": ["<agent-dir>/skills", ".pi/skills"]
+  },
+  "tools": {
+    "builtin": ["read", "bash", "edit", "write"],
+    "injectable": true
+  },
+  "extensions": [
+    "sandbox-env.ts",
+    "role-inject.ts",
+    "agent-teams.ts",
+    "agent-memory.ts",
+    "agent-skill-pool.ts",
+    "agent-browser-session.ts",
+    "agent-codebase.ts"
+  ]
+}

@@ -1,0 +1,202 @@
+/**
+ * 智能体运行层视图的共享布局（团队 / 记忆 / 技能池 / 浏览器会话）。
+ *
+ * 统一管理四个视图的容器、页头、工具栏、空态与对话框栅格，避免每个视图重复
+ * 同样的令牌取值。视图各自的 scoped css 只描述列表/卡片等专属元素。
+ *
+ * 强调色、圆角、边框、表面层级全部引用 base.css 令牌；单一蓝强调，暗色优先。
+ *
+ * 命名约定：容器类为 `.agent-ops`，子元素统一加 `aops-` 前缀。**不要**在这里
+ * 定义 `badge` / `tool-btn` / `muted` 这类通用名的全局规则——本仓曾因此把能力中心
+ * 与资料库的带文字按钮压成 30px 方块（文字竖排换行）。
+ */
+
+.agent-ops {
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--sp-6) var(--sp-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/**
+ * 内嵌进「能力中心 / 资料库」时：外层已有页面 padding 与标题层级，
+ * 这里只保留内容本身的节奏，避免双层留白与空态过度下沉。
+ */
+.agent-ops.embedded .aops-empty {
+  margin-top: 0;
+}
+
+.agent-ops.embedded .aops-title h1 {
+  font-size: 18px;
+}
+
+.aops-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.aops-title {
+  min-width: 0;
+}
+
+.aops-title h1 {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.aops-title p {
+  margin: 6px 0 0;
+  max-width: 70ch;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.aops-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+}
+
+/**
+ * ⚠️ 以下类名（badge / tool-btn / muted）是通用名，必须限定在 `.agent-ops` 容器内。
+ *
+ * 不带前缀写成全局规则会污染其他页面：能力中心、资料库都用 `.tool-btn` 表示
+ * 带文字的普通按钮，而这里的 `.tool-btn` 是 30×30 图标按钮——全局生效后
+ * 那些按钮会被压成方块、文字竖排换行（已复现并修复）。
+ */
+.agent-ops .badge {
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+
+.agent-ops .tool-btn {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text-dim);
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.agent-ops .tool-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+.aops-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.aops-status {
+  font-size: 12.5px;
+  color: var(--ok);
+}
+
+.aops-status.err {
+  color: var(--danger);
+}
+
+/* 行内 code：仅作用于本层视图内部，避免污染全局 */
+.agent-ops code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 1px 5px;
+  color: var(--accent);
+}
+
+.agent-ops .muted {
+  color: var(--text-dim);
+}
+
+.aops-empty {
+  margin-top: var(--sp-7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--sp-2);
+  color: var(--text-dim);
+  padding: var(--sp-7) var(--sp-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-lg);
+  background: var(--bg-panel);
+}
+
+.aops-empty .app-icon {
+  color: var(--text-faint);
+}
+
+.aops-empty strong {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/**
+ * 对话框内表单栅格：标签 + 控件两列。
+ *
+ * 用专属类名 `.aops-row` 而非通用 `.dialog-row`：对话框内容经 teleport 渲染到
+ * body，不在 `.agent-ops` 容器内，无法靠容器前缀限定作用域；而 `.dialog-row`
+ * 资料库那边也在用，全局定义会串样式。
+ */
+.aops-row {
+  display: grid;
+  grid-template-columns: 116px 1fr;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.aops-row > span {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.aops-row .app-input,
+.aops-row .app-select,
+.aops-row textarea {
+  width: 100%;
+}
+
+/* 对话框内的次要按钮（取消）：`.agent-ops .tool-btn` 不覆盖 teleport 内容，故单列一个专属名。 */
+.aops-plain {
+  padding: 7px 12px;
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.aops-plain:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}

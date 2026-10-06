@@ -1,0 +1,10 @@
+.code-review-graph
+.workbuddy
+graphify-out
+node_modules
+.visual-check
+dist
+src-tauri/target
+src-tauri/gen
+# Vite 配置文件加载器留下的临时产物（每个进程一份，vite.config.ts / vitest.config.ts 都会生成）
+*.timestamp-*.mjs

@@ -1,0 +1,63 @@
+/* 技能市场池视图专属样式（共享容器样式见 agent-ops.css）。 */
+
+.agent-ops.skills.embedded {
+  height: auto;
+  padding: 0;
+  max-width: none;
+}
+
+.skill-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--sp-4);
+}
+
+.skill-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  transition: border-color 0.15s ease, transform 0.08s ease;
+}
+
+.skill-card:hover {
+  border-color: var(--border-strong);
+}
+
+.skill-top {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.skill-top .app-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.skill-name {
+  font-weight: 600;
+  font-size: 14px;
+  font-family: var(--mono);
+  color: var(--accent);
+}
+
+.skill-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+
+.dialog-hint {
+  margin: -4px 0 var(--sp-2);
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.5;
+}

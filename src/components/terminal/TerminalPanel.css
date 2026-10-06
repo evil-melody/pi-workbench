@@ -1,0 +1,117 @@
+.term {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.out {
+  flex: 1;
+  overflow: auto;
+  padding: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ln {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.ln.out {
+  color: var(--text);
+}
+
+.ln.err {
+  color: var(--danger);
+}
+
+.ln.cmd {
+  color: var(--accent);
+  margin-top: 6px;
+}
+
+.cin {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.ps {
+  color: var(--ok);
+  font-family: var(--mono);
+}
+
+/* 终端输入行：保留壳线但去掉额外边框，避免双线。 */
+.tinput {
+  flex: 1;
+  height: 26px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.tinput:hover:not(:disabled) {
+  border-color: transparent;
+}
+
+.tinput:focus {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.term-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.cwd {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--mono);
+}
+
+.state.running {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+}
+
+.term-btn {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.term-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.out-empty {
+  margin: 6px 0 0;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: 11.5px;
+}

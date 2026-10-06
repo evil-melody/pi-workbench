@@ -1,0 +1,157 @@
+/* 侧栏底部实时用量卡：紧凑、数字用等宽实现「跳动不抖」 */
+.usage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 9px 10px;
+  margin: -4px -6px 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-elev);
+  font-size: 12px;
+}
+
+.usage-card.live {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+}
+
+.uc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+.uc-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.uc-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: var(--r-full);
+  background: var(--ok-soft);
+  color: var(--ok);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.uc-live::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: uc-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes uc-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.uc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+}
+
+.uc-cell {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.uc-k {
+  color: var(--text-faint);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.uc-v {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.uc-v.strong {
+  color: var(--accent);
+}
+
+/* 输入 / 输出占比条：只在有数据时出现 */
+.uc-bar {
+  display: flex;
+  height: 4px;
+  border-radius: var(--r-full);
+  overflow: hidden;
+  background: var(--bg-active);
+}
+
+.uc-bar i {
+  display: block;
+  height: 100%;
+  transition: width 0.25s ease;
+}
+
+.bar-in {
+  background: var(--accent);
+}
+
+.bar-out {
+  background: var(--ok);
+}
+
+.uc-foot {
+  margin: 0;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.uc-empty {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
+.uc-billing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 未接入余额：做成入口而不是假数字 */
+.uc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.uc-link:hover {
+  color: var(--accent);
+}

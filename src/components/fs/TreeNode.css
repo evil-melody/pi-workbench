@@ -1,0 +1,34 @@
+.node {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.node:hover {
+  background: var(--bg-elev);
+}
+
+.tw {
+  width: 12px;
+  color: var(--text-dim);
+  font-size: 10px;
+}
+
+.nm {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nm.dir {
+  color: var(--text);
+  font-weight: 500;
+}
+
+ul ul {
+  padding-left: 14px;
+}

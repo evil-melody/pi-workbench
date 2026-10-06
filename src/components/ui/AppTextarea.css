@@ -1,0 +1,40 @@
+.app-textarea {
+  display: block;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.55;
+  resize: vertical;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.app-textarea::placeholder {
+  color: var(--text-dim);
+  opacity: 0.85;
+}
+
+.app-textarea:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.app-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.22);
+  outline: none;
+}
+
+.app-textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.app-textarea.mono {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+}

@@ -1,0 +1,175 @@
+.activity-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 12px;
+  overflow: auto;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* 事件计数：面板收起状态下也能判断「本轮是否有轨迹」。 */
+.panel-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  padding: 1px 7px;
+  letter-spacing: 0;
+}
+
+.status-card {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-elev);
+  margin-bottom: 12px;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+.dot-working { background: var(--accent); }
+.dot-completed { background: var(--ok); }
+.dot-failed,
+.dot-interrupted,
+.dot-waiting { background: var(--warn); }
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.stat-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.stat {
+  flex: 1;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-elev);
+  font-size: 10.5px;
+  color: var(--text-faint);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.stat b {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.event-item {
+  display: grid;
+  grid-template-columns: 14px 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+}
+
+.event-item:hover {
+  background: var(--bg-hover);
+}
+
+.event-kind {
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+.event-name {
+  font-family: var(--mono);
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-desc {
+  grid-column: 2 / -1;
+  margin-top: -2px;
+  color: var(--text-faint);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-time {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.empty {
+  margin: 12px 0;
+  padding: 14px 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-faint);
+  font-size: 11.5px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.note {
+  margin: 12px 0 0;
+  padding: 8px;
+  border-radius: var(--r-sm);
+  background: var(--accent-dim);
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.note code {
+  font-family: var(--mono);
+  background: var(--bg-elev);
+  padding: 1px 3px;
+  border-radius: 3px;
+  font-size: 10px;
+}

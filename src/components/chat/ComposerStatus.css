@@ -1,0 +1,136 @@
+.composer-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 18px;
+  margin: 0 0 8px;
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.composer-status.running {
+  color: var(--text-dim);
+}
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  border: 2px solid var(--accent-dim);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: composer-spin 0.9s linear infinite;
+}
+
+@keyframes composer-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.status-main {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.usage-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 1px 8px;
+  border-radius: var(--r-full);
+  background: var(--bg-elev);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.abort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.abort:hover {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* 代码库索引状态行：始终可见，专门回答「有没有在跑 / 查没查」。 */
+.codebase {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: var(--r-full);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.codebase.ready {
+  color: var(--ok, #1a7f37);
+  border-color: var(--ok-dim, rgba(26, 127, 55, 0.35));
+}
+
+.codebase.error {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.codebase.indexing {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.spinner.sm {
+  width: 10px;
+  height: 10px;
+  border-width: 1.5px;
+}
+
+.relink {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 2px;
+  padding: 0 6px;
+  height: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.relink:hover {
+  background: var(--accent-soft, rgba(88, 124, 255, 0.12));
+  border-color: var(--accent);
+  color: var(--accent);
+}

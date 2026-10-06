@@ -1,0 +1,56 @@
+{
+  "name": "pi-workbench",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@12.6.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.6.0",
+      "onFail": "warn"
+    }
+  },
+  "piVersion": "0.87.1",
+  "scripts": {
+    "app:dev": "node scripts/app-dev.mjs dev",
+    "app:dev:web": "node scripts/app-dev.mjs dev:web",
+    "app:build": "node scripts/app-dev.mjs build",
+    "app:check": "node scripts/app-dev.mjs check",
+    "app:preflight": "node scripts/app-dev.mjs preflight",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit",
+    "verify:ui": "node scripts/visual-check.mjs",
+    "tauri": "tauri",
+    "check:skills": "node scripts/check-skills.mjs",
+    "check:extensions": "node scripts/check-extensions.mjs",
+    "check:matrix": "node scripts/check-skills.mjs && node scripts/check-extensions.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.1.1",
+    "@tauri-apps/plugin-dialog": "^2.4.1",
+    "docx-preview": "0.4.1",
+    "marked": "^12.0.2",
+    "vue": "^3.5.13",
+    "vue-router": "^4.4.5",
+    "xlsx": "0.18.5"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0",
+    "@types/node": "^26.6.2",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "jsdom": "^30.1.1",
+    "playwright-core": "^1.63.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.9",
+    "vue-tsc": "^2.1.10"
+  }
+}

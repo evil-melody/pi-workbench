@@ -1,0 +1,9 @@
+.app-icon {
+  display: block;
+  flex-shrink: 0;
+}
+
+.app-icon.filled {
+  fill: currentColor;
+  stroke: none;
+}

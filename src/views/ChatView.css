@@ -1,0 +1,411 @@
+/*
+ * 对话页版式：一栏主内容（落地页 / 会话流） + 一条按需展开的过程抽屉。
+ *
+ * 这里**不再有**常驻的文件树、编辑器、终端、浏览器侧栏 ——
+ * 那些是「进项目」之后的工具，归项目详情页（`/projects/:id`）。
+ * 之前它们一起挤在对话两侧，把中间压成一条窄缝，看起来就不像个对话产品。
+ */
+
+.chat {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.chat.hero {
+  background: var(--bg);
+}
+
+.chat.hero .center {
+  border: none;
+  background: transparent;
+}
+
+/* 非阻塞提示条：替代 alert()（Tauri 的 alert 会卡住 webview 且无法样式化） */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 14px 0;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--border));
+  border-radius: var(--r);
+  background: var(--warn-soft);
+  color: var(--text);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.notice .app-icon {
+  flex-shrink: 0;
+  color: var(--warn);
+}
+
+.chat.hero .notice {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  margin: 0;
+  max-width: min(680px, calc(100% - 32px));
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.10);
+}
+
+/* ── Center chat ────────────────────────────────────────────── */
+.center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  position: relative;
+}
+
+.chat-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+/*
+ * 上下文 pill：项目 / 角色 / 思考深度 / 模型 必须排成单行。
+ * 之前 `flex-wrap: wrap` 让模型名在窗口稍窄时直接掉到第二行，头部变成双行，很乱。
+ */
+.header-pill {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  margin-inline: auto;
+  min-width: 0;
+  max-width: 100%;
+  gap: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--bg-elev);
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.header-pill > * {
+  flex-shrink: 0;
+}
+
+/* 选择器在头部允许被压缩，长文案用省略号，不撑破 pill */
+.header-pill .role-switcher,
+.header-pill .mode-switcher,
+.header-pill .model-switcher {
+  min-width: 0;
+}
+
+.header-pill .role-switcher .app-select,
+.header-pill .model-switcher .app-select {
+  min-width: 72px;
+  max-width: 180px;
+  width: auto;
+}
+
+.header-pill .mode-switcher .app-select {
+  min-width: 56px;
+  max-width: 90px;
+  width: auto;
+}
+
+.trace-toggle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--bg-elev);
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.trace-toggle:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.trace-toggle.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.trace-badge {
+  padding: 0 5px;
+  border-radius: var(--r-full);
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-size: 10px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 会话迁移：导出 / 导入 一组紧凑按钮，与 trace-toggle 同一视觉族 */
+.io-group {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+}
+
+.io-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--bg-elev);
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.io-btn:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.io-note {
+  margin: 6px 14px 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.nokernel {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.nokernel code {
+  padding: 1px 5px;
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  font-size: 11px;
+}
+
+/* ── Composer ───────────────────────────────────────────────── */
+.composer {
+  flex-shrink: 0;
+  padding: var(--sp-3) var(--sp-5) calc(var(--sp-3) + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.input-wrap {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-2);
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  background: var(--bg-elev);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input-wrap:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+
+.input-wrap :deep(.app-textarea) {
+  flex: 1;
+  min-height: 24px;
+  max-height: 180px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.55;
+  padding: 5px 2px;
+  resize: none;
+  outline: none;
+}
+
+.send {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+.send:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 回形针：附带图片/文件按钮，与 send 同一视觉族 */
+.attach {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.attach:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.attach:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 待发送附件托盘：缩略图 + 文件名 + 移除 */
+.att-tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.att-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-elev);
+}
+
+.att-chip.image .att-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.att-chip.file .app-icon {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.att-name {
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.att-x {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.att-x:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/*
+ * 本轮 agent 步骤条。
+ * 轨迹抽屉可以收起，但「agent 动没动」不能只有转圈 —— 这里把最近几个工具调用
+ * 摊在对话区，用户一眼就能判断是在读文件、跑命令还是卡在某一环。
+ */
+.step-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 14px 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-elev);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.step-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.step-head .spin {
+  animation: step-spin 1.4s linear infinite;
+}
+
+@keyframes step-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.step-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 190px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  color: var(--text-dim);
+}
+
+.step-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-muted {
+  color: var(--text-faint);
+}
+

@@ -1,0 +1,31 @@
+/**
+ * 全局按钮变体。基础样式在 base.css 的 `button` 上，这里只补强调色/危险/尺寸修饰。
+ * 视图内统一用 `<button class="btn primary">` / `<button class="btn danger">`。
+ */
+.btn.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+  font-weight: 550;
+}
+.btn.primary:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  filter: brightness(1.08);
+}
+.btn.danger {
+  color: var(--danger);
+  border-color: var(--danger-soft);
+}
+.btn.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+.btn.tiny {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

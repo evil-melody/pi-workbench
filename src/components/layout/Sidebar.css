@@ -1,0 +1,375 @@
+.sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  transition: width 0.2s ease;
+}
+
+.sidebar.collapsed {
+  width: 68px;
+  align-items: center;
+}
+
+/* ── Brand ──────────────────────────────────────────────────── */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 14px var(--sp-4) 12px;
+}
+
+.sidebar.collapsed .brand {
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: 14px var(--sp-2) 12px;
+}
+
+.mark {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+}
+
+/* 透明吉祥物直接当品牌标记：不再用蓝色方块 + 字母，避免和 Dock 图标两套观感 */
+.mark img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 5px rgba(16, 40, 80, 0.22));
+}
+
+.btext {
+  flex: 1;
+  min-width: 0;
+}
+
+.bname {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  line-height: 1.3;
+}
+
+.collapse {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-faint);
+  opacity: 1;
+  transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.collapse:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+/* ── New Chat ───────────────────────────────────────────────── */
+.new-chat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  margin: 0 var(--sp-4) var(--sp-3);
+  padding: 10px 0;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: var(--bg-hover);
+  color: var(--text);
+  font-weight: 500;
+  font-size: 13.5px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.new-chat:hover {
+  background: var(--bg-active);
+  border-color: var(--border-strong);
+}
+
+.sidebar.collapsed .new-chat {
+  margin: 0 var(--sp-2) var(--sp-3);
+}
+
+/* ── Main Nav ───────────────────────────────────────────────── */
+.main-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.sidebar.collapsed .main-nav {
+  padding: 0 var(--sp-2);
+  width: 100%;
+  align-items: center;
+}
+
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 8px var(--sp-2);
+  border-radius: var(--r);
+  color: var(--text-dim);
+  font-size: 13px;
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 10px;
+}
+
+.nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.nav-item.active {
+  background: var(--bg-active);
+  color: var(--text);
+  font-weight: 550;
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 3px;
+  height: 16px;
+  border-radius: 0 var(--r-full) var(--r-full) 0;
+  background: var(--accent);
+  transform: translateY(-50%);
+}
+
+.sidebar.collapsed .nav-item.active::before {
+  width: 3px;
+  height: 22px;
+}
+
+.lbl {
+  white-space: nowrap;
+}
+
+/* ── Workspace ──────────────────────────────────────────────── */
+.workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: var(--sp-2) var(--sp-3) 0;
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.ws-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--sp-2) var(--sp-2);
+}
+
+.ws-title {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.ws-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.ws-actions button {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  border-radius: var(--r-sm);
+}
+
+.ws-actions button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.ws-list {
+  flex: 1;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ws-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 6px var(--sp-2);
+  border-radius: var(--r);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.ws-list li:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.ws-list li.active {
+  background: var(--bg-active);
+  color: var(--text);
+}
+
+.ws-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-time {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* 进项目工作台：常态可见（淡），悬停变实 —— 藏到 hover 才出现等于没有入口 */
+.ws-open {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-faint);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.ws-open:hover,
+.ws-open:focus-visible {
+  opacity: 1;
+  background: var(--bg-elev);
+  color: var(--text);
+}
+
+.ws-empty {
+  color: var(--text-faint);
+  cursor: default !important;
+}
+
+.main-nav.compact {
+  flex: 1;
+  margin-top: var(--sp-2);
+}
+
+.main-nav.compact button {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  border-radius: var(--r);
+}
+
+.main-nav.compact button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* ── Footer ─────────────────────────────────────────────────── */
+.foot {
+  padding: var(--sp-3);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.sidebar.collapsed .foot {
+  align-items: center;
+  padding: var(--sp-3) var(--sp-2);
+}
+
+.foot-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.foot-actions .theme-toggle {
+  flex: 1;
+}
+
+.settings {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 7px var(--sp-2);
+  border-radius: var(--r);
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: left;
+}
+
+.settings.collapsed {
+  justify-content: center;
+  padding: 8px;
+}
+
+.settings:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* ── 关于弹窗内的键值表 ────────────────────────────────────── */
+.about {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px var(--sp-4);
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.about dt {
+  color: var(--text-faint);
+}
+
+.about dd {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--mono);
+}

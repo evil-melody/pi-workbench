@@ -1,0 +1,99 @@
+/* 浏览器自动化视图专属样式（共享容器样式见 agent-ops.css）。 */
+
+.agent-ops.browser.embedded {
+  height: auto;
+  padding: 0;
+  max-width: none;
+}
+
+.url-box {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 240px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 0 var(--sp-3);
+  color: var(--text-faint);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.url-box:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.url-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 8px 0;
+}
+
+.url-input:focus {
+  box-shadow: none;
+}
+
+.sess-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.sess-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.sess-row .app-icon {
+  color: var(--accent);
+}
+
+.sess-label {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.sess-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+  background: var(--ok);
+  box-shadow: 0 0 0 3px var(--ok-soft);
+}
+
+.sess-state {
+  font-size: 12px;
+  color: var(--ok);
+}
+
+.sess-url {
+  font-family: var(--mono);
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.sess-url a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.sess-url a:hover {
+  text-decoration: underline;
+}
+
+.sess-meta {
+  display: flex;
+  gap: var(--sp-5);
+  font-size: 12px;
+  color: var(--text-faint);
+  border-top: 1px solid var(--border-soft);
+  padding-top: var(--sp-2);
+}

@@ -1,0 +1,34 @@
+.panel {
+  padding: 20px;
+  overflow: auto;
+  width: 100%;
+}
+
+.panel header h2 {
+  margin: 0 0 4px;
+}
+
+.panel header p {
+  margin: 0 0 16px;
+  color: var(--text-dim);
+}
+
+.todo {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  max-width: 640px;
+}
+
+.todo h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.todo ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-dim);
+  line-height: 1.8;
+}

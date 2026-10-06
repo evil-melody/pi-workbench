@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Pi Workbench 默认权限：核心能力 + 用系统默认应用打开成果（shell:allow-open）",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "opener:allow-open-path",
+    "dialog:default",
+    "dialog:allow-open"
+  ]
+}

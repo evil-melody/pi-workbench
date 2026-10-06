@@ -1,0 +1,62 @@
+.acard {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 6px 10px 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elev);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.acard:hover {
+  border-color: var(--accent);
+  background: var(--bg-panel);
+}
+
+.acard:active {
+  transform: translateY(1px);
+}
+
+.acard.on {
+  border-color: var(--accent);
+}
+
+/* 类型标识统一走等宽，和项目里代码块的字体语言保持一致。 */
+.acard .glyph {
+  flex: none;
+  min-width: 30px;
+  padding: 2px 0;
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.acard .meta {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.acard .name {
+  overflow: hidden;
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acard .sub {
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 10.5px;
+}

@@ -1,0 +1,30 @@
+[package]
+name = "pi-workbench"
+version = "0.1.0"
+description = "Pi-powered desktop coding workbench"
+authors = ["tatsuma"]
+edition = "2021"
+
+[lib]
+name = "pi_workbench_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+sha2 = "0.10"
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 远端能力安装 / 模型连通性探测等出网请求。
+#
+# ⚠️ 必须显式打开 TLS：`default-features = false` 会连带关掉 `default-tls`，
+# 此时 reqwest 不编译任何 TLS 后端，**所有 https 请求都会失败**
+# （表现为 `error sending request for url (https://…)`，而非 DNS 或证书错误）。
+#   · rustls            用系统信任库校验证书（rustls-platform-verifier），企业自签 CA 也能过
+#   · system-proxy      读取系统代理设置（公司网络/代理环境必需）
+#   · http2             多数 OpenAI 兼容网关默认走 HTTP/2
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "system-proxy", "http2"] }
