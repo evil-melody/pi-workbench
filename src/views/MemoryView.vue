@@ -13,7 +13,12 @@ import RuntimeNote from '@/components/runtime/RuntimeNote.vue'
 import {
   agentMemoryList,
   agentMemoryStore,
+  memoryVecStatus,
+  memoryVecSearch,
+  memoryVecReindex,
   type MemoryEntry,
+  type MemoryVecHit,
+  type MemoryVecStatus,
 } from '@/composables/useAgentOps'
 
 defineProps<{ embedded?: boolean }>()
@@ -24,6 +29,54 @@ const status = ref('')
 const dialog = ref(false)
 const formText = ref('')
 const formTags = ref('')
+
+// —— 语义向量检索（B5，Rust/LanceDB 侧；与词面记忆列表互补）——
+const vecStatus = ref<MemoryVecStatus | null>(null)
+const vecResults = ref<MemoryVecHit[]>([])
+const vecQuery = ref('')
+const vecBusy = ref(false)
+const vecMsg = ref('')
+
+async function loadVecStatus() {
+  try {
+    vecStatus.value = await memoryVecStatus()
+  } catch {
+    vecStatus.value = null
+  }
+}
+
+async function runVecSearch() {
+  const q = vecQuery.value.trim()
+  if (!q) {
+    vecMsg.value = '请输入检索词'
+    return
+  }
+  vecBusy.value = true
+  vecMsg.value = ''
+  vecResults.value = []
+  try {
+    vecResults.value = await memoryVecSearch(q, 8)
+    if (!vecResults.value.length) vecMsg.value = '向量库暂无命中（先写入记忆或重建索引）'
+  } catch (e) {
+    vecMsg.value = String(e)
+  }
+  vecBusy.value = false
+}
+
+async function reindexVec() {
+  vecBusy.value = true
+  vecMsg.value = ''
+  try {
+    const r = await memoryVecReindex()
+    vecMsg.value = `重建完成：索引 ${r.indexed} 条，跳过 ${r.skipped} 条${
+      r.errors.length ? `，错误 ${r.errors.length}` : ''
+    }`
+    await loadVecStatus()
+  } catch (e) {
+    vecMsg.value = String(e)
+  }
+  vecBusy.value = false
+}
 
 function rel(ts?: number) {
   if (!ts) return ''
@@ -67,7 +120,10 @@ async function submit() {
   }
 }
 
-onMounted(refresh)
+onMounted(() => {
+  refresh()
+  loadVecStatus()
+})
 </script>
 
 <template>
@@ -93,6 +149,51 @@ onMounted(refresh)
       </button>
       <span v-if="status" class="aops-status" :class="{ err: status.startsWith('请') }">{{ status }}</span>
     </div>
+
+    <section class="vec-panel">
+      <header class="vec-head">
+        <AppIcon name="sparkles" :size="15" />
+        <span>语义向量检索</span>
+        <span class="muted vec-sub">同义改写也能召回（bge-m3 · LanceDB）</span>
+      </header>
+
+      <div class="vec-bar">
+        <AppIcon name="search" :size="14" />
+        <!-- AUDIT-005：原生 input → UI Kit AppInput（v-model + enter 行为不变） -->
+        <AppInput
+          v-model="vecQuery"
+          class="vec-input"
+          placeholder="例如：连不上数据库怎么排查"
+          @keyup.enter="runVecSearch()"
+        />
+        <button class="btn" :disabled="vecBusy" @click="runVecSearch()">检索</button>
+        <button
+          class="tool-btn"
+          :disabled="vecBusy"
+          title="按当前记忆全量重建向量索引"
+          @click="reindexVec()"
+        >
+          <AppIcon name="refresh" :size="14" />
+        </button>
+      </div>
+
+      <div v-if="vecStatus" class="vec-meta">
+        <span class="badge">{{ vecStatus.rows }} 条向量</span>
+        <span class="muted">{{ vecStatus.embedding.model || '未配置' }} @ {{ vecStatus.embedding.baseUrl || '—' }}</span>
+        <span v-if="!vecStatus.exists" class="vec-warn">索引未建：写入记忆或点重建</span>
+      </div>
+
+      <ul v-if="vecResults.length" class="vec-list">
+        <li v-for="h in vecResults" :key="h.id" class="vec-card">
+          <span class="vec-score">{{ (h.score * 100).toFixed(0) }}%</span>
+          <span class="vec-text">{{ h.text }}</span>
+          <span v-if="h.tags" class="vec-tags">{{ h.tags }}</span>
+        </li>
+      </ul>
+      <p v-if="vecMsg" class="aops-status" :class="{ err: vecMsg.startsWith('请') || vecMsg.startsWith('需在') }">
+        {{ vecMsg }}
+      </p>
+    </section>
 
     <ul v-if="items.length" class="mem-list">
       <li v-for="(m, i) in items" :key="i" class="mem-card">

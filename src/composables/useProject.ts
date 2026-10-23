@@ -182,9 +182,6 @@ export function loadActiveProject() {
     })
 }
 
-/** 后端模板清单：项目模板 id 的唯一来源，前端不再维护第二份。 */
-export const loadTemplates = () => invoke<ProjectTemplate[]>('projects_templates')
-
 /**
  * 切活动项目：落库 + 刷新共享状态。
  *
@@ -322,8 +319,13 @@ export async function taskContextPreamble(sessionId = PI_SESSION_ID): Promise<st
     (c) => c.label || `${c.kind}:${c.id}`,
   )
   const refs = (ctx.task.references ?? []).map((r) => r.label).filter(Boolean)
+  // identity（治理五件套）：操作者身份注入前缀，模型知道服务对象与上下文归属。
+  const identity = await invoke<{ identity: { operator: string } }>('governance_get')
+    .then((g) => g.identity?.operator)
+    .catch(() => '')
   const lines = [
     `[项目] ${ctx.project.name}`,
+    identity ? `[操作者] ${identity}` : '',
     `[配置修订 #${ctx.config.number}]`,
     ctx.config.instruction.trim(),
   ]

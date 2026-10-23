@@ -16,11 +16,13 @@
   justify-content: center;
   overflow-x: hidden;
   overflow-y: auto;
-  background: linear-gradient(180deg, #eaf4fb 0%, #f6f9fb 58%, #f6f7f9 100%);
+  /* 默认（暗色，对齐 :root 暗色约定）渐变；浅色由 [data-theme='light'] 覆盖，
+     避免 data-theme 缺失时回到亮色渐变。 */
+  background: linear-gradient(180deg, #121a22 0%, #0d1014 58%, #090a0d 100%);
 }
 
-[data-theme='dark'] .chat-hero {
-  background: linear-gradient(180deg, #121a22 0%, #0d1014 58%, #090a0d 100%);
+[data-theme='light'] .chat-hero {
+  background: linear-gradient(180deg, #eaf4fb 0%, #f6f9fb 58%, #f6f7f9 100%);
 }
 
 .hero-bg,

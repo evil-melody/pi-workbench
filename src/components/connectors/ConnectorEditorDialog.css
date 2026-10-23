@@ -18,7 +18,7 @@
 
 .ce-label {
   font-size: 12px;
-  color: var(--fg-dim, #6b7280);
+  color: var(--fg-dim, var(--text-dim));
   display: flex;
   align-items: baseline;
   gap: 6px;
@@ -27,31 +27,31 @@
 .ce-set {
   font-style: normal;
   font-size: 11px;
-  color: #059669;
+  color: var(--ok);
 }
 
 .ce-hint {
   font-size: 11px;
-  color: var(--fg-dim, #6b7280);
+  color: var(--fg-dim, var(--text-dim));
 }
 
 .ce-hint code {
-  background: var(--bg-soft, #f3f4f6);
+  background: var(--bg-soft, var(--bg-hover));
   border-radius: 3px;
   padding: 0 3px;
 }
 
 .ce-err {
   font-size: 11px;
-  color: #dc2626;
+  color: var(--danger);
 }
 
 .ce-error {
   margin: 0;
   font-size: 12px;
-  color: #dc2626;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  color: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger);
   border-radius: 6px;
   padding: 6px 8px;
 }
@@ -61,22 +61,22 @@
   font-size: 13px;
   padding: 6px 14px;
   border-radius: 6px;
-  border: 1px solid var(--border, #e5e7eb);
-  background: var(--surface, #fff);
-  color: var(--fg, #111827);
+  border: 1px solid var(--border, var(--border));
+  background: var(--surface, var(--bg-elev));
+  color: var(--fg, var(--text));
   cursor: pointer;
 }
 
 .ce-btn:hover {
-  border-color: var(--fg-dim, #6b7280);
+  border-color: var(--fg-dim, var(--text-dim));
 }
 
 .ce-btn.primary {
-  background: #2563eb;
-  border-color: #2563eb;
-  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .ce-btn.primary:hover {
-  background: #1d4ed8;
+  filter: brightness(0.92);
 }

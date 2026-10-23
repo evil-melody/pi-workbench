@@ -8,9 +8,13 @@
  *   3. 由父组件拿 proof 去调 expert_publish，后端会重新比对摘要。
  *
  * 所以：关掉弹窗、内容改一个字、超过 5 分钟，proof 都会作废，发布必定失败。
+ *
+ * AUDIT-022：原第 4 种手搓弹层（pc-backdrop/pc-panel）收敛到 UI Kit AppModal，
+ * 焦点陷阱 / Esc 全局关闭 / 打开即聚焦由 AppModal 统一提供。
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppModal from '@/components/ui/AppModal.vue'
 import type { ConfirmationRequest } from '@/composables/useExperts'
 
 const props = defineProps<{
@@ -67,51 +71,47 @@ function shortDigest(digest: string) {
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="modal">
-      <div v-if="open" class="pc-backdrop" role="dialog" aria-modal="true" @click.self="emit('cancel')">
-        <div class="pc-panel">
-          <div class="pc-head">
-            <span class="pc-badge"><AppIcon name="lock" :size="14" /></span>
-            <div>
-              <h3>确认发布专家</h3>
-              <p class="pc-sub">发布会把这份人格写入 Pi 的角色文件，内核下一轮对话即生效。</p>
-            </div>
-          </div>
-
-          <dl class="pc-list">
-            <div><dt>专家</dt><dd>{{ expertName || '（未命名）' }}</dd></div>
-            <div>
-              <dt>内容摘要</dt>
-              <dd class="mono">{{ shortDigest(challenge?.definition_digest ?? '') }}</dd>
-            </div>
-            <div>
-              <dt>草稿修订</dt>
-              <dd class="mono">#{{ challenge?.draft_revision ?? '—' }}</dd>
-            </div>
-            <div>
-              <dt>授权有效期</dt>
-              <dd class="pc-expire" :class="{ urgent: remainMs > 0 && remainMs < 60_000 }">
-                {{ remainMs > 0 ? remainText : '已过期' }}
-              </dd>
-            </div>
-          </dl>
-
-          <p class="pc-note">
-            授权是一次性的：确认后如果回头改了任何内容，或超过有效期，发布都会被后端拒绝，
-            需要重新确认。
-          </p>
-
-          <div class="pc-actions">
-            <button class="pc-btn" :disabled="publishing" @click="emit('cancel')">取消</button>
-            <button class="pc-btn primary" :disabled="publishing || !challenge" @click="confirm">
-              {{ publishing ? '发布中…' : '我确认发布' }}
-            </button>
-          </div>
-        </div>
+  <AppModal :open="open" title="确认发布专家" size="md" @close="emit('cancel')">
+    <div class="pc-head">
+      <span class="pc-badge"><AppIcon name="lock" :size="14" /></span>
+      <div>
+        <h3>确认发布专家</h3>
+        <p class="pc-sub">发布会把这份人格写入 Pi 的角色文件，内核下一轮对话即生效。</p>
       </div>
-    </Transition>
-  </Teleport>
+    </div>
+
+    <dl class="pc-list">
+      <div><dt>专家</dt><dd>{{ expertName || '（未命名）' }}</dd></div>
+      <div>
+        <dt>内容摘要</dt>
+        <dd class="mono">{{ shortDigest(challenge?.definition_digest ?? '') }}</dd>
+      </div>
+      <div>
+        <dt>草稿修订</dt>
+        <dd class="mono">#{{ challenge?.draft_revision ?? '—' }}</dd>
+      </div>
+      <div>
+        <dt>授权有效期</dt>
+        <dd class="pc-expire" :class="{ urgent: remainMs > 0 && remainMs < 60_000 }">
+          {{ remainMs > 0 ? remainText : '已过期' }}
+        </dd>
+      </div>
+    </dl>
+
+    <p class="pc-note">
+      授权是一次性的：确认后如果回头改了任何内容，或超过有效期，发布都会被后端拒绝，
+      需要重新确认。
+    </p>
+
+    <template #footer>
+      <div class="pc-actions">
+        <button class="pc-btn" :disabled="publishing" @click="emit('cancel')">取消</button>
+        <button class="pc-btn primary" :disabled="publishing || !challenge" @click="confirm">
+          {{ publishing ? '发布中…' : '我确认发布' }}
+        </button>
+      </div>
+    </template>
+  </AppModal>
 </template>
 
 <style src="./PublishConfirmDialog.css" scoped></style>

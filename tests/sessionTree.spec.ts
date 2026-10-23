@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { flattenTree, summarize, type PiTreeNode } from '@/composables/useSessionTree'
+import {
+  canFork,
+  flattenTree,
+  forkTargetId,
+  summarize,
+  visibleNodes,
+  type FlatNode,
+  type PiTreeNode,
+} from '@/composables/useSessionTree'
 
 function msg(id: string, role: string, content: string, timestamp = '2026-09-26T10:00:00Z') {
   return {
@@ -76,5 +84,64 @@ describe('summarize', () => {
     expect(summarize({ id: 'z', type: 'whatever' })).toBe('whatever（z）')
     // 完全空的输入走「未知类型 + 空 id」的兜底分支，不能抛异常。
     expect(summarize(null)).toBe('unknown（）')
+  })
+})
+
+describe('visibleNodes（会话树噪音过滤）', () => {
+  function flat(overrides: Partial<FlatNode>): FlatNode {
+    return {
+      id: 'x',
+      depth: 0,
+      kind: 'message',
+      role: 'assistant',
+      text: '正文',
+      time: '',
+      isLeaf: false,
+      hasBranch: false,
+      ...overrides,
+    }
+  }
+
+  it('过滤内核自动重试写入的空 assistant 条目', () => {
+    const rows = [
+      flat({ id: 'u', role: 'user', text: '问题' }),
+      flat({ id: 'e1', text: '（assistant 无正文）' }),
+      flat({ id: 'a', text: '回答' }),
+    ]
+    expect(visibleNodes(rows).map((n) => n.id)).toEqual(['u', 'a'])
+  })
+
+  it('过滤 context_edit 条目', () => {
+    const rows = [
+      flat({ id: 'c', kind: 'context_edit', role: undefined }),
+      flat({ id: 'a' }),
+    ]
+    expect(visibleNodes(rows).map((n) => n.id)).toEqual(['a'])
+  })
+
+  it('空列表原样返回', () => {
+    expect(visibleNodes([])).toEqual([])
+  })
+})
+
+describe('canFork / forkTargetId（Pi fork 语义对齐）', () => {
+  it('只有 user message 条目可分叉（Pi fork position=before 的硬约束）', () => {
+    expect(canFork({ id: 'u', depth: 0, kind: 'message', role: 'user', text: '', time: '', isLeaf: false, hasBranch: false })).toBe(true)
+    expect(canFork({ id: 'a', depth: 0, kind: 'message', role: 'assistant', text: '', time: '', isLeaf: false, hasBranch: false })).toBe(false)
+    expect(canFork({ id: 'm', depth: 0, kind: 'model_change', role: undefined, text: '', time: '', isLeaf: false, hasBranch: false })).toBe(false)
+  })
+
+  it('forkTargetId 取最后一条 user message 的 id', () => {
+    const rows = [
+      { id: 'u1', depth: 0, kind: 'message', role: 'user', text: '1', time: '', isLeaf: false, hasBranch: false } as FlatNode,
+      { id: 'a1', depth: 0, kind: 'message', role: 'assistant', text: '2', time: '', isLeaf: false, hasBranch: false } as FlatNode,
+      { id: 'u2', depth: 0, kind: 'message', role: 'user', text: '3', time: '', isLeaf: false, hasBranch: false } as FlatNode,
+      { id: 'a2', depth: 0, kind: 'message', role: 'assistant', text: '（assistant 无正文）', time: '', isLeaf: false, hasBranch: false } as FlatNode,
+    ]
+    expect(forkTargetId(rows)).toBe('u2')
+  })
+
+  it('没有 user message 时返回 null（分叉按钮禁用）', () => {
+    expect(forkTargetId([])).toBeNull()
   })
 })

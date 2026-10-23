@@ -194,21 +194,32 @@ pub fn seed_defaults(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// 从候选源目录找一个扩展文件，复制到目标目录（仅当目标不存在时）。
+/// 从候选源目录找一个扩展文件，复制到目标目录（目标缺失时；或源更新时覆盖）。
+///
+/// 内核会自动加载目标目录（= agent 目录）下的全部扩展，`--extension` 无法覆盖它们
+/// （同名工具双注册会启动即崩），所以 dev 期对源码扩展的修改**只能靠这里的同步**
+/// 生效：目标存在但源文件 mtime 更新时覆盖写入。
 fn sync_default_file(sources: &[PathBuf], id: &str, target: &Path) -> Result<(), String> {
     let dest = target.join(id);
-    if dest.exists() {
-        return Ok(());
-    }
     for src in sources {
         let candidate = src.join(id);
-        if candidate.exists() {
-            if let Some(parent) = dest.parent() {
-                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-            }
-            fs::copy(&candidate, &dest).map_err(|e| format!("复制默认扩展 {} 失败: {}", id, e))?;
-            return Ok(());
+        if !candidate.exists() {
+            continue;
         }
+        if dest.exists() {
+            let dest_time = fs::metadata(&dest).and_then(|m| m.modified()).ok();
+            let src_time = fs::metadata(&candidate).and_then(|m| m.modified()).ok();
+            // 目标不比源旧（含两者都取不到 mtime 的保守情形）：无需同步。
+            match (dest_time, src_time) {
+                (Some(d), Some(s)) if d >= s => return Ok(()),
+                _ => {}
+            }
+        }
+        if let Some(parent) = dest.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        fs::copy(&candidate, &dest).map_err(|e| format!("复制默认扩展 {} 失败: {}", id, e))?;
+        return Ok(());
     }
     Ok(())
 }
@@ -288,7 +299,7 @@ pub fn list(app: &AppHandle) -> Vec<ExtensionInfo> {
         .collect()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn extensions_list(app: AppHandle) -> Vec<ExtensionInfo> {
     list(&app)
 }
@@ -406,7 +417,7 @@ registerCommand("search", "find", {});
     }
 
     #[test]
-    fn sync_default_file_copies_only_when_missing() {
+    fn sync_default_file_copies_when_missing() {
         let tmp = std::env::temp_dir().join(format!("piwb-ext-sync-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         let src = tmp.join("src");
@@ -422,12 +433,63 @@ registerCommand("search", "find", {});
             "// test"
         );
 
-        // 源被改写后再次同步不应覆盖目标
+        // 源被改写（mtime 同秒内不保证更旧）→ 再同步按 mtime 判断；
+        // mtime 相同（d >= s）时保持目标不动，避免无谓重写。
+        // mtime 前移时才覆盖 —— 该路径由 sync_default_file_refreshes_stale_dest 覆盖。
         std::fs::write(src.join("role-inject.ts"), "// changed").unwrap();
         sync_default_file(&[src], "role-inject.ts", &dst).unwrap();
+        let dest_content = std::fs::read_to_string(dst.join("role-inject.ts")).unwrap();
+        assert!(
+            dest_content == "// test" || dest_content == "// changed",
+            "目标内容必须是两个已知版本之一，不应损坏"
+        );
+
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// 回归：内核自动加载 agent 目录扩展、`--extension` 不能覆盖同名工具，
+    /// 所以 dev 期源码扩展的修改只能靠 sync_default_file 的 mtime 刷新落进 agent 目录。
+    #[test]
+    fn sync_default_file_refreshes_stale_dest() {
+        let tmp = std::env::temp_dir().join(format!("pw-sync-refresh-{}", std::process::id()));
+        let src = tmp.join("src");
+        let dst = tmp.join("dst");
+        std::fs::create_dir_all(&src).ok();
+        std::fs::create_dir_all(&dst).ok();
+
+        std::fs::write(src.join("agent-memory.ts"), "// v1").unwrap();
+        let sources = vec![src.clone()];
+
+        // 首次：目标缺失 → 复制
+        sync_default_file(&sources, "agent-memory.ts", &dst).unwrap();
         assert_eq!(
-            std::fs::read_to_string(dst.join("role-inject.ts")).unwrap(),
-            "// test"
+            std::fs::read_to_string(dst.join("agent-memory.ts")).unwrap(),
+            "// v1"
+        );
+
+        // 源更新（内容变更 + mtime 前移）→ 再次同步必须覆盖，否则 dev 改动永远不生效
+        std::fs::write(src.join("agent-memory.ts"), "// v2").unwrap();
+        let future = std::time::SystemTime::now() + std::time::Duration::from_secs(60);
+        std::fs::File::options()
+            .write(true)
+            .open(src.join("agent-memory.ts"))
+            .unwrap()
+            .set_modified(future)
+            .unwrap();
+        sync_default_file(&sources, "agent-memory.ts", &dst).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(dst.join("agent-memory.ts")).unwrap(),
+            "// v2",
+            "源更新后目标必须被刷新"
+        );
+
+        // 目标比源新（不会被旧源回滚）
+        std::fs::write(src.join("agent-memory.ts"), "// v0").unwrap();
+        sync_default_file(&sources, "agent-memory.ts", &dst).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(dst.join("agent-memory.ts")).unwrap(),
+            "// v2",
+            "更旧源不得覆盖新目标"
         );
 
         std::fs::remove_dir_all(&tmp).ok();

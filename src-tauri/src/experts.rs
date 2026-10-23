@@ -511,7 +511,7 @@ pub struct ExpertPublication {
 
 // ── 命令 ──────────────────────────────────────────────────────
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn experts_list(app: AppHandle) -> Vec<ExpertSummary> {
     let dir = match experts_dir(&app) {
@@ -562,7 +562,7 @@ fn read_definition(path: &Path) -> Option<(ExpertDefinition, u32)> {
     Some((definition, revision))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn expert_draft_load(
     app: AppHandle,
@@ -585,7 +585,7 @@ fn stamp_ms(time: std::time::SystemTime) -> Option<u64> {
     time.duration_since(UNIX_EPOCH).ok().map(|d| d.as_millis() as u64)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn expert_draft_save(
     app: AppHandle,
@@ -658,7 +658,7 @@ pub fn expert_confirm(token: String) -> Result<ConfirmationProof, String> {
     confirmations().confirm(&token)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn expert_publish(
     app: AppHandle,

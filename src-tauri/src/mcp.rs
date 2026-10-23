@@ -191,7 +191,7 @@ pub fn spawn_and_register(
     Ok(tools)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn mcp_connect(
     name: String,
     command: String,
@@ -277,7 +277,7 @@ pub fn mcp_call(
     Ok(resp.get("result").cloned().unwrap_or(resp))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn mcp_disconnect(name: String, app: AppHandle, state: State<McpState>) -> Result<(), String> {
     disconnect_inner(&name, &state);
     save(&app, &state)?;

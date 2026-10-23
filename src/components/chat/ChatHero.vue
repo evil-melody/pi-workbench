@@ -157,7 +157,7 @@ function onKeydown(e: KeyboardEvent) {
             class="hero-input"
             :placeholder="
               cwd
-                ? '今天帮你做些什么？@ 添加上下文，/ 调用技能与指令'
+                ? '今天帮你做些什么？'
                 : '直接描述你的任务 —— 发送时会先让你选一个工作目录'
             "
             :rows="2"

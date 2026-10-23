@@ -45,7 +45,7 @@ pub fn resolve(root: &str, target: &str) -> Result<PathBuf, String> {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn fs_read_dir(path: String, root: String) -> Result<Vec<FileNode>, String> {
     let dir = resolve(&root, &path)?;
     let mut nodes = Vec::new();
@@ -66,16 +66,37 @@ pub fn fs_read_dir(path: String, root: String) -> Result<Vec<FileNode>, String> 
     Ok(nodes)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn fs_read_file(path: String, root: String) -> Result<String, String> {
     let f = resolve(&root, &path)?;
     fs::read_to_string(&f).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn fs_write_file(path: String, content: String, root: String) -> Result<(), String> {
     let f = resolve(&root, &path)?;
     fs::write(&f, content).map_err(|e| e.to_string())
+}
+
+/// 在系统文件管理器里定位任意路径（运行记录「打开文件夹」对位）。
+///
+/// 与 `projects::project_reveal` 的分工：那一个按项目 id 找**绑定目录**，
+/// 带项目边界约束；这一个是用户对某条运行记录显式点「打开文件夹」，
+/// 目标是该段自己的工作目录，不该再被项目根边界拦一道——只校验存在性。
+/// `app` 由 Tauri 自动注入（opener 插件 API 需要 AppHandle），
+/// 前端调用形状与无参版一致。
+///
+/// **必须 async**：reveal 会拉起系统文件管理器（Finder/Explorer），
+/// 收编进 `pi_bridge` 的 IO_WATCHED 名单。
+#[tauri::command(async)]
+pub fn reveal_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    if !std::path::Path::new(&path).exists() {
+        return Err(format!("路径不存在：{path}"));
+    }
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .reveal_item_in_dir(&path)
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

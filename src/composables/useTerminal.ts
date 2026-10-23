@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { ref } from 'vue'
+import { getCurrentScope, onScopeDispose, ref } from 'vue'
 
 export function useTerminal(getCwd: () => string) {
   const lines = ref<{ stream: string; line: string }[]>([])
@@ -30,6 +30,18 @@ export function useTerminal(getCwd: () => string) {
 
   function clear() {
     lines.value = []
+  }
+
+  // AUDIT-003：term://output 与 term://done 两个监听必须随作用域成对退订，
+  // 否则面板卸载后仍往已废弃的 lines ref 推数据（监听泄漏）。
+  // 只在组件/作用域内注册清理；裸调用（如单测）不注册，避免 Vue 告警。
+  if (getCurrentScope()) {
+    onScopeDispose(() => {
+      unOut?.()
+      unOut = null
+      unDone?.()
+      unDone = null
+    })
   }
 
   return { lines, running, ensure, exec, clear }

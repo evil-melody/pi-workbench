@@ -6,6 +6,7 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppInput from '@/components/ui/AppInput.vue'
 import RuntimeNote from '@/components/runtime/RuntimeNote.vue'
 import { agentBrowserStatus, agentBrowserOpen, type BrowserStatus } from '@/composables/useAgentOps'
 
@@ -74,7 +75,8 @@ onMounted(refresh)
     <div class="aops-toolbar">
       <div class="url-box">
         <AppIcon name="external" :size="14" />
-        <input v-model="url" class="url-input" placeholder="https://example.com" @keyup.enter="open()" />
+        <!-- AUDIT-004：原生 input → UI Kit AppInput（v-model + enter 行为不变） -->
+        <AppInput v-model="url" class="url-input" placeholder="https://example.com" @keyup.enter="open()" />
       </div>
       <button class="btn primary" :disabled="busy" @click="open()">
         <AppIcon name="monitor" :size="14" /> 打开

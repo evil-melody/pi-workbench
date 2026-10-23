@@ -1,40 +1,12 @@
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px;
-  background: rgba(0, 0, 0, 0.55);
-}
+/* AUDIT-012①：overlay/dialog/header/title/close 已随手搓弹层一起删除，
+   外壳由 AppModal 提供（含焦点陷阱与 Esc 全局关闭），这里只留面板内内容样式。 */
 
-.dialog {
-  display: flex;
-  width: min(960px, 100%);
-  max-height: 100%;
-  overflow: hidden;
-  flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-panel);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
-}
-
-.dialog header {
+/* 面板顶行：文件路径 + 外部打开入口。 */
+.ap-bar {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.title {
-  overflow: hidden;
-  font-size: 13px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin-bottom: 10px;
 }
 
 .path {
@@ -81,28 +53,8 @@
   font-weight: 600;
 }
 
-.close {
-  flex: none;
-  padding: 2px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-dim);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.close:hover {
-  border-color: var(--danger);
-  color: var(--danger);
-}
-
 .stage {
-  position: relative;
-  overflow: auto;
   min-height: 220px;
-  flex: 1;
-  padding: 12px;
 }
 
 .state {

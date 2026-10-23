@@ -168,9 +168,9 @@
 }
 
 .pw-ok {
-  border: 1px solid var(--success, #30a46c);
-  background: color-mix(in srgb, var(--success, #30a46c) 10%, transparent);
-  color: var(--success, #30a46c);
+  border: 1px solid var(--ok, #30a46c);
+  background: color-mix(in srgb, var(--ok, #30a46c) 10%, transparent);
+  color: var(--ok, #30a46c);
 }
 
 .pw-tabs {
@@ -301,13 +301,15 @@
 .pw-bar i {
   display: block;
   height: 100%;
+  /* AUDIT-016②：宽度由模板经 --budget-w 传入（功能性动态值，豁免铁律）。 */
+  width: var(--budget-w, 0%);
   border-radius: 3px;
   background: var(--accent);
   transition: width 0.2s ease;
 }
 
 .pw-budget.warn .pw-bar i {
-  background: var(--warning, #f5a524);
+  background: var(--warn, #f5a524);
 }
 
 .pw-budget.over .pw-bar i {

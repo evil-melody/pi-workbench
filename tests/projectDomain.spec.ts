@@ -56,13 +56,26 @@ describe('taskContextPreamble · 会话上下文注入', () => {
   })
 
   it('带上项目名、修订号、指令与本次引用的能力', async () => {
-    vi.mocked(invoke).mockResolvedValueOnce(ctx())
+    vi.mocked(invoke)
+      .mockResolvedValueOnce(ctx())
+      .mockResolvedValueOnce({ identity: { operator: 'tatsuma' } })
     const out = await taskContextPreamble(PI_SESSION_ID)
     expect(out).toContain('[项目] 登录页重构')
+    expect(out).toContain('[操作者] tatsuma')
     expect(out).toContain('[配置修订 #2]')
     expect(out).toContain('按团队规范输出')
     expect(out).toContain('[本次可用能力] PDF')
     expect(out).toContain('[本次引用] 登录页')
+  })
+
+  it('identity 拉取失败时不注入操作者行，其余前缀不受影响', async () => {
+    vi.mocked(invoke)
+      .mockResolvedValueOnce(ctx())
+      .mockRejectedValueOnce(new Error('governance down'))
+    const out = await taskContextPreamble(PI_SESSION_ID)
+    expect(out).not.toContain('[操作者]')
+    expect(out).toContain('[项目] 登录页重构')
+    expect(out).toContain('[配置修订 #2]')
   })
 
   it('内核不可用时静默降级，不阻断会话', async () => {

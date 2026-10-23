@@ -20,7 +20,7 @@ fn open_default(url: &str) {
     let _ = std::process::Command::new(program).args(args).status();
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn browser_open(_app: AppHandle, url: String) -> Result<String, String> {
     let normalized = normalize_url(&url)?;
     open_default(&normalized);

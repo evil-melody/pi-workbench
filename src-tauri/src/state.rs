@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::process::Child;
 use std::sync::mpsc::Sender;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -24,6 +25,9 @@ pub struct PiState {
     pub launch_sig: Mutex<Option<String>>,
     /// 当前子进程的工作目录。pi_restart 需要用它原地重启（换模型/换工具白名单后）。
     pub launch_cwd: Mutex<Option<String>>,
+    /// 事件 journal 落盘路径：每条 pi://event 追加写入该 jsonl，供审计/回放（B2）。
+    /// 未启动时为 None；每次 pi_start 重新指向 <app_config_dir>/.pi/journal/events.jsonl。
+    pub journal_path: Mutex<Option<PathBuf>>,
 }
 
 #[derive(Default)]

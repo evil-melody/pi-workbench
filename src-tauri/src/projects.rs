@@ -967,7 +967,7 @@ pub fn project_get(id: String, state: State<ProjectsState>) -> Result<ProjectSna
     with_store(&state, |store| snapshot_of(store, &id))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn project_add(
     app: AppHandle,
@@ -984,7 +984,7 @@ pub fn project_add(
     Ok(with_store(&state, |store| snapshot_of(store, &project.id))?)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn project_update_config(
     app: AppHandle,
@@ -1009,7 +1009,7 @@ pub fn project_update_config(
     Ok(with_store(&state, |store| snapshot_of(store, &id))?)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn project_add_work_item(
     app: AppHandle,
@@ -1022,7 +1022,7 @@ pub fn project_add_work_item(
     Ok(with_store(&state, |store| snapshot_of(store, &id))?)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn project_update_work_item(
     app: AppHandle,
@@ -1036,7 +1036,7 @@ pub fn project_update_work_item(
     Ok(with_store(&state, |store| snapshot_of(store, &id))?)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn project_remove_work_item(
     app: AppHandle,
@@ -1049,7 +1049,7 @@ pub fn project_remove_work_item(
     Ok(with_store(&state, |store| snapshot_of(store, &id))?)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn project_add_asset(
     app: AppHandle,
@@ -1062,7 +1062,7 @@ pub fn project_add_asset(
     Ok(with_store(&state, |store| snapshot_of(store, &id))?)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn project_remove_asset(
     app: AppHandle,
@@ -1075,7 +1075,7 @@ pub fn project_remove_asset(
     Ok(with_store(&state, |store| snapshot_of(store, &id))?)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn project_link_task(
     app: AppHandle,
@@ -1114,7 +1114,7 @@ pub fn project_task_context(
     with_store(&state, |store| task_context(store, &sessionId))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn project_remove(
     app: AppHandle,
@@ -1126,12 +1126,16 @@ pub fn project_remove(
         if store.projects.remove(&id).is_none() {
             return Err("projects/not-found".to_string());
         }
+        // 移除的若是活动项目，一并清掉活动指针，避免前端拿到悬空 id。
+        if state.active.lock().unwrap().as_deref() == Some(id.as_str()) {
+            *state.active.lock().unwrap() = None;
+        }
     }
     persist(&app, &state)?;
     Ok(projects_list(state))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn project_set_path(
     app: AppHandle,
@@ -1179,7 +1183,7 @@ pub fn project_active(state: State<ProjectsState>) -> Option<String> {
     state.active.lock().unwrap().clone()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn project_archive(
     app: AppHandle,
@@ -1199,7 +1203,49 @@ pub fn project_archive(
     Ok(projects_list(state))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
+#[allow(non_snake_case)]
+pub fn project_rename(
+    app: AppHandle,
+    id: String,
+    name: String,
+    state: State<ProjectsState>,
+) -> Result<ProjectSnapshot, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("projects/empty-name".to_string());
+    }
+    {
+        let mut store = state.store.lock().unwrap();
+        require_project(&store, &id)?;
+        if let Some(p) = store.projects.get_mut(&id) {
+            p.name = name.clone();
+            p.updated_at = Some(now_ms());
+            record_activity(&mut store, &id, "project", &format!("重命名项目为「{name}」"));
+        }
+    }
+    persist(&app, &state)?;
+    with_store(&state, |store| snapshot_of(store, &id))
+}
+
+/// 在系统文件管理器里显示项目绑定的目录（WorkBuddy「打开文件夹」同款）。
+#[tauri::command(async)]
+#[allow(non_snake_case)]
+pub fn project_reveal(app: AppHandle, id: String, state: State<ProjectsState>) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let path = {
+        let store = state.store.lock().unwrap();
+        require_project(&store, &id)?.path.clone()
+    };
+    let Some(path) = path.filter(|p| std::path::Path::new(p).exists()) else {
+        return Err("projects/no-path".to_string());
+    };
+    app.opener()
+        .reveal_item_in_dir(&path)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn project_unarchive(
     app: AppHandle,
@@ -1250,7 +1296,7 @@ fn read_billing_config(app: &AppHandle) -> Option<BillingConfig> {
 ///
 /// Pi 暂无统一计费接口：若用户在 `app_config_dir/billing.json` 提供数据则按真实值展示，
 /// 否则返回占位值并置 `demo = true`。
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn billing_status(app: AppHandle) -> BillingStatus {
     if let Some(cfg) = read_billing_config(&app) {

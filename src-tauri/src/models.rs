@@ -99,7 +99,7 @@ fn settings_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
         .map(|d| d.join(SETTINGS_FILE))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn settings_load(app: AppHandle) -> AppSettings {
     let path = match settings_path(&app) {
         Ok(p) => p,
@@ -140,7 +140,7 @@ pub fn settings_load(app: AppHandle) -> AppSettings {
     AppSettings::default()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn settings_save(app: AppHandle, settings: AppSettings) -> Result<(), String> {
     let path = settings_path(&app)?;
     if let Some(parent) = path.parent() {

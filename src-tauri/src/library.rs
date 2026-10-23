@@ -809,7 +809,7 @@ pub fn library_stats(state: State<LibraryState>) -> LibraryStats {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn library_tree(app: AppHandle, state: State<LibraryState>, dir: Option<String>) -> Vec<LibraryNode> {
     let rel = match dir {
@@ -870,7 +870,7 @@ pub fn library_tree(app: AppHandle, state: State<LibraryState>, dir: Option<Stri
     nodes
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn library_read(
     app: AppHandle,
@@ -905,7 +905,7 @@ pub fn library_read(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn library_write(
     app: AppHandle,
@@ -919,7 +919,7 @@ pub fn library_write(
     Ok(LibraryAssetView::of(&next))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn library_create(
     app: AppHandle,
@@ -972,7 +972,7 @@ pub fn library_create(
     Ok(LibraryAssetView::of(&asset))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn library_import(
     app: AppHandle,
@@ -1031,7 +1031,7 @@ pub fn library_import(
     Ok(LibraryAssetView::of(&asset))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn library_rename(
     app: AppHandle,
@@ -1069,7 +1069,7 @@ pub fn library_rename(
     Ok(LibraryAssetView::of(&next))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn library_move(
     app: AppHandle,
@@ -1105,7 +1105,7 @@ pub fn library_move(
     Ok(LibraryAssetView::of(&next))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn library_remove(app: AppHandle, state: State<LibraryState>, id: String) -> Result<(), String> {
     let mut store = state.store.lock().unwrap();
@@ -1125,7 +1125,7 @@ pub fn library_remove(app: AppHandle, state: State<LibraryState>, id: String) ->
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn library_set_enabled(
     app: AppHandle,
@@ -1151,7 +1151,7 @@ pub fn library_set_enabled(
 }
 
 /// 草稿发布：草稿转正式，revision +1，索引重算，进入检索。
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn library_publish(
     app: AppHandle,
@@ -1192,26 +1192,6 @@ pub fn library_publish(
 
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn library_reindex(
-    app: AppHandle,
-    state: State<LibraryState>,
-    id: String,
-) -> Result<LibraryAssetView, String> {
-    let mut store = state.store.lock().unwrap();
-    let Some(asset) = find(&store, &id) else {
-        return Err("library/not-found".to_string());
-    };
-    let mut next = asset;
-    reindex(&app, &mut next);
-    if let Some(slot) = find_mut(&mut store, &id) {
-        *slot = next.clone();
-    }
-    save_store(&app, &store)?;
-    Ok(LibraryAssetView::of(&next))
-}
-
-#[tauri::command]
-#[allow(non_snake_case)]
 pub fn library_revisions(state: State<LibraryState>, id: String) -> Vec<LibraryRevision> {
     let store = state.store.lock().unwrap();
     let mut out: Vec<LibraryRevision> = store
@@ -1225,7 +1205,7 @@ pub fn library_revisions(state: State<LibraryState>, id: String) -> Vec<LibraryR
 }
 
 /// 回滚：把某一版快照写回正文，并留下一条来源标记。
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn library_rollback(
     app: AppHandle,
@@ -1256,7 +1236,7 @@ pub fn library_rollback(
     Ok(LibraryAssetView::of(&next))
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn library_search(app: AppHandle, state: State<LibraryState>, query: String) -> Vec<LibraryHit> {
     let needle = query.trim().to_lowercase();
@@ -1349,7 +1329,7 @@ pub fn library_search(app: AppHandle, state: State<LibraryState>, query: String)
     hits
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn library_open(app: AppHandle, state: State<LibraryState>, id: String) -> Result<(), String> {
     let store = state.store.lock().unwrap();

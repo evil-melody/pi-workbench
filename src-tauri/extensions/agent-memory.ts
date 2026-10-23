@@ -6,7 +6,8 @@
  * `<base>/.pi/memory/memory.jsonl`，与 Rust `agent_memory_list` 共用同一份磁盘状态，
  * agent 面与人面一致。
  *
- * 召回首轮为关键词/全文匹配（非语义向量），语义 RAG 列入 docs/AGENT-OPS.md §B 期。
+ * 召回为多信号词面评分（中文 bigram + 标签加权 + 覆盖率归一 + 时效微加分），
+ * 非语义向量；语义 RAG 列入 docs/AGENT-OPS.md §B 期。
  */
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
@@ -40,17 +41,48 @@ function loadAll(): MemEntry[] {
     .filter((x): x is MemEntry => x !== null)
 }
 
-/** 关键词命中打分：查询词逐个出现即加分，重叠越多分越高。 */
-function scoreOf(q: string, e: MemEntry): number {
-  const hay = `${e.text} ${(e.tags ?? []).join(' ')}`.toLowerCase()
-  const terms = q
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
+/**
+ * 查询切词：拉丁词按空白/标点切；CJK 无空格，用 bigram 粒度
+ * （「知识库检索」→ 知识/识库/检索）。bigram 是词面召回里性价比最高的
+ * 中文近似——unigram 噪声太大，真分词器引外部依赖，不合本仓约束。
+ */
+export function queryTerms(q: string): string[] {
+  const terms: string[] = []
+  for (const w of q.toLowerCase().split(/[\s,，。;；!！?？'"()（）\[\]{}]+/)) {
+    if (!w) continue
+    if (/[\u3000-\u9fff\u3040-\u30ff\uac00-\ud7af]/.test(w)) {
+      if (w.length === 1) terms.push(w)
+      else for (let i = 0; i < w.length - 1; i++) terms.push(w.slice(i, i + 2))
+    } else {
+      terms.push(w)
+    }
+  }
+  return [...new Set(terms)]
+}
+
+/**
+ * 多信号评分（B5 短期召回，词面而非语义向量）：
+ * ① 命中信号：查询词在 text/tags 中的出现（tags 命中 ×2——显式标签更可信）；
+ * ② 词长权重：越长的词信息量越大（bigram=2、拉丁长词按长度），抑制短词噪声；
+ * ③ 覆盖率归一：按命中词数/总词数，避免「一条短记忆靠一个词撞分」；
+ * ④ 时效微加分：近期条目 +最多 0.2（7 天半衰期指数衰减），只做 tie-break 不主导。
+ */
+export function scoreOf(q: string, e: MemEntry, now = Date.now()): number {
+  const text = e.text.toLowerCase()
+  const tags = (e.tags ?? []).join(' ').toLowerCase()
+  const terms = queryTerms(q)
   if (!terms.length) return 0
-  let s = 0
-  for (const t of terms) if (hay.includes(t)) s += 1
-  return s
+  let hit = 0
+  for (const t of terms) {
+    const w = Math.min(t.length, 4) // bigram=2、拉丁词按长度，封顶 4 防长词独裁
+    if (text.includes(t)) hit += w
+    if (tags.includes(t)) hit += w * 2
+  }
+  if (hit === 0) return 0
+  const coverage = terms.length ? hit / (terms.length * 4 * 3) : 0
+  const ageDays = Math.max(0, (now - (e.ts ?? 0)) / 86_400_000)
+  const recency = 0.2 * Math.pow(0.5, ageDays / 7)
+  return coverage + recency
 }
 
 export default function (pi: any) {
@@ -89,7 +121,8 @@ export default function (pi: any) {
   pi.registerTool({
     name: 'memory_recall',
     label: '记忆召回',
-    description: '按关键词全文检索分层记忆，返回最相关的若干条',
+    description:
+      '按多信号评分（词面命中 + 标签加权 + 覆盖率 + 时效）检索分层记忆，返回最相关的若干条。中文按 bigram 切词；语义向量召回属后续演进',
     parameters: {
       type: 'object',
       properties: {

@@ -215,6 +215,8 @@ watch(
     </button>
 
     <Teleport to="body">
+      <!-- AUDIT-021：menuStyle 是 Teleport 菜单的视口定位（功能性动态值，非纯样式），
+           按铁律豁免条款保留内联，并在此注明。 -->
       <div v-if="open" ref="menu" class="ws-menu" :style="menuStyle" role="listbox">
         <p class="ws-menu-title">工作目录</p>
 

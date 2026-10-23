@@ -1,0 +1,53 @@
+/* 批量操作栏：列表底部的一条工具带，只随主题变量走。 */
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-panel);
+}
+
+.bulk-all {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.bulk-count {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.bulk-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.bulk-btn:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.bulk-btn.danger {
+  color: var(--danger);
+  border-color: var(--danger-soft);
+}
+
+.bulk-btn.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}

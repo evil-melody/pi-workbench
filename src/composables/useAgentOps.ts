@@ -46,6 +46,26 @@ export interface SkillPoolEntry {
   description: string
 }
 
+export interface MemoryVecHit {
+  id: string
+  text: string
+  tags: string
+  distance: number
+  score: number
+}
+export interface MemoryVecStatus {
+  table: string
+  exists: boolean
+  rows: number
+  embedding: { baseUrl: string; model: string }
+  agentToolNote: string
+}
+export interface MemoryVecReindexResult {
+  indexed: number
+  skipped: number
+  errors: string[]
+}
+
 export interface BrowserStatus {
   active: boolean
   url?: string
@@ -68,5 +88,20 @@ export const agentMemoryStore = (text: string, tags: string[]) =>
   write<MemoryEntry>('agent_memory_store', { text, tags })
 export const agentSkillPublish = (name: string, description: string, body: string) =>
   write<SkillPoolEntry>('agent_skill_publish', { name, description, body })
+
+// 记忆语义向量层（B5，Rust/LanceDB 侧；供外壳消费，agent 内 memory_recall 仍词面）。
+export const memoryVecStatus = () =>
+  read<MemoryVecStatus>('memory_vec_status', {
+    table: 'memory_vectors',
+    exists: false,
+    rows: 0,
+    embedding: { baseUrl: '', model: '' },
+    agentToolNote: '',
+  })
+export const memoryVecSearch = (query: string, topK?: number) =>
+  write<MemoryVecHit[]>('memory_vec_search', { query, top_k: topK })
+export const memoryVecReindex = () =>
+  write<MemoryVecReindexResult>('memory_vec_reindex', {})
+
 export const agentBrowserOpen = (url: string) =>
   write<BrowserStatus>('agent_browser_open', { url })

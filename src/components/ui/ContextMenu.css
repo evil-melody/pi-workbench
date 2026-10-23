@@ -1,0 +1,61 @@
+/*
+ * 公共「···」菜单（Teleport 到 body 使用）：WorkBuddy 同款对齐——
+ * 图标固定列宽、文字左对齐、危险项红色。RunHistory 与 Sidebar 共用，
+ * 菜单本体样式只此一份（零重复原则）。
+ */
+.ctx-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 168px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-elev);
+  box-shadow: var(--sh-2);
+}
+
+.ctx-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.ctx-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+/* 图标固定列宽：所有条目文字左缘对齐（WorkBuddy 菜单的对齐方式） */
+.ctx-menu-item > .app-icon {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  margin-right: 2px;
+  color: var(--text-dim);
+}
+
+.ctx-menu-item.danger,
+.ctx-menu-item.danger > .app-icon {
+  color: var(--danger);
+}
+
+.ctx-menu-item.danger:hover {
+  background: var(--danger-soft);
+}
+
+.ctx-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  border: 0;
+  background: var(--border-soft);
+}

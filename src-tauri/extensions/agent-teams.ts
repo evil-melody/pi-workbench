@@ -4,23 +4,35 @@
  * 协调器调度多名专家完成多步任务。本仓不引入外部平台的协调器实现，
  * 只把「创建团队 / 调度 / 状态」对象化为 Pi 工具：
  *   · team_create    定义团队（成员 + 协调策略）
- *   · team_dispatch  把任务分派给各成员：若本机有 `pi` 则隔离跑一轮成员产出，
- *                     否则返回结构化调度计划（不报错，等协调器/用户执行）
+ *   · team_dispatch  把任务分派给各成员：有 pi 时隔离跑成员产出，否则返回结构化计划
  *   · team_status    查看团队定义与历史调度日志
- * 状态落 `<base>/.pi/teams/<id>.json`（定义）与 `<id>.jsonl`（运行日志），
- * 与 Rust `agent_teams_list` 共用。
+ * 状态落 `<base>/.pi/teams/<id>.json`（定义）、`<id>.jsonl`（运行日志）、
+ * `<id>-blackboard.json`（团队黑板，成员间可见的产出沉淀），与 Rust `agent_teams_list` 共用。
  *
- * 边界（见 docs/AGENT-OPS.md §B）：真实 sub-agent 隔离与流式回填列入 B 期；
- * 本轮的 dispatch 是首轮骨架，依赖 `pi` 子进程且带超时保护，绝不让内核卡死。
+ * 对照 WORKDSH-ALIGN-26 的修复：
+ *   · A1 调度不再阻塞内核——成员子进程走异步 `spawn` + 超时回收，事件循环不卡死。
+ *   · A2 三种策略是真实分支：sequential 顺序、parallel 并发、debate 两轮互评收敛。
+ *   · A3 成员子进程带 cwd（项目目录，使角色/黑板可见）、provider/model/api-key
+ *       （读内核透传的 PI_LAUNCH_* 环境变量，避免用默认模型）、角色头与团队黑板。
  */
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, appendFileSync, writeFileSync } from 'node:fs'
-import { spawnSync } from 'node:child_process'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  appendFileSync,
+  writeFileSync,
+} from 'node:fs'
+import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
 
 type ToolResult = { content: string; details?: unknown; terminate?: boolean }
 type TeamDef = { id: string; name: string; members: string[]; strategy: string; created_at: number }
+type MemberResult = { member: string; ok: boolean; output: string }
+
+const MEMBER_TIMEOUT_MS = 90_000
 
 function piHome(): string {
   return process.env.PI_CODING_AGENT_DIR ?? process.cwd()
@@ -33,6 +45,9 @@ function defPath(id: string): string {
 }
 function logPath(id: string): string {
   return path.join(teamsDir(), `${id}.jsonl`)
+}
+function boardPath(id: string): string {
+  return path.join(teamsDir(), `${id}-blackboard.json`)
 }
 
 function readDef(id: string): TeamDef | null {
@@ -51,22 +66,204 @@ function listTeams(): TeamDef[] {
     .filter((d): d is TeamDef => d !== null)
 }
 
-/** 隔离跑一轮成员产出：仅当本机有 `pi` 时尝试，带超时保护，任何失败都回退到计划。 */
-function runMember(def: TeamDef, member: string, task: string): { ok: boolean; output: string } {
-  const prompt = `你是团队「${def.name}」的成员「${member}」。\n任务：${task}\n请给出你的产出（结论优先，附关键依据）。`
+/** 读取团队黑板：其他成员 / 上一轮已沉淀的产出，供当前成员参考或反驳。 */
+function readBoard(id: string): MemberResult[] {
   try {
-    const r = spawnSync('pi', ['--mode', 'chat'], {
-      input: prompt,
-      timeout: 90_000,
-      maxBuffer: 4 * 1024 * 1024,
-      encoding: 'utf8',
-    })
-    const out = (r.stdout ?? '').trim()
-    if (r.status === 0 && out) return { ok: true, output: out }
-    return { ok: false, output: `退出码 ${r.status}：${String(r.stderr ?? '').slice(0, 200)}` }
-  } catch (e: any) {
-    return { ok: false, output: String(e?.message ?? e) }
+    const arr = JSON.parse(readFileSync(boardPath(id), 'utf8'))
+    return Array.isArray(arr) ? (arr as MemberResult[]) : []
+  } catch {
+    return []
   }
+}
+
+/** 把当前黑板落盘：成员间共享，名字与 agent_ops 的 teams 目录同源。 */
+function writeBoard(id: string, board: MemberResult[]): void {
+  try {
+    mkdirSync(teamsDir(), { recursive: true })
+    writeFileSync(boardPath(id), JSON.stringify(board, null, 2), 'utf8')
+  } catch {
+    /* 黑板写入失败不阻断调度，仅丧失跨成员可见性 */
+  }
+}
+
+/** 本机是否有可用 pi（异步探测，不阻塞内核）。 */
+function hasPi(): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    let settled = false
+    let child
+    try {
+      child = spawn('pi', ['--version'], { stdio: 'ignore', timeout: 5000 })
+    } catch {
+      resolve(false)
+      return
+    }
+    const done = (ok: boolean) => {
+      if (settled) return
+      settled = true
+      resolve(ok)
+    }
+    const timer = setTimeout(() => {
+      try {
+        child.kill()
+      } catch {
+        /* ignore */
+      }
+      done(false)
+    }, 5000)
+    child.on('error', () => {
+      clearTimeout(timer)
+      done(false)
+    })
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      done(code === 0)
+    })
+  })
+}
+
+/**
+ * 异步跑一名成员：spawn 非阻塞，超时（MEMBER_TIMEOUT_MS）回收进程。
+ * 携带：项目 cwd、内核透传的 provider/model/api-key、角色头、团队黑板。
+ */
+function runMember(
+  def: TeamDef,
+  member: string,
+  task: string,
+  board: MemberResult[],
+): Promise<MemberResult> {
+  const provider = process.env.PI_LAUNCH_PROVIDER
+  const model = process.env.PI_LAUNCH_MODEL
+  const apiKey = process.env.PI_LAUNCH_API_KEY
+  const cwd = process.cwd()
+
+  const boardText = board.length
+    ? board.map((b) => `【${b.member}】${b.ok ? '' : '(未产出) '}${b.output}`).join('\n\n')
+    : ''
+  const roleLine = `你是团队「${def.name}」的成员「${member}」。（协调策略：${def.strategy}）`
+  const boardLine = boardText
+    ? `\n\n# 团队黑板（其他成员的产出，供你参考 / 反驳 / 补充）\n${boardText}`
+    : ''
+  const prompt = `${roleLine}\n任务：${task}${boardLine}\n请给出你的产出（结论优先，附关键依据）。`
+
+  return new Promise<MemberResult>((resolve) => {
+    const args = ['--mode', 'chat']
+    if (provider) args.push('--provider', provider)
+    if (model) args.push('--model', model)
+    if (apiKey && apiKey.trim()) args.push('--api-key', apiKey)
+
+    let child
+    try {
+      child = spawn('pi', args, { cwd, timeout: MEMBER_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 })
+    } catch (e: any) {
+      resolve({ member, ok: false, output: `spawn 失败：${String(e?.message ?? e)}` })
+      return
+    }
+
+    let out = ''
+    let err = ''
+    let settled = false
+    child.stdout?.on('data', (d: Buffer) => {
+      out += d.toString()
+    })
+    child.stderr?.on('data', (d: Buffer) => {
+      err += d.toString()
+    })
+
+    const finish = (result: MemberResult) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(result)
+    }
+    const timer = setTimeout(() => {
+      try {
+        child.kill('SIGKILL')
+      } catch {
+        /* ignore */
+      }
+      finish({ member, ok: false, output: `成员「${member}」超时（>${MEMBER_TIMEOUT_MS / 1000}s）被回收` })
+    }, MEMBER_TIMEOUT_MS)
+
+    child.on('error', (e) => {
+      finish({ member, ok: false, output: `成员「${member}」启动失败：${String(e?.message ?? e)}` })
+    })
+    child.on('close', (code) => {
+      const trimmed = out.trim()
+      if (code === 0 && trimmed) {
+        finish({ member, ok: true, output: trimmed })
+      } else {
+        finish({ member, ok: false, output: `退出码 ${code}：${err.slice(0, 200) || '无输出'}` })
+      }
+    })
+
+    try {
+      child.stdin?.write(prompt)
+      child.stdin?.end()
+    } catch {
+      /* stdin 写入失败由 close/error 兜底 */
+    }
+  })
+}
+
+/**
+ * 按策略真实调度成员：
+ *   sequential —— 顺序 await，逐步把黑板喂给后续成员；
+ *   parallel   —— Promise.all 并发（无跨成员依赖）；
+ *   debate     —— 两轮互评：第一轮独立产出，第二轮把第一轮黑板回灌做反驳/收敛。
+ */
+async function dispatch(
+  def: TeamDef,
+  task: string,
+  useReal: boolean,
+): Promise<{ results: MemberResult[]; lines: string[]; runId: string }> {
+  const runId = randomUUID().slice(0, 8)
+  const results: MemberResult[] = []
+  const lines: string[] = []
+  const appendLog = (entry: unknown) =>
+    appendFileSync(logPath(def.id), JSON.stringify(entry) + '\n', 'utf8')
+
+  if (!useReal) {
+    for (const m of def.members) {
+      results.push({ member: m, ok: false, output: '（计划）待执行：本机无 pi，由协调器/用户按提示运行' })
+      lines.push(`【${m}】（计划）任务：${task}`)
+    }
+    appendLog({ runId, note: 'plan-only', strategy: def.strategy, at: Date.now() })
+    return { results, lines, runId }
+  }
+
+  if (def.strategy === 'parallel') {
+    const settled = await Promise.all(def.members.map((m) => runMember(def, m, task, [])))
+    results.push(...settled)
+  } else if (def.strategy === 'debate') {
+    let board: MemberResult[] = []
+    for (let round = 1; round <= 2; round++) {
+      const roundRes = await Promise.all(def.members.map((m) => runMember(def, m, task, board)))
+      results.push(...roundRes)
+      board = [...board, ...roundRes]
+      writeBoard(def.id, board)
+      appendLog({
+        runId,
+        round,
+        members: roundRes.map((r) => ({ member: r.member, ok: r.ok })),
+        at: Date.now(),
+      })
+    }
+  } else {
+    let board: MemberResult[] = []
+    for (const m of def.members) {
+      const r = await runMember(def, m, task, board)
+      results.push(r)
+      board.push(r)
+      writeBoard(def.id, board)
+    }
+  }
+
+  for (const r of results) {
+    lines.push(`【${r.member}】${r.ok ? '' : '(未跑通) '}${r.output.slice(0, 600)}`)
+    appendLog({ runId, member: r.member, ok: r.ok, output: r.output, at: Date.now() })
+  }
+  appendLog({ runId, team: def.name, strategy: def.strategy, real: true, at: Date.now() })
+  return { results, lines, runId }
 }
 
 export default function (pi: any) {
@@ -114,7 +311,7 @@ export default function (pi: any) {
   pi.registerTool({
     name: 'team_dispatch',
     label: '调度团队任务',
-    description: '把任务分派给团队成员：有 pi 则隔离跑一轮成员产出，否则返回调度计划',
+    description: '把任务分派给团队成员：有 pi 则按策略真实跑成员产出，否则返回调度计划',
     parameters: {
       type: 'object',
       properties: {
@@ -137,40 +334,8 @@ export default function (pi: any) {
       }
       if (!task) return { content: 'task 不能为空', terminate: false }
 
-      const useReal = (() => {
-        try {
-          spawnSync('pi', ['--version'], { stdio: 'ignore', timeout: 5000 })
-          return true
-        } catch {
-          return false
-        }
-      })()
-
-      const runId = randomUUID().slice(0, 8)
-      const results: { member: string; ok: boolean; output: string }[] = []
-      const lines: string[] = []
-
-      if (useReal) {
-        for (const m of def.members) {
-          const r = runMember(def, m, task)
-          results.push({ member: m, ok: r.ok, output: r.output })
-          lines.push(`【${m}】${r.ok ? '' : '(未跑通) '}${r.output.slice(0, 600)}`)
-          appendFileSync(
-            logPath(id),
-            JSON.stringify({ runId, member: m, ok: r.ok, output: r.output, at: Date.now() }) + '\n',
-            'utf8',
-          )
-        }
-      } else {
-        // 无 pi：返回结构化调度计划，不报错。
-        for (const m of def.members) {
-          results.push({ member: m, ok: false, output: '（计划）待执行：本机无 pi，由协调器/用户按提示运行' })
-          lines.push(`【${m}】（计划）任务：${task}`)
-        }
-      }
-
-      const stamp = { runId, team: def.name, strategy: def.strategy, real: useReal, at: Date.now() }
-      appendFileSync(logPath(id), JSON.stringify(stamp) + '\n', 'utf8')
+      const useReal = await hasPi()
+      const { results, lines, runId } = await dispatch(def, task, useReal)
 
       const summary = useReal
         ? `已调度团队「${def.name}」（${def.strategy}），${results.length} 名成员产出见下。`

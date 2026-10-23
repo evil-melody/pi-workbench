@@ -71,7 +71,7 @@ watch(
       <SessionTree v-if="tab === 'tree'" :auto-refresh="tab === 'tree'" />
       <ActivityPanel v-else-if="tab === 'activity'" :state="state" :running="running" />
       <WorkflowPanel v-else-if="tab === 'workflow'" :state="state" :running="running" :messages="messages" />
-      <ConnectorPanel v-else :session-id="sessionId" />
+      <ConnectorPanel v-else-if="tab === 'connector'" :session-id="sessionId" />
     </div>
   </aside>
 </template>

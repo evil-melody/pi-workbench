@@ -1,8 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 
-export const mcpConnect = (name: string, command: string, args: string[]) =>
-  invoke<any>('mcp_connect', { name, command, args })
+// AUDIT-024：mcpConnect/mcpCall/mcpDisconnect 删除——ConnectorPanel 只用 mcpList，
+// 这三个导出与底层 IPC 层重复造轮子且零调用。
+
 export const mcpList = () => invoke<any[]>('mcp_list')
-export const mcpCall = (server: string, tool: string, argsJson: string) =>
-  invoke<any>('mcp_call', { server, tool, arguments: argsJson })
-export const mcpDisconnect = (name: string) => invoke('mcp_disconnect', { name })

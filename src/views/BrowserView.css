@@ -25,14 +25,22 @@
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-.url-input {
+/* AUDIT-004：原生 input 换成 AppInput 后，选择器提到 `.url-box .url-input`
+ * （0,3,0）压过 AppInput 自带 `.app-input`（0,2,0），保证框内无边框透明样式
+ * 稳定生效，不依赖 CSS 注入顺序。 */
+.url-box .url-input {
   flex: 1;
+  min-width: 0;
+  height: auto;
+  padding: 8px 0;
   border: none;
   background: transparent;
-  padding: 8px 0;
+  box-shadow: none;
+  font-size: 13px;
+  color: var(--text);
 }
 
-.url-input:focus {
+.url-box .url-input:focus {
   box-shadow: none;
 }
 

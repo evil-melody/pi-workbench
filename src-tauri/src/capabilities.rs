@@ -2,8 +2,11 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-/// 能力清单：声明「每个能力由谁提供」，是前端面板与内核之间的单一真源。
-/// 与 Tauri 自己的 `capabilities/` 权限体系是两回事，这里只描述产品能力。
+/// 能力清单（Pi manifest）：声明「每个能力由谁提供」，是前端面板与内核之间的单一真源。
+///
+/// AUDIT-026：本清单与 Tauri ACL 原是混写在一个 `capabilities.json` 里，现已拆分——
+/// Tauri 权限走 `capabilities/default.json`（Tauri 原生机制），本文件只描述产品能力，
+/// 并改名 `pi-manifest.json` 以免与 Tauri 的 capabilities 目录混淆。
 #[derive(Debug, Clone, Deserialize)]
 pub struct CapabilityManifest {
     pub version: u32,
@@ -53,12 +56,13 @@ impl CapabilityManifest {
     }
 
     /// 候选位置：打包资源目录 → 源码树（开发态）→ 当前目录。
+    /// AUDIT-026：文件名统一为 `pi-manifest.json`（与 Tauri ACL 拆分后）。
     pub fn candidates() -> Vec<PathBuf> {
         let mut out = Vec::new();
         if let Ok(d) = std::env::var("CARGO_MANIFEST_DIR") {
-            out.push(Path::new(&d).join("capabilities.json"));
+            out.push(Path::new(&d).join("pi-manifest.json"));
         }
-        out.push(Path::new("capabilities.json").to_path_buf());
+        out.push(Path::new("pi-manifest.json").to_path_buf());
         out
     }
 
@@ -94,7 +98,7 @@ mod tests {
     fn parses_minimal_manifest() {
         let dir = std::env::temp_dir().join("piwb-cap-min");
         std::fs::create_dir_all(&dir).ok();
-        let p = write(&dir, "capabilities.json", MINIMAL);
+        let p = write(&dir, "pi-manifest.json", MINIMAL);
         let m = CapabilityManifest::load(&p).expect("最小清单应可解析");
         assert_eq!(m.version, 1);
         assert_eq!(m.skills.dirs.len(), 2);
@@ -108,7 +112,7 @@ mod tests {
         let dir = std::env::temp_dir().join("piwb-cap-ver");
         std::fs::create_dir_all(&dir).ok();
         let bumped = MINIMAL.replace("\"version\": 1", "\"version\": 2");
-        let p = write(&dir, "capabilities.json", &bumped);
+        let p = write(&dir, "pi-manifest.json", &bumped);
         assert!(CapabilityManifest::load(&p).is_err());
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -121,7 +125,7 @@ mod tests {
             "\"dirs\": [\"<agent-dir>/skills\", \".pi/skills\"]",
             "\"dirs\": []",
         );
-        let p = write(&dir, "capabilities.json", &bad);
+        let p = write(&dir, "pi-manifest.json", &bad);
         let err = CapabilityManifest::load(&p).unwrap_err();
         assert!(err.contains("技能目录"), "空目录列表必须被拒绝，Got: {err}");
         std::fs::remove_dir_all(&dir).ok();
@@ -131,7 +135,7 @@ mod tests {
     fn rejects_malformed_json() {
         let dir = std::env::temp_dir().join("piwb-cap-bad");
         std::fs::create_dir_all(&dir).ok();
-        let p = write(&dir, "capabilities.json", "{ not json");
+        let p = write(&dir, "pi-manifest.json", "{ not json");
         assert!(CapabilityManifest::load(&p).is_err());
         std::fs::remove_dir_all(&dir).ok();
     }

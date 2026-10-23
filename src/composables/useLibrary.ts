@@ -5,7 +5,7 @@
  *   library_list / library_marks / library_stats / library_tree
  *   library_read / library_write / library_create / library_import
  *   library_rename / library_move / library_remove / library_set_enabled
- *   library_publish / library_reindex / library_revisions / library_rollback
+ *   library_publish / library_revisions / library_rollback
  *   library_search / library_open
  *
  * 界面上必须体现的四条语义（不是「记一下」，是真会报错的）：
@@ -184,9 +184,6 @@ export const librarySetEnabled = (id: string, enabled: boolean) =>
 
 export const libraryPublish = (id: string) =>
   invoke<LibraryAssetView>('library_publish', { id })
-
-export const libraryReindex = (id: string) =>
-  invoke<LibraryAssetView>('library_reindex', { id })
 
 export const libraryRevisions = (id: string) =>
   invoke<LibraryRevision[]>('library_revisions', { id })

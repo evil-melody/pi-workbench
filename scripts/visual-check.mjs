@@ -408,17 +408,83 @@ async function main() {
   page2.on('console', (m) => {
     if (m.type() === 'error') flowErrors.push(m.text())
   })
-  await page2.addInitScript(`
+  const PI_STUB_SCRIPT = `
 (() => {
   let cbId = 0
   const projects = [
     { id: 'p-flow-a', name: '产品需求全流程', path: null, archived: false, updated_at: 2 },
     { id: 'p-flow-b', name: 'pi-workbench', path: '/Users/tatsuma/Documents/GIT/pi-workbench', archived: false, updated_at: 1 },
   ]
-  window.__PI_STUB__ = { calls: [], bound: null }
+  window.__PI_STUB__ = { calls: [], rpcTypes: [], emitted: [], bound: null, replayMode: !!window.__PI_REPLAY_MODE__, scripted: !!window.__PI_SCRIPTED__, slow: !!window.__PI_SLOW__, listeners: {}, lastSent: '', q: { steering: [], followUp: [] }, active: (window.__PI_REPLAY_ACTIVE__ || window.__PI_SCRIPTED__) ? 'p-flow-b' : null }
+  // 字段完整性自检（AUDIT-001 回归）：漏字段立刻抛明确错误，
+  // 而不是等 emitPi 用到时才静默崩在半路（Cannot read properties of undefined）。
+  ;(() => {
+    const required = ['calls', 'rpcTypes', 'emitted', 'listeners', 'q']
+    for (const k of required) {
+      if (!(k in window.__PI_STUB__)) {
+        throw new Error('__PI_STUB__ 初始化缺字段 "' + k + '"：stub 契约被破坏，请补上再跑')
+      }
+    }
+  })()
   // 事件插件退订时要回调这个内部对象；不打桩会在「离开对话页」时抛
   // unregisterListener of undefined —— 又是空桩自己造出来的假崩溃。
   window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {}, registerListener() {} }
+  // 非 scripted 页（page2 主流程）不会自动收尾——真实内核每条 prompt 必发
+  // agent_settled，这里给测试一个手动收尾入口，避免 streaming 卡死掩盖后续路径。
+  window.__PI_STUB__.emitSettled = function () {
+    emitPi({ type: 'agent_settled' })
+  }
+  // G5 桩内事件发射：listen 的 handler 经 transformCallback 注册在 window['_'+id]，
+  // 反向调用即「内核推了一条 pi://event」。scripted 流程的 assistant 回复靠它。
+  function emitPi(rec) {
+    const ids = window.__PI_STUB__.listeners['pi://event'] || []
+    window.__PI_STUB__.emitted.push(rec.type)
+    for (const id of ids) {
+      const fn = window['_' + id]
+      if (fn) fn({ event: 'pi://event', payload: rec, id: 0 })
+    }
+  }
+  // scripted 回复：带计划指令前缀 → 编号分步计划；执行 prompt → 执行汇报；其他 → 普通回复。
+  // 只发一条 message_update（增量语义下的完整文本），避开 60ms 节流丢中间 delta。
+  // 时序必须模仿真实内核：message_end / agent_settled 要等节流把 text_delta 落下去之后再发，
+  // 否则 usage 挂不到消息、agent_settled 也收不了 streaming（实测：同步全发会卡在「执行中」）。
+  // slow 模式（G6 队列用）：首轮 1.4s 才 settled，留出 streaming 窗口发第二条。
+  function replyScripted(body) {
+    const text = String(body).includes('[计划模式]')
+      ? '好的，先出计划不动手。计划如下：\\n1. 定位索引死锁根因（持锁调 save 重入）\\n2. 改成锁外调用并补回归测试\\n3. 跑全量测试确认无回归'
+      : String(body).includes('计划已确认')
+        ? '已按批准的计划执行：修改完成，测试通过。'
+        : '收到，已处理。'
+    const usage = { input: 120, output: 42, cacheRead: 0, cacheWrite: 0, totalTokens: 162, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }
+    setTimeout(() => {
+      emitPi({ type: 'message_start', message: { role: 'assistant', content: [] } })
+      emitPi({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: text }, usage })
+    }, 120)
+    setTimeout(() => {
+      emitPi({ type: 'message_end', message: { role: 'assistant', content: [], usage } })
+      emitPi({ type: 'agent_settled' })
+      deliverQueue()
+    }, window.__PI_STUB__.slow ? 4000 : 320)
+  }
+  // 队列消费（模仿内核语义：steer 优先于 followUp——插话在下次 LLM 调用前注入，
+  // followUp 在本轮完全结束后才交付）。每条交付都回推 queue_update + user 消息 + 简短回复。
+  function deliverQueue() {
+    const q = window.__PI_STUB__.q
+    const next = q.steering.length ? q.steering.shift() : q.followUp.length ? q.followUp.shift() : null
+    emitPi({ type: 'queue_update', steering: q.steering, followUp: q.followUp })
+    if (next == null) return
+    setTimeout(() => {
+      const usage = { input: 80, output: 20, cacheRead: 0, cacheWrite: 0, totalTokens: 100, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }
+      emitPi({ type: 'message_end', message: { role: 'user', content: [{ type: 'text', text: next }] } })
+      emitPi({ type: 'message_start', message: { role: 'assistant', content: [] } })
+      emitPi({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: '已处理：' + next }, usage })
+      setTimeout(() => {
+        emitPi({ type: 'message_end', message: { role: 'assistant', content: [], usage } })
+        emitPi({ type: 'agent_settled' })
+        deliverQueue()
+      }, 250)
+    }, 60)
+  }
   window.__TAURI_INTERNALS__ = {
     transformCallback(cb, once) {
       const id = ++cbId
@@ -429,6 +495,13 @@ async function main() {
     metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },
     invoke(cmd, args) {
       window.__PI_STUB__.calls.push(cmd)
+      // pi_call 是 RPC 统一入口：把行内 type 也记下来，断言才能说清
+      // 「follow_up / steer 被调用了」（calls 里只有 pi_call 这个壳）。
+      if (cmd === 'pi_call') {
+        try {
+          window.__PI_STUB__.rpcTypes.push(JSON.parse(args.json).type)
+        } catch {}
+      }
       const r = (v) => Promise.resolve(v)
       if (cmd === 'projects_list') return r(projects)
       if (cmd === 'project_active') return r(window.__PI_STUB__.active ?? null)
@@ -473,10 +546,69 @@ async function main() {
       if (cmd === 'pi_doctor') return r({ found: true, path: '/opt/homebrew/bin/pi', probed: 12, error: null })
       // 发消息：failSend 打开时模拟「内核未启动」，用来验证失败不是静默的。
       if (cmd === 'pi_send') {
-        return window.__PI_STUB__.failSend ? Promise.reject('pi 未启动') : r(null)
+        if (window.__PI_STUB__.failSend) return Promise.reject('pi 未启动')
+        // scripted 模式：记下发的正文，并按内容推一轮流式回复（G5 plan 流程用）。
+        if (window.__PI_STUB__.scripted) {
+          let body = ''
+          try {
+            body = JSON.parse(args.json).message ?? ''
+          } catch {}
+          window.__PI_STUB__.lastSent = body
+          replyScripted(body)
+        }
+        return r(null)
+      }
+      // G3 checkpoint：开轮返回递增 seq；rewind 回一份真实形状的报告。
+      if (cmd === 'checkpoint_begin_turn') {
+        window.__PI_STUB__.turnSeq = (window.__PI_STUB__.turnSeq ?? 0) + 1
+        return r(window.__PI_STUB__.turnSeq)
+      }
+      // G6 队列走 pi_call 统一入口：follow_up 入队（本轮结束执行）/
+      // steer 插话（下次 LLM 调用前注入）。都立刻回推 queue_update——
+      // 前端 chip 以内核回推为权威，不本地维护副账。
+      if (cmd === 'pi_call') {
+        let type = ''
+        let body = ''
+        try {
+          const req = JSON.parse(args.json)
+          type = req.type ?? ''
+          body = req.message ?? ''
+        } catch {}
+        if (type === 'follow_up' || type === 'steer') {
+          const q = window.__PI_STUB__.q
+          if (type === 'follow_up') q.followUp.push(body)
+          else q.steering.push(body)
+          window.__PI_STUB__.lastQueued = body
+          emitPi({ type: 'queue_update', steering: q.steering, followUp: q.followUp })
+          return r(null)
+        }
+        if (type === 'clear_queue') {
+          const cleared = { steering: window.__PI_STUB__.q.steering, followUp: window.__PI_STUB__.q.followUp }
+          window.__PI_STUB__.q = { steering: [], followUp: [] }
+          emitPi({ type: 'queue_update', steering: [], followUp: [] })
+          return r(cleared)
+        }
+      }
+      if (cmd === 'checkpoint_rewind') {
+        window.__PI_STUB__.rewound = args
+        return r({
+          seq: args.seq,
+          restored: ['/Users/tatsuma/Documents/GIT/pi-workbench/src/demo.ts'],
+          failed: [],
+          fork_entry_id: 'entry-abc',
+        })
       }
       if (cmd === 'projects_templates') return r([])
-      if (typeof cmd === 'string' && (cmd.startsWith('plugin:event|') || cmd.includes('|listen'))) return r(0)
+      if (typeof cmd === 'string' && cmd.startsWith('plugin:event|')) {
+        // G5：捕获事件监听 handler——桩要能反向推流式事件（plan 流程的 assistant 回复）。
+        if (cmd === 'plugin:event|listen' && args && args.handler) {
+          const list = (window.__PI_STUB__.listeners[args.event] ??= [])
+          if (!list.includes(args.handler)) list.push(args.handler)
+          return r(args.handler)
+        }
+        return r(0)
+      }
+      if (typeof cmd === 'string' && cmd.includes('|listen')) return r(0)
       // ── 已有功能「真跑通」验证：返回真实形状的清单数据，证明 UI 接到的是真结构而非空壳 ──
       if (cmd === 'extensions_list') return r([
         { id: 'agent-codebase.ts', name: '代码库索引', description: '用 codebase-memory-mcp 为项目建图并支持对话检索', kind: 'tool', path: '/cfg/extensions/agent-codebase.ts', tools: ['codebase_search', 'codebase_architecture', 'codebase_query', 'codebase_status'], enabled: true },
@@ -494,12 +626,28 @@ async function main() {
       if (cmd === 'skills_list') return r([ { name: 'pdf', description: 'PDF 读写与转换', kind: 'skill', path: '/skills/pdf', via: 'local', scope: 'user', origin: 'local' }, { name: 'docx', description: 'Word 文档处理', kind: 'skill', path: '/skills/docx', via: 'local', scope: 'user', origin: 'local' } ])
       if (cmd === 'experts_list') return r([ { id: 'e1', name: '代码审查专家', description: '审查 diff 并给出风险', role_id: 'reviewer' } ])
       if (cmd === 'project_index_status') return r({ indexed: true, nodes: 3130, edges: 8836, project_name: 'Users-tatsuma-Documents-GIT-pi-workbench', error: null, indexing: false })
+      // G4：journal 回放。多项目共用一个 events.jsonl，按 session_open 的 cwd 分段；
+      // 只有 pi-workbench 段的消息应该被回放，别的项目段一条都不能出现。
+      // replayMode 关时返回空——主流程断言 hero/发送链路，不能被回放消息干扰。
+      if (cmd === 'pi_journal_read') {
+        if (!window.__PI_STUB__.replayMode) return r([])
+        return r([
+          { type: 'session_open', cwd: '/tmp/other-project' },
+          { type: 'message_end', message: { role: 'user', content: [{ type: 'text', text: '别的项目探过去的历史消息' }] } },
+          { type: 'session_open', cwd: '/Users/tatsuma/Documents/GIT/pi-workbench' },
+          { type: 'message_end', message: { role: 'user', content: [{ type: 'text', text: '[项目上下文]\\npi-workbench 的上下文\\n\\n---\\n\\n上次让我改索引' }] } },
+          { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: '上次的回复：索引已修好。' } },
+          { type: 'message_end', message: { role: 'assistant', content: [], usage: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } } },
+          { type: 'agent_settled' },
+        ])
+      }
       if (cmd === 'conversations_list' || cmd === 'conversation_list') return r([ { id: 'c1', title: '产品需求补全', updated_at: Date.now() } ])
       return r(null)
     },
   }
 })()
-`)
+`
+  await page2.addInitScript(PI_STUB_SCRIPT)
   await page2.goto(`http://localhost:${PORT}/#/chat`, { waitUntil: 'load' })
   await page2.waitForTimeout(700)
 
@@ -534,6 +682,15 @@ async function main() {
   await page2.waitForTimeout(250)
   const flowMenu = page2.locator('.ws-menu').first()
   const flowMenuText = (await flowMenu.innerText().catch(() => '')).replace(/\s+/g, ' ')
+  if (process.env.DBG_MENU) {
+    const dbg = await page2.evaluate(() => ({
+      hasStub: typeof window.__PI_STUB__,
+      hasTauri: typeof window.__TAURI_INTERNALS__,
+      url: location.href,
+    }))
+    console.log('DBG state:', JSON.stringify(dbg))
+    console.log('DBG flowErrors:', flowErrors.slice(0, 4).join(' || ').slice(0, 400))
+  }
   assert('全流程：目录菜单能展开', await flowMenu.isVisible().catch(() => false), `visible`)
   assert(
     '全流程：没绑目录的项目在菜单里列出并说明缺什么',
@@ -608,7 +765,13 @@ async function main() {
     `label="${chatHeaderLabel}"`,
   )
   const ioBtns = await page2.locator('.io-group .io-btn').count()
-  assert('会话迁移：导出/导入按钮就位', ioBtns === 2, `btns=${ioBtns}`)
+  assert('会话迁移：压缩/导出/导入按钮就位', ioBtns === 3, `btns=${ioBtns}`)
+  assert(
+    '会话迁移：导出与导入按钮存在',
+    (await page2.getByTitle('导出当前会话为 JSON 文件').count()) === 1 &&
+      (await page2.getByTitle('从 JSON 文件导入会话').count()) === 1,
+    `export=${await page2.getByTitle('导出当前会话为 JSON 文件').count()} import=${await page2.getByTitle('从 JSON 文件导入会话').count()}`,
+  )
 
   // 发出去了就得看得见「在跑」：回答首字到达前必须有一个机器人侧的等待气泡，
   // agent 步骤条也要直接在对话区可见，而不是藏进默认收起的抽屉里。
@@ -653,6 +816,10 @@ async function main() {
 
   // 内核不可用时必须**看得见**：失败要落进消息流，不能只在顶部飘一条 6 秒提示。
   // 用户原话「回车或者点击发送的时候没任何反应」——静默失败正是这个 bug 的形状。
+  // 先手动收尾上一轮（真实内核必发 agent_settled；非 scripted 桩不会自收），
+  // 否则上一轮流式卡着，这条消息会按 G6 语义进队列而不是走 dispatch 失败路径。
+  await page2.evaluate(() => window.__PI_STUB__.emitSettled())
+  await page2.waitForTimeout(150)
   await page2.evaluate(() => {
     window.__PI_STUB__.failSend = true
   })
@@ -665,13 +832,39 @@ async function main() {
   const msgsText = (await page2.locator('.msgs').innerText().catch(() => '')).replace(/\s+/g, ' ')
   assert(
     '内核不可用：错误落进消息流（不再「点了没反应」）',
-    msgsText.includes('内核未响应'),
+    msgsText.includes('内核未响应') || msgsText.includes('下发失败'),
     msgsText.slice(-110),
   )
   await page2.screenshot({ path: path.join(OUT, '36-kernel-unavailable.png') })
   await page2.evaluate(() => {
     window.__PI_STUB__.failSend = false
   })
+
+  // —— G3「回到此处」：带 checkpoint 的 user 消息可回滚（还原文件 + 重开会话）——
+  const rewindBtn = page2.locator('.rewind-btn').first()
+  assert(
+    'G3：成功发送的 user 消息带「回到此处」按钮',
+    (await rewindBtn.count()) >= 1,
+    `count=${await rewindBtn.count()}`,
+  )
+  await rewindBtn.click()
+  await page2.waitForTimeout(250)
+  const modalText = (await page2.locator('.modal-panel').first().innerText().catch(() => '')).replace(/\s+/g, ' ')
+  assert(
+    'G3：回滚确认弹窗明示「无法撤销」与 bash 边界',
+    modalText.includes('回到此处') && modalText.includes('无法撤销') && modalText.includes('bash'),
+    modalText.slice(0, 120),
+  )
+  await page2.screenshot({ path: path.join(OUT, '37-rewind-confirm.png') })
+  await page2.locator('.modal-panel .btn.danger').first().click()
+  await page2.waitForTimeout(400)
+  const rewindCalls = await page2.evaluate(() => window.__PI_STUB__.rewound ?? null)
+  assert(
+    'G3：确认后调用 checkpoint_rewind 且报告落进消息流',
+    !!rewindCalls && (await page2.locator('.msgs').innerText()).includes('已回到第'),
+    JSON.stringify(rewindCalls),
+  )
+  await page2.screenshot({ path: path.join(OUT, '38-rewind-done.png') })
 
   const colsAfterSend = await page2.locator('.chat > .left, .chat > .right').count()
   assert('全流程：会话流里也没有常驻工作台侧栏', colsAfterSend === 0, `count=${colsAfterSend}`)
@@ -766,7 +959,7 @@ async function main() {
   assert('插件市场：渲染出真实扩展行（非空壳）', pluginRows >= 3, `rows=${pluginRows}`)
   const enabledFlags = await page2.locator('.market-row .row-flag').count()
   assert('插件市场：显示已载入/未载入状态', enabledFlags >= 1, `flags=${enabledFlags}`)
-  await page2.screenshot({ path: path.join(OUT, '36-plugins-real.png') })
+  await page2.screenshot({ path: path.join(OUT, '39-plugins-real.png') })
 
   await page2.goto(`http://localhost:${PORT}/#/library`, { waitUntil: 'load' })
   await page2.waitForTimeout(600)
@@ -774,17 +967,270 @@ async function main() {
   assert('资料库：目录树渲染出节点（非空壳）', libNodes >= 2, `nodes=${libNodes}`)
   const libQuota = await page2.locator('.lib-quota').count()
   assert('资料库：配额卡渲染', libQuota === 1, `quota=${libQuota}`)
-  await page2.screenshot({ path: path.join(OUT, '37-library-real.png') })
+  await page2.screenshot({ path: path.join(OUT, '40-library-real.png') })
 
   await page2.goto(`http://localhost:${PORT}/#/capabilities?tab=skill`, { waitUntil: 'load' })
   await page2.waitForTimeout(500)
   const skillCards = await page2.locator('.market-card').count()
   assert('能力中心：技能列表渲染', skillCards >= 1, `cards=${skillCards}`)
-  await page2.screenshot({ path: path.join(OUT, '38-capabilities-real.png') })
+  await page2.screenshot({ path: path.join(OUT, '41-capabilities-real.png') })
 
   const fatal = flowErrors.filter((t) => /Cannot read properties|is not a function|undefined is not/.test(t))
   assert('全流程：无渲染期崩溃', fatal.length === 0, fatal.slice(0, 2).join(' | ').slice(0, 120))
   await page2.close()
+
+  // ── 9c. G4 会话持久化：新开一页（独立桩状态，active=pi-workbench + journal 回放数据），
+  // 验证开页自动重建上次会话——user 气泡显示原文（preamble 已剥），assistant 文本回来，
+  // 且别的项目段一条都不出现（多项目 journal 不分家）。──
+  const page3 = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+  page3.on('pageerror', (e) => flowErrors.push(e.message))
+  await page3.addInitScript(`window.__PI_REPLAY_MODE__ = true; window.__PI_REPLAY_ACTIVE__ = true`)
+  await page3.addInitScript(PI_STUB_SCRIPT)
+  await page3.goto(`http://localhost:${PORT}/#/chat`, { waitUntil: 'load' })
+  await page3.waitForTimeout(900)
+  const replayText = (await page3.locator('.msgs').innerText().catch(() => '')).replace(/\s+/g, ' ')
+  assert(
+    'G4：开页自动回放上次会话（user 原文 + assistant 文本）',
+    replayText.includes('上次让我改索引') && replayText.includes('上次的回复：索引已修好。'),
+    replayText.slice(0, 100),
+  )
+  assert(
+    'G4：回放的 user 气泡剥掉了 preamble 前缀（不露项目上下文）',
+    replayText.includes('上次让我改索引') && !replayText.includes('pi-workbench 的上下文'),
+    replayText.slice(0, 100),
+  )
+  assert(
+    'G4：多项目 journal 不分家——别的项目段不回放',
+    !replayText.includes('别的项目探过去的历史消息'),
+    replayText.slice(0, 100),
+  )
+  await page3.screenshot({ path: path.join(OUT, '42-g4-replay.png') })
+  await page3.close()
+
+  // ── 9d. G5 Plan 模式：scripted 桩（pi_send 后按内容推流式回复），
+  // 验证「开计划模式 → 先出计划卡 → 点开始执行才动工具」的完整链路，
+  // 以及 user 气泡不露计划指令、执行后开关自动关闭（防无限计划循环）。──
+  const page4 = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+  page4.on('pageerror', (e) => flowErrors.push(e.message))
+  await page4.addInitScript(`window.__PI_SCRIPTED__ = true; window.__PI_REPLAY_ACTIVE__ = true`)
+  await page4.addInitScript(PI_STUB_SCRIPT)
+  await page4.goto(`http://localhost:${PORT}/#/chat`, { waitUntil: 'load' })
+  await page4.waitForTimeout(800)
+
+  // 第一条普通消息：离开落地页，露出头部的计划开关
+  const p4Hero = page4.locator('.hero-input-wrap .app-textarea').first()
+  await p4Hero.click()
+  await page4.keyboard.type('先打个招呼')
+  await page4.locator('.hero-send').click()
+  await page4.waitForTimeout(900)
+  assert(
+    'G5：首条普通消息后进入会话流（计划开关可见）',
+    (await page4.locator('.plan-toggle').count()) === 1,
+    `count=${await page4.locator('.plan-toggle').count()}`,
+  )
+
+  // 开计划模式 → 发任务 → 先出计划卡（3 步 checklist），下发的正文带计划指令
+  await page4.locator('.plan-toggle').click()
+  await page4.waitForTimeout(150)
+  assert(
+    'G5：计划开关可开可关（激活态有视觉区分）',
+    (await page4.locator('.plan-toggle.on').count()) === 1,
+    `on=${await page4.locator('.plan-toggle.on').count()}`,
+  )
+  const p4Composer = page4.locator('.composer .app-textarea').first()
+  await p4Composer.click()
+  await page4.keyboard.type('修一下索引死锁')
+  await page4.locator('.composer .send').click()
+  await page4.waitForTimeout(900)
+  const p4Steps = await page4.locator('.plan-steps li').count()
+  assert(
+    'G5：plan 轮先出计划卡（3 步 checklist）',
+    (await page4.locator('.plan-card').count()) === 1 && p4Steps === 3,
+    `cards=${await page4.locator('.plan-card').count()} steps=${p4Steps}`,
+  )
+  const sentPlan = await page4.evaluate(() => window.__PI_STUB__.lastSent ?? '')
+  assert(
+    'G5：下发的正文带计划指令前缀（内核先出计划不动工具）',
+    sentPlan.includes('[计划模式]'),
+    sentPlan.slice(0, 60),
+  )
+  const p4Msgs = (await page4.locator('.msgs').innerText().catch(() => '')).replace(/\s+/g, ' ')
+  assert(
+    'G5：user 气泡不露计划指令（只显示原文）',
+    p4Msgs.includes('修一下索引死锁') && !p4Msgs.includes('请先不要调用任何工具'),
+    p4Msgs.slice(0, 80),
+  )
+  assert(
+    'G5：计划卡带「开始执行 / 修改计划」两个动作',
+    (await page4.getByTitle('按此计划执行（将作为新任务下发）').count()) === 1 &&
+      (await page4.getByTitle('把计划步骤放回输入框修改').count()) === 1,
+    `exec=${await page4.getByTitle('按此计划执行（将作为新任务下发）').count()} revise=${await page4.getByTitle('把计划步骤放回输入框修改').count()}`,
+  )
+  await page4.screenshot({ path: path.join(OUT, '43-plan-card.png') })
+
+  // 点开始执行 → 计划卡转 executing，下发执行 prompt（已批准步骤 + 原始任务），开关自动关闭
+  await page4.getByTitle('按此计划执行（将作为新任务下发）').click()
+  await page4.waitForTimeout(900)
+  const sentExec = await page4.evaluate(() => window.__PI_STUB__.lastSent ?? '')
+  assert(
+    'G5：确认后下发执行 prompt（已批准步骤 + 原始任务）',
+    sentExec.includes('计划已确认') &&
+      sentExec.includes('原始任务：修一下索引死锁') &&
+      sentExec.includes('1. 定位索引死锁根因'),
+    sentExec.slice(0, 90),
+  )
+  assert(
+    'G5：执行后计划开关自动关闭（防无限计划循环）',
+    (await page4.locator('.plan-toggle.on').count()) === 0,
+    'still on',
+  )
+  assert(
+    'G5：计划卡进入 executing 态（按钮收起、显示执行中）',
+    (await page4.locator('.plan-card.executing').count()) === 1 &&
+      (await page4.locator('.plan-running').count()) === 1,
+    `exec=${await page4.locator('.plan-card.executing').count()}`,
+  )
+  const p4Msgs2 = (await page4.locator('.msgs').innerText().catch(() => '')).replace(/\s+/g, ' ')
+  assert(
+    'G5：执行轮回复落进消息流',
+    p4Msgs2.includes('已按批准的计划执行'),
+    p4Msgs2.slice(-80),
+  )
+  await page4.screenshot({ path: path.join(OUT, '44-plan-executing.png') })
+  await page4.close()
+
+  // ── 9e. G6 消息队列 + mid-turn steer：slow 桩（首轮 1.4s 才 settled）创造
+  // streaming 窗口——执行中发第二条进 follow_up 队列、点插话进 steer 队列，
+  // 队列 chip 以内核 queue_update 回推为权威；本轮结束后按 steer→followUp
+  // 顺序自动消费，且每条都在对话流里得到回复。清空可把文本恢复回输入框。──
+  const page5 = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+  page5.on('pageerror', (e) => flowErrors.push(e.message))
+  await page5.addInitScript(`window.__PI_SCRIPTED__ = true; window.__PI_REPLAY_ACTIVE__ = true; window.__PI_SLOW__ = true`)
+  await page5.addInitScript(PI_STUB_SCRIPT)
+  await page5.goto(`http://localhost:${PORT}/#/chat`, { waitUntil: 'load' })
+  await page5.waitForTimeout(800)
+
+  // 第一条：慢任务，制造 streaming 窗口
+  const p5Hero = page5.locator('.hero-input-wrap .app-textarea').first()
+  await p5Hero.click()
+  await page5.keyboard.type('长任务：重构索引模块')
+  await page5.locator('.hero-send').click()
+  await page5.waitForTimeout(500)
+  const p5Composer = page5.locator('.composer .app-textarea').first()
+  await p5Composer.click()
+  await page5.keyboard.type('顺便把测试补上')
+  // 先落草稿再断言：空草稿时按钮本就该禁用（与 streaming 无关）。
+  assert(
+    'G6：streaming 中发送按钮可用（从禁发改为排队语义）',
+    (await page5.locator('.composer .send').isDisabled().catch(() => true)) === false,
+    'send still disabled while streaming',
+  )
+
+  // 第二条：排队入队（follow_up）
+  await page5.locator('.composer .send').click()
+  await page5.waitForTimeout(400)
+  const p5RpcTypes = await page5.evaluate(() => window.__PI_STUB__.rpcTypes ?? [])
+  assert(
+    'G6：streaming 中提交走内核 follow_up 入队',
+    p5RpcTypes.includes('follow_up'),
+    p5RpcTypes.slice(-4).join(','),
+  )
+  const p5QueueText = (await page5.locator('.queue-strip').innerText().catch(() => '')).replace(/\s+/g, ' ')
+  assert(
+    'G6：队列 strip 显示排队中的消息（本轮结束后执行）',
+    p5QueueText.includes('排队') && p5QueueText.includes('顺便把测试补上'),
+    p5QueueText.slice(0, 80),
+  )
+  const p5UserBubbles = await page5.locator('.msg-row.user').count()
+  assert(
+    'G6：排队消息同时落 user 气泡（对话流不断层）',
+    p5UserBubbles === 2,
+    `bubbles=${p5UserBubbles}`,
+  )
+
+  // 插话：steer 队列（下次 LLM 调用前注入）
+  await p5Composer.click()
+  await page5.keyboard.type('先别动配置')
+  await page5.locator('.steer').click()
+  await page5.waitForTimeout(300)
+  const p5RpcTypes2 = await page5.evaluate(() => window.__PI_STUB__.rpcTypes ?? [])
+  assert(
+    'G6：插话按钮走内核 steer 注入',
+    p5RpcTypes2.includes('steer'),
+    p5RpcTypes2.slice(-4).join(','),
+  )
+  const p5QueueText2 = (await page5.locator('.queue-strip').innerText().catch(() => '')).replace(/\s+/g, ' ')
+  assert(
+    'G6：插话消息进 steer 段（下一轮模型调用前注入）',
+    p5QueueText2.includes('插话') && p5QueueText2.includes('先别动配置'),
+    p5QueueText2.slice(0, 100),
+  )
+  await page5.screenshot({ path: path.join(OUT, '45-queue-steer.png') })
+
+  // 本轮结束：内核按 steer → followUp 顺序自动消费，队列清空、两条都得到回复
+  await page5.waitForTimeout(4500)
+  assert(
+    'G6：本轮结束后队列自动消费完（strip 消失）',
+    (await page5.locator('.queue-strip').count()) === 0,
+    `strip=${await page5.locator('.queue-strip').count()}`,
+  )
+  const p5Msgs = (await page5.locator('.msgs').innerText().catch(() => '')).replace(/\s+/g, ' ')
+  assert(
+    'G6：队列消息按序得到回复（steer 优先于 followUp）',
+    p5Msgs.includes('已处理：先别动配置') && p5Msgs.includes('已处理：顺便把测试补上'),
+    p5Msgs.slice(-100),
+  )
+  if (process.env.DBG_PLAN) {
+    const dbg = await page5.evaluate(() => ({
+      rows: [...document.querySelectorAll('.msg-row.assistant')].map((el) => ({
+        usage: !!el.querySelector('.msg-usage'),
+        cursor: !!el.querySelector('.cursor'),
+        tail: (el.textContent ?? '').slice(0, 24),
+      })),
+      waiting: document.querySelectorAll('.msg-row.waiting').length,
+      q: window.__PI_STUB__.q,
+    }))
+    console.log('DBG drained:', JSON.stringify(dbg))
+  }
+  await page5.screenshot({ path: path.join(OUT, '46-queue-drained.png') })
+
+  // 清空可撤销：再发一个慢任务，流式中排一条 → 清空 → 文本恢复回输入框（不白打一遍字）
+  const p5Composer2 = page5.locator('.composer .app-textarea').first()
+  await p5Composer2.click()
+  await page5.keyboard.type('第二批慢任务')
+  await page5.locator('.composer .send').click()
+  await page5.waitForTimeout(350)
+  await p5Composer2.click()
+  await page5.keyboard.type('再排一条')
+  await page5.locator('.composer .send').click()
+  await page5.waitForTimeout(300)
+  assert(
+    'G6：清空前队列里有一条待执行',
+    (await page5.locator('.queue-item').count()) === 1,
+    `items=${await page5.locator('.queue-item').count()}`,
+  )
+  await page5.locator('.queue-clear').click()
+  await page5.waitForTimeout(300)
+  assert(
+    'G6：清空后队列 strip 消失',
+    (await page5.locator('.queue-strip').count()) === 0,
+    `strip=${await page5.locator('.queue-strip').count()}`,
+  )
+  const p5DraftRestored = await page5.locator('.composer .app-textarea').first().inputValue()
+  assert(
+    'G6：被清出的文本恢复回输入框',
+    p5DraftRestored.includes('再排一条'),
+    p5DraftRestored.slice(0, 60),
+  )
+  // 清空后主任务照常收尾，被清的条目不再被执行（对话流里不出现它的回复）
+  await page5.waitForTimeout(2600)
+  const p5Msgs2 = (await page5.locator('.msgs').innerText().catch(() => '')).replace(/\s+/g, ' ')
+  assert(
+    'G6：清空后条目不再执行（无「已处理：再排一条」）',
+    !p5Msgs2.includes('已处理：再排一条'),
+    p5Msgs2.slice(-80),
+  )
+  await page5.close()
 
   // 浏览器预览下 Tauri IPC 缺失属预期；只提示，不作为失败项。
   if (errors.length) {

@@ -58,7 +58,7 @@ fn assert_injectable() -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn tools_activate(
     app: AppHandle,
     tools: Vec<String>,
@@ -159,7 +159,7 @@ pub fn active_tools(app: &AppHandle) -> Vec<String> {
 }
 
 /// 当前白名单（只读），供 UI 展示「哪些工具对内核可见」。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn tools_list(app: AppHandle) -> ToolSet {
     let settings = settings_path(&app).ok();
     let active = match &settings {

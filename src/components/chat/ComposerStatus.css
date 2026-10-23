@@ -3,7 +3,7 @@
   align-items: center;
   gap: 8px;
   min-height: 18px;
-  margin: 0 0 8px;
+  margin: 0;
   color: var(--text-faint);
   font-size: 11px;
   line-height: 1.4;
@@ -78,33 +78,35 @@
   color: var(--danger);
 }
 
-/* 代码库索引状态行：始终可见，专门回答「有没有在跑 / 查没查」。 */
+/*
+ * 代码库索引状态行：始终可见，专门回答「有没有在跑 / 查没查」。
+ * WorkBuddy 式弱化：纯灰字 + 小图标，不再套 pill 底色描边 ——
+ * 它是提示信息，不是按钮组，抢眼度不应超过左侧的发送键。
+ */
 .codebase {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   flex-shrink: 0;
-  padding: 1px 8px;
-  border-radius: var(--r-full);
-  background: var(--bg-elev);
-  border: 1px solid var(--border);
-  color: var(--text-dim);
+  color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
 
 .codebase.ready {
   color: var(--ok, #1a7f37);
-  border-color: var(--ok-dim, rgba(26, 127, 55, 0.35));
 }
 
 .codebase.error {
   color: var(--danger);
-  border-color: var(--danger);
 }
 
 .codebase.indexing {
-  color: var(--accent);
+  color: var(--text-faint);
+}
+
+.codebase.indexing .spinner.sm {
   border-color: var(--accent-dim);
+  border-top-color: var(--accent);
 }
 
 .spinner.sm {

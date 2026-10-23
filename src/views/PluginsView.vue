@@ -3,7 +3,7 @@
  * 插件市场 —— 发现社区插件与本地安装入口。
  *
  * 当前能力边界：
- *  - 列表来自后端 `extensions_list`（capabilities.json 声明 + extensions/ 目录实体）。
+ *  - 列表来自后端 `extensions_list`（pi-manifest.json 声明 + extensions/ 目录实体）。
  *  - 远端社区市场没有服务端，列表里不塞 mock；需要新扩展时走「从链接安装」，
  *    由后端下载并落盘到 extensions/，与技能市场同一套地址校验与限额。
  */
@@ -11,6 +11,7 @@ import { computed, onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import AppInput from '@/components/ui/AppInput.vue'
+import AppModal from '@/components/ui/AppModal.vue'
 import { toolsActivate } from '@/composables/useTools'
 import { currentTheme, toggleTheme, type Theme } from '@/theme'
 import { APP_VERSION, PI_VERSION } from '@/version'
@@ -77,8 +78,10 @@ const allRows = computed<Row[]>(() =>
   installed.value.map((i) => ({
     id: i.id,
     name: i.name,
-    author: 'local',
-    version: `v${APP_VERSION}`,
+    // AUDIT-013：后端清单没有作者/版本字段，不再拿 App 版本冒充扩展版本、
+    // 不再统一写成 'local'——没有就是没有，显示「未知」。
+    author: '未知',
+    version: '未知',
     description: i.description || '未读取到说明',
     tags: [i.kind || 'unknown'],
     hasTools: i.tools.length > 0,
@@ -340,34 +343,29 @@ onMounted(load)
       </div>
     </div>
 
-    <div v-if="showInstallModal" class="modal-mask" @click.self="showInstallModal = false">
-      <div class="modal-card" role="dialog" aria-modal="true" aria-label="从链接安装扩展">
-        <header class="modal-head">
-          <strong>从链接安装扩展</strong>
-          <button class="text-btn" @click="showInstallModal = false">关闭</button>
-        </header>
-        <p class="modal-desc">
-          粘贴一个 <code>.ts</code> 扩展直链。后端只放行 http/https，下载后按文件名白名单落盘到
-          <code>extensions/</code>，重启内核后由 Pi 加载。
-        </p>
-        <AppInput
-          v-model="installUrl"
-          placeholder="https://example.com/my-ext.ts"
-          @keyup.enter="installExtension"
-        />
-        <p v-if="installError" class="market-note" role="alert">{{ installError }}</p>
-        <p v-if="installNote" class="market-note" role="status">{{ installNote }}</p>
-        <footer class="modal-foot">
-          <button
-            class="tool-btn"
-            :disabled="!installUrl.trim() || installing"
-            @click="installExtension"
-          >
-            {{ installing ? '安装中…' : '安装' }}
-          </button>
-        </footer>
-      </div>
-    </div>
+    <!-- AUDIT-013：手搓 modal-mask/modal-card → UI Kit AppModal -->
+    <AppModal :open="showInstallModal" title="从链接安装扩展" size="md" @close="showInstallModal = false">
+      <p class="modal-desc">
+        粘贴一个 <code>.ts</code> 扩展直链。后端只放行 http/https，下载后按文件名白名单落盘到
+        <code>extensions/</code>，重启内核后由 Pi 加载。
+      </p>
+      <AppInput
+        v-model="installUrl"
+        placeholder="https://example.com/my-ext.ts"
+        @keyup.enter="installExtension"
+      />
+      <p v-if="installError" class="market-note" role="alert">{{ installError }}</p>
+      <p v-if="installNote" class="market-note" role="status">{{ installNote }}</p>
+      <template #footer>
+        <button
+          class="tool-btn"
+          :disabled="!installUrl.trim() || installing"
+          @click="installExtension"
+        >
+          {{ installing ? '安装中…' : '安装' }}
+        </button>
+      </template>
+    </AppModal>
   </section>
 </template>
 
