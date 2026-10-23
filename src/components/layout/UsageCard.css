@@ -101,7 +101,14 @@
 .uc-bar i {
   display: block;
   height: 100%;
+  /* AUDIT-018：宽度由模板经 --bar-in-w / --bar-out-w 传入
+     （功能性动态值，豁免纯样式抽离铁律）。 */
+  width: var(--bar-in-w, 0%);
   transition: width 0.25s ease;
+}
+
+.uc-bar i.bar-out {
+  width: var(--bar-out-w, 0%);
 }
 
 .bar-in {

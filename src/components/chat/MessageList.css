@@ -47,6 +47,20 @@
   max-width: 860px;
 }
 
+/*
+ * 连续 assistant 块（一次回复折算出的多条消息）：首行带头像与名字，
+ * 后续行收紧上边距贴上去——同一件事不该隔出「每人一段」的空隙。
+ * .msg-avatar 本身就是蓝圈（background 画在 div 上）：cont 行只清内容
+ * 不够，圆圈还在——必须连背景一起透明化，只留 30px 占位对齐。
+ */
+/*
+ * cont 行与首行之间原本隔着 .msgs 的 20px 行距，减 16px 后只留 4px——
+ * 同一次回复折算出的多条消息看起来是「一段」，而不是「每人一段」。
+ */
+.msg-row.cont {
+  margin-top: calc(-1 * var(--sp-4));
+}
+
 .msg-row.user {
   align-self: flex-end;
   flex-direction: row-reverse;
@@ -69,6 +83,84 @@
 .msg-row.system .msg-avatar {
   background: var(--bg-elev);
   color: var(--text-faint);
+}
+
+/*
+ * cont 行头像透明化必须放在上面三行角色配色之后：此前写在前面的
+ * `.msg-row.cont .msg-avatar` 与 `.msg-row.assistant .msg-avatar` 同特异性、
+ * 后者声明更靠后而胜出——这就是「连续行的蓝圈怎么都改不掉」的真凶。
+ * 提一档特异性（.assistant.cont）保证稳赢，且声明位置无关。
+ */
+.msg-row.assistant.cont .msg-avatar {
+  background: transparent;
+  color: transparent;
+}
+
+/* 等待行并入前一段 assistant 输出：不再自己挂一个头像 + 名字 */
+.msg-row.waiting.cont {
+  margin-top: calc(-1 * var(--sp-4));
+}
+
+.msg-row.assistant.cont .msg-meta {
+  display: none;
+}
+
+/* 系统行：内联提示（头像 + 标签 + 文字），无卡片 */
+.msg-row.system {
+  align-self: stretch;
+  max-width: 860px;
+}
+
+.sys-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 2px 2px;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* π 头像：与 assistant / loading 头像同一尺寸（30px），同视觉族（蓝底白 π）。
+   连续 system 行只有首行可见头像，后续行占位对齐（visibility:hidden 保宽度）。 */
+.sys-pi {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: 'SF Mono', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.sys-line strong {
+  flex-shrink: 0;
+  padding-top: 8px;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.sys-text {
+  min-width: 0;
+  padding-top: 5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 非首行的连续 system 行：头像与标签隐藏占位，文字与首行左对齐 */
+.sys-line .sys-pi,
+.sys-line strong {
+  visibility: visible;
+}
+
+.msg-row.system:not(.sys-first) .sys-pi,
+.msg-row.system:not(.sys-first) strong {
+  visibility: hidden;
 }
 
 .msg-avatar {
@@ -104,6 +196,35 @@
 
 .msg-row.user .msg-meta {
   display: none;
+}
+
+/* G3：带 checkpoint 的 user 消息才显示 meta 行（只放一个「回到此处」按钮）。 */
+.msg-row.user .msg-meta.has-rewind {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.rewind-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.6;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.rewind-btn:hover {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--text);
 }
 
 .txt {
@@ -170,6 +291,112 @@
   background: var(--accent-dim);
   padding: 6px 12px;
   border-radius: var(--r-full);
+}
+
+/* ── G2 文件改动块（changed-files + 可展开 diff）───────────────── */
+.msg-files {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md, 10px);
+  background: var(--bg-panel);
+  overflow: hidden;
+  max-width: 640px;
+}
+
+.files-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.files-note {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.file-row + .file-row {
+  border-top: 1px solid var(--border-soft);
+}
+
+.file-row-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 7px 12px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  font-size: 12.5px;
+  font-family: inherit;
+}
+
+.file-row-btn:hover {
+  background: var(--bg-hover);
+}
+
+.file-caret {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  transition: transform 0.15s ease;
+}
+
+.file-caret.open {
+  transform: rotate(90deg);
+}
+
+.file-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.file-sum {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.file-diff {
+  margin: 0;
+  padding: 8px 12px;
+  max-height: 320px;
+  overflow: auto;
+  background: var(--bg);
+  border-top: 1px solid var(--border-soft);
+  font-family: 'SF Mono', ui-monospace, monospace;
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.file-diff .dl {
+  display: block;
+}
+
+.file-diff .dl.add {
+  color: var(--ok);
+  background: var(--ok-soft);
+}
+
+.file-diff .dl.del {
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 
 /* 等待模型响应：回答首字到达前的占位气泡 */
@@ -302,4 +529,123 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* ── G5 计划卡（Cursor Plan mode 式先审后做）── */
+.plan-card {
+  margin-top: 8px;
+  max-width: 640px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: var(--r-md, 10px);
+  background: var(--bg-panel);
+  overflow: hidden;
+}
+
+.plan-card.executing {
+  border-color: var(--border);
+}
+
+.plan-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.plan-card.executing .plan-head {
+  color: var(--text-dim);
+}
+
+.plan-count {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.plan-steps {
+  margin: 0;
+  padding: 8px 12px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.plan-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.plan-steps li > svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--accent);
+}
+
+.plan-card.executing .plan-steps li > svg {
+  color: var(--text-faint);
+}
+
+.plan-step-text {
+  min-width: 0;
+  word-break: break-word;
+}
+
+.plan-actions {
+  display: flex;
+  gap: 8px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.plan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--bg-elev);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.plan-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.plan-btn.primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.plan-btn.primary:hover {
+  background: color-mix(in srgb, var(--accent) 85%, black);
+  color: var(--accent-ink);
+}
+
+.plan-running {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 12px;
+  color: var(--text-dim);
 }

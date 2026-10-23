@@ -41,7 +41,8 @@
             <ModelSwitcher compact width="auto" />
           </div>
 
-          <!-- 过程（会话树 / 轨迹 / 工作流 / 连接器）默认收起：主内容永远是对话本身 -->
+          <div class="chat-controls">
+        <!-- 过程（会话树 / 轨迹 / 工作流 / 连接器）默认收起：主内容永远是对话本身 -->
           <button
             class="trace-toggle"
             :class="{ on: traceOpen }"
@@ -53,8 +54,33 @@
             <i v-if="trackCalls" class="trace-badge">{{ trackCalls }}</i>
           </button>
 
-          <!-- 会话迁移：导出当前对话为 JSON / 导入历史会话。与 DSH 的 dsh-chat-import 对齐。 -->
+          <!-- G5 计划模式（对齐 Cursor Plan mode）：开启后发送的任务先出分步计划卡，
+               点「开始执行」才真正动工具。 -->
+          <button
+            class="plan-toggle"
+            :class="{ on: planMode }"
+            :title="planMode ? '计划模式已开启：先出计划，确认后执行' : '开启计划模式：先审方案再动手'"
+            @click="planMode = !planMode"
+          >
+            <AppIcon name="list" :size="13" />
+            <span>计划</span>
+          </button>
+
+          <!-- 会话迁移：导出当前对话为 JSON / 导入历史会话。 -->
           <div class="io-group" role="group" aria-label="会话迁移">
+            <!--
+              B3 压缩：内核原生 session.compact（长会话摘要回灌），压缩后上下文窗口
+              重新拿回空间；fork（分支）在会话树里，这里只放最常用的压缩。
+            -->
+            <button
+              class="io-btn"
+              :disabled="compacting || streaming"
+              title="压缩当前会话：把历史轮次摘要化，释放上下文窗口空间"
+              @click="onCompact"
+            >
+              <AppIcon name="layers" :size="13" :class="{ spin: compacting }" />
+              <span>{{ compacting ? '压缩中…' : '压缩' }}</span>
+            </button>
             <button class="io-btn" title="导出当前会话为 JSON 文件" @click="onExport">
               <AppIcon name="download" :size="13" />
               <span>导出</span>
@@ -64,6 +90,7 @@
               <span>导入</span>
             </button>
           </div>
+        </div>
         </header>
 
         <p v-if="ioNote" class="io-note" role="status">{{ ioNote }}</p>
@@ -77,6 +104,9 @@
           :streaming="streaming"
           :artifacts="artifacts"
           :root="cwd"
+          @rewind="onRewindRequest"
+          @plan-execute="onPlanExecute"
+          @plan-revise="onPlanRevise"
         />
 
         <!--
@@ -104,14 +134,32 @@
           <span v-if="!liveSteps.length" class="step-muted">等待内核上报步骤…</span>
         </div>
 
+        <!--
+          B1 硬审批横幅：内核扩展拦截风险工具调用时在此等待用户批准。
+          不回应则扩展侧超时 fail-closed（安全优先）。
+        -->
+        <ApprovalDialog />
+
+        <!-- G3 回滚确认：还原文件 + 重开会话，均无法在 App 内撤销，须显式确认。 -->
+        <AppModal :open="!!rewindTarget" title="回到此处？" size="sm">
+          <p class="rewind-warn">
+            将把第 {{ rewindTarget?.turnSeq }} 轮起改动的文件还原到该轮之前，并重开会话到这条消息处。
+            之后的对话内容会被移除，<strong>此操作无法撤销</strong>。
+          </p>
+          <p class="rewind-note">
+            注意：bash 命令产生的文件变更不在还原范围（对齐 Claude Code checkpoint 的限制）。
+          </p>
+          <template #footer>
+            <button class="btn" :disabled="rewinding" @click="rewindTarget = null">
+              取消
+            </button>
+            <button class="btn danger" :disabled="rewinding" @click="onRewindConfirm">
+              {{ rewinding ? '还原中…' : '确认回滚' }}
+            </button>
+          </template>
+        </AppModal>
+
         <form class="composer" @submit.prevent="submit">
-          <ComposerStatus
-            :state="activity"
-            :running="streaming"
-            :usage="usage.last"
-            :project-id="activeProjectId"
-            @interrupt="abort"
-          />
           <div v-if="pendingAttachments.length" class="att-tray">
             <div v-for="a in pendingAttachments" :key="a.id" class="att-chip" :class="a.kind">
               <img v-if="a.kind === 'image'" :src="a.src" class="att-thumb" alt="" />
@@ -122,29 +170,72 @@
               </button>
             </div>
           </div>
-          <div class="input-wrap">
-            <button
-              type="button"
-              class="attach"
-              :title="IN_TAURI ? '附带图片或文件' : '附件需在桌面 App 中使用'"
-              :disabled="!IN_TAURI"
-              @click="onAttach"
-            >
-              <AppIcon name="paperclip" :size="16" />
+          <!--
+            G6 队列 strip：流式中的提交进内核 follow_up 队列（本轮完全结束后
+            自动执行）；插话（steer）在工具跑完、下次 LLM 调用前注入。
+            队列内容以内核 queue_update 回推为权威，前端不维护副账。
+          -->
+          <div v-if="queueTotal > 0" class="queue-strip">
+            <div v-if="queue.steering.length" class="queue-seg steer">
+              <span class="queue-tag">插话</span>
+              <span class="queue-hint">下一轮模型调用前注入</span>
+              <span v-for="(t, i) in queue.steering" :key="'s' + i" class="queue-item" :title="t">{{ t }}</span>
+            </div>
+            <div v-if="queue.followUp.length" class="queue-seg followup">
+              <span class="queue-tag">排队</span>
+              <span class="queue-hint">本轮结束后执行</span>
+              <span v-for="(t, i) in queue.followUp" :key="'f' + i" class="queue-item" :title="t">{{ t }}</span>
+            </div>
+            <button class="queue-clear" title="清空队列，被清出的文本恢复回输入框" @click="onClearQueue">
+              清空
             </button>
+          </div>
+          <div class="input-wrap">
             <AppTextarea
               v-model="draft"
               placeholder="给 Pi 下达编码任务…（可附带图片或文件）"
               :rows="1"
+              auto-grow
+              :max-rows="8"
               @keydown.enter="onEnter"
             />
-            <button
-              type="submit"
-              class="send"
-              :disabled="streaming || (!draft.trim() && pendingAttachments.length === 0) || !cwd"
-            >
-              <AppIcon name="send" :size="16" />
-            </button>
+            <div class="composer-tools">
+              <button
+                type="button"
+                class="attach"
+                :title="IN_TAURI ? '附带图片或文件' : '附件需在桌面 App 中使用'"
+                :disabled="!IN_TAURI"
+                @click="onAttach"
+              >
+                <AppIcon name="paperclip" :size="16" />
+              </button>
+              <!-- G6 插话：仅流式中且有草稿时出现，steer 注入当前轮。 -->
+              <button
+                v-if="streaming && (draft.trim() || pendingAttachments.length)"
+                type="button"
+                class="steer"
+                title="插话：本轮工具跑完后、下次模型调用前注入（steer）"
+                @click="onSteer"
+              >
+                <AppIcon name="zap" :size="14" />
+              </button>
+              <ComposerStatus
+                class="composer-tools-status"
+                :state="activity"
+                :running="streaming"
+                :usage="usage.last"
+                :project-id="activeProjectId"
+                @interrupt="abort"
+              />
+              <button
+                type="submit"
+                class="send"
+                :title="streaming ? '排队：本轮结束后自动执行' : '发送'"
+                :disabled="(!draft.trim() && pendingAttachments.length === 0) || !cwd"
+              >
+                <AppIcon name="send" :size="15" />
+              </button>
+            </div>
           </div>
         </form>
       </template>
@@ -171,7 +262,9 @@
 import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { open as pickFiles } from '@tauri-apps/plugin-dialog'
+import { useRoute } from 'vue-router'
 import MessageList from '@/components/chat/MessageList.vue'
+import ApprovalDialog from '@/components/chat/ApprovalDialog.vue'
 import ComposerStatus from '@/components/chat/ComposerStatus.vue'
 import ChatHero from '@/components/chat/ChatHero.vue'
 import ModeSwitcher from '@/components/chat/ModeSwitcher.vue'
@@ -180,6 +273,7 @@ import WorkspacePicker from '@/components/chat/WorkspacePicker.vue'
 import TraceDrawer from '@/components/chat/TraceDrawer.vue'
 import RoleSwitcher from '@/components/layout/RoleSwitcher.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppModal from '@/components/ui/AppModal.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
 import { IN_TAURI, usePi, type PiAttachment } from '@/composables/usePi'
 import { fmtCost, fmtTokens } from '@/composables/piEvents'
@@ -189,6 +283,8 @@ import { PI_EVENTS, usePiEvents } from '@/composables/usePiEvents'
 import { shouldShowHero } from '@/composables/chatStage'
 import { traceLog } from '@/composables/useWebLog'
 import { pickDirectoryGuarded, PICK_TIMEOUT_NOTE } from '@/composables/useDirPicker'
+import { trimPreamble } from '@/composables/contextBudget'
+import { withTimeout } from '@/composables/asyncGuard'
 import {
   activateProject,
   activeProjectId,
@@ -204,10 +300,14 @@ import {
   importConversation,
   type ConvMessage,
 } from '@/composables/useConversationIO'
+import { loadReplay, parseReplayQuery, pendingReplayIndex } from '@/composables/useReplay'
+import { buildExecPrompt, withPlanInstruction } from '@/utils/planMode'
 
-const { messages, streaming, usage, ensure, start, stop, send, pushUser, pushSystem, rpc } = usePi()
+const { messages, streaming, usage, ensure, start, stop, send, pushUser, pushSystem, rpc, abortTurn, suppressExitNotice, beginTurn, rewindTurn, planPending, queue, followUp, steerTurn, clearQueue } = usePi()
 
 const cwd = ref('')
+/** 路由 query：独立回放窗口的 replay 段号 / cwd 从这里读（见 consumeReplayQuery）。 */
+const route = useRoute()
 /** 过程抽屉（会话树 / 轨迹 / 工作流 / 连接器）是否展开。 */
 const traceOpen = ref(false)
 const { state: activity, interrupt } = useActivity(messages, streaming)
@@ -283,10 +383,21 @@ onMounted(() => {
  */
 const showHero = computed(() => shouldShowHero(messages.value.length, streaming.value))
 
-/** 中断本轮：先置相位，再下发 pi_stop，等内核回 process_exit 后交还自动投影。 */
+/**
+ * G1 中断本轮：优先内核原生 `abort`（优雅中止，进程/会话树/上下文全保留）；
+ * 仅当内核已无应答（abort 自身失败）才退回复古的 `pi_stop` 杀进程兜底，
+ * 并抑制伴生的「内核进程已退出」系统消息——那是用户主动停的，不该报警。
+ */
 async function abort() {
   interrupt()
-  await stop().catch(() => {})
+  try {
+    await abortTurn()
+    traceLog('abort:graceful')
+  } catch (e) {
+    traceLog('abort:fallback-stop', String(e))
+    suppressExitNotice()
+    await stop().catch(() => {})
+  }
 }
 const draft = ref('')
 const projects = ref<{ id: string; name: string; path: string | null }[]>([])
@@ -517,20 +628,150 @@ async function pickHeroDirectory(bindProjectId?: string) {
   }
 }
 
-/** 下发到内核：项目上下文前缀 + 用户原文 + 附件引用块。 */
+/** 下发到内核：项目上下文前缀（预算裁剪后）+ 用户原文 + 附件引用块。 */
 async function dispatchToPi(text: string, attachments?: PiAttachment[]) {
   traceLog('dispatch', text.slice(0, 50))
-  const preamble = await taskContextPreamble().catch(() => '')
+  // 乐观 UI：用户消息**先**落列表、落地页立刻切走。前缀收集是锦上添花，
+  // 它若挂起（invoke 遇主线程被堵可能永不返回），绝不能挡住「消息至少看得见」——
+  // 之前 pushUser 排在 await 之后，卡住时表现为「终端有日志、页面毫无反应」。
   pushUser(text, attachments)
+  // 前缀收集加硬超时：3.5s 拿不到就空前缀发送。上下文少了可以忍，界面卡死不能忍。
+  const rawPreamble = await withTimeout(taskContextPreamble(), 3_500, '').catch(() => '')
+  const { preamble } = trimPreamble(rawPreamble)
   const body = preamble ? `${preamble}\n\n---\n\n${text}` : text
+  // G5：plan 模式——指令前缀拼在最外（preamble 之前，回放时被 `---` 切分剥掉），
+  // 同时挂上待确认计划；该轮 assistant 回复落定时解析成计划卡。
+  // 注意 user 气泡仍显示原文（pushUser 在上面已用 text 落过），不露指令。
+  const finalBody = planMode.value ? withPlanInstruction(body) : body
+  if (planMode.value) planPending.value = { task: text }
+  // G3：开轮快照（Rust 记会话树叶子 + 打 marker），seq 挂到刚 push 的 user 消息上。
+  // 失败不阻断发送——少一次回滚机会可以忍，消息发不出去不能忍。
+  const turnSeq = await beginTurn(text)
+  const userMsg = messages.value[messages.value.length - 1]
+  if (turnSeq > 0 && userMsg && userMsg.role === 'user') userMsg.turnSeq = turnSeq
   try {
-    await send(body, attachments)
+    await send(finalBody, attachments)
     traceLog('dispatch:sent')
   } catch (e) {
+    const msg = String(e)
+    // 内核已死（process_exit 之后）不该让用户手动救：自动拉起再补发一次。
+    if (msg.includes('pi 未启动') && cwd.value) {
+      traceLog('dispatch:kernel-restart')
+      try {
+        await start(cwd.value)
+        await send(finalBody, attachments)
+        traceLog('dispatch:sent:after-restart')
+        return
+      } catch (e2) {
+        pushSystem(`内核自动重启后仍下发失败：${String(e2)}`)
+        warn(String(e2))
+        traceLog('dispatch:fail', String(e2))
+        return
+      }
+    }
     // 失败必须落进消息流：只在顶部飘一条 6 秒 notice，用户看到的就是「点了没反应」。
-    pushSystem(`内核未响应：${String(e)}`)
-    warn(String(e))
-    traceLog('dispatch:fail', String(e))
+    pushSystem(`内核未响应：${msg}`)
+    warn(msg)
+    traceLog('dispatch:fail', msg)
+  }
+}
+
+/**
+ * G3「回到此处」：确认后还原该轮 edit/write 改过的文件 + fork 会话树到该
+ * prompt 之前，前端消息列表从该条 user 消息起截断（prompt 重新可编辑/重发）。
+ * 边界：bash 产生的变更不在快照范围（对齐 Claude Code checkpoint 明示限制），
+ * 确认框与结果消息里都要写清楚。
+ */
+const rewinding = ref(false)
+const rewindTarget = ref<{ id: string; turnSeq: number; text: string } | null>(null)
+
+function onRewindRequest(msg: { id: string; turnSeq?: number; text: string }) {
+  const seq = msg.turnSeq
+  if (!seq || rewinding.value) return
+  rewindTarget.value = { id: msg.id, turnSeq: seq, text: msg.text }
+}
+
+async function onRewindConfirm() {
+  const target = rewindTarget.value
+  if (!target) return
+  rewinding.value = true
+  try {
+    const rep = await rewindTurn(target.turnSeq)
+    const idx = messages.value.findIndex((m) => m.id === target.id)
+    if (idx >= 0) messages.value.splice(idx)
+    const parts: string[] = []
+    parts.push(
+      rep.restored.length
+        ? `已还原 ${rep.restored.length} 个文件`
+        : '该轮没有改动过文件',
+    )
+    parts.push(
+      rep.fork_entry_id ? '会话已重开到该消息处（新分支）' : '会话树未能重开（仅还原了文件）',
+    )
+    if (rep.failed.length) parts.push(`${rep.failed.length} 项失败：${rep.failed.join('；')}`)
+    pushSystem(`已回到第 ${target.turnSeq} 轮之前：${parts.join('；')}。`)
+    traceLog('rewind:done', String(target.turnSeq))
+  } catch (e) {
+    pushSystem(`回滚失败：${String(e)}`)
+    traceLog('rewind:fail', String(e))
+  } finally {
+    rewinding.value = false
+    rewindTarget.value = null
+  }
+}
+
+/**
+ * G5「开始执行」：批准计划 → 关掉 plan 模式（执行轮再注入计划指令会无限
+ * 循环出计划）→ 把「已批准步骤 + 原始任务」作为新 prompt 下发。
+ * 执行 prompt 走完整 dispatchToPi：该轮同样有 checkpoint 与 turn 记账。
+ */
+function onPlanExecute(m: {
+  id: string
+  plan?: { steps: string[]; task: string; state: 'pending' | 'executing' }
+}) {
+  if (!m.plan || m.plan.state !== 'pending' || streaming.value) return
+  m.plan.state = 'executing'
+  planMode.value = false
+  void dispatchToPi(buildExecPrompt(m.plan.task, m.plan.steps))
+  traceLog('plan:execute', String(m.plan.steps.length))
+}
+
+/**
+ * G5「修改计划」：步骤回填输入框，plan 模式保持开启——
+ * 用户改完再发仍是计划请求（出一版新计划卡），不会误触发执行。
+ */
+function onPlanRevise(m: {
+  id: string
+  plan?: { steps: string[]; task: string; state: 'pending' | 'executing' }
+}) {
+  if (!m.plan || m.plan.state !== 'pending') return
+  draft.value = m.plan.steps.map((s, i) => `${i + 1}. ${s}`).join('\n')
+}
+
+/**
+ * B3 压缩：内核原生 session.compact——把已发生的轮次摘要化回灌，
+ * 释放上下文窗口。长操作，超时放宽到 120s；结果摘要落消息流让用户看到效果。
+ */
+const compacting = ref(false)
+async function onCompact() {
+  if (compacting.value || streaming.value) return
+  compacting.value = true
+  try {
+    const res = await rpc<any>('compact', {}, 120_000).catch((e) => {
+      throw e
+    })
+    const summary = typeof res === 'string' ? res : res?.summary ?? res?.text ?? ''
+    pushSystem(
+      summary
+        ? `会话已压缩。摘要：${String(summary).slice(0, 200)}`
+        : '会话已压缩，上下文窗口已释放。',
+    )
+    traceLog('compact:done')
+  } catch (e) {
+    pushSystem(`压缩失败：${String(e)}`)
+    traceLog('compact:fail', String(e))
+  } finally {
+    compacting.value = false
   }
 }
 
@@ -550,7 +791,57 @@ async function submit() {
   }))
   draft.value = ''
   pendingAttachments.value = []
+  // G6：流式中提交 = 入队（内核 follow_up，本轮完全结束后自动执行），
+  // 消息气泡照落——对话流连续，队列 chip 另行提示「排队中」。
+  if (streaming.value) {
+    pushUser(text, atts)
+    try {
+      await followUp(text, atts)
+      traceLog('queue:follow-up', text.slice(0, 40))
+    } catch (e) {
+      pushSystem(`入队失败：${String(e)}`)
+    }
+    return
+  }
   await dispatchToPi(text, atts)
+}
+
+/**
+ * G6「插话」：steer 注入当前轮（工具跑完后、下次 LLM 调用前生效），
+ * 把跑偏的 agent 拽回当前输入。同样落 user 气泡保持对话连续。
+ */
+async function onSteer() {
+  const text = draft.value.trim()
+  if (!text || !streaming.value || !cwd.value) return
+  const atts: PiAttachment[] = pendingAttachments.value.map((a) => ({
+    id: a.id,
+    name: a.name,
+    kind: a.kind,
+    path: a.path,
+  }))
+  draft.value = ''
+  pendingAttachments.value = []
+  pushUser(text, atts)
+  try {
+    await steerTurn(text, atts)
+    traceLog('queue:steer', text.slice(0, 40))
+  } catch (e) {
+    pushSystem(`插话失败：${String(e)}`)
+  }
+}
+
+/** G6「清空队列」：内核双清，被清出的文本恢复回编辑器——清空不该让用户白打一遍字。 */
+async function onClearQueue() {
+  try {
+    const cleared = await clearQueue()
+    const restored = [...(cleared?.steering ?? []), ...(cleared?.followUp ?? [])]
+    if (restored.length && !draft.value.trim()) {
+      draft.value = restored.join('\n')
+    }
+    traceLog('queue:clear', String(restored.length))
+  } catch (e) {
+    pushSystem(`清空队列失败：${String(e)}`)
+  }
 }
 
 /**
@@ -590,6 +881,16 @@ const thinkingLevel = ref('medium')
 /** 反向映射：选完项目进入对话后，头部仍能显示/切换当前档位。 */
 const modeLabel = computed(() => LEVEL_MODE[thinkingLevel.value] ?? '标准')
 
+/**
+ * G5 计划模式：开启时发送的任务先带计划指令前缀（内核先出分步计划、不动工具），
+ * 该轮回复落定后消息流渲染计划卡，用户点「开始执行」才发执行 prompt。
+ * 与 thinking level 正交——一个管「想多深」，一个管「先审后做」。
+ */
+const planMode = ref(false)
+
+/** G6：队列总数（steer 插话 + follow_up 排队），驱动 composer 上方队列 strip。 */
+const queueTotal = computed(() => queue.value.steering.length + queue.value.followUp.length)
+
 async function applyThinking() {
   if (!cwd.value) return
   await rpc('set_thinking_level', { level: thinkingLevel.value }).catch(() => {})
@@ -608,11 +909,111 @@ async function ensureDefaultRole() {
 }
 
 onMounted(async () => {
+  // 独立回放窗口：先消费 query 段号（权威目标），再做常规初始化。
+  void consumeReplayQuery()
   await ensure()
   await loadActive()
   await ensureDefaultRole()
   stopArtifacts = autoArtifacts(messages, streaming)
 })
+
+/**
+ * G4：会话持久化回放。内核是 --no-session（内存态），但 journal 落了全量事件；
+ * 开页按当前项目回放最近一次会话，刷新/重启 App 后对话不再从零开始。
+ *
+ * 挂载时项目可能还没加载完（loadActive 是异步的），用 watch(cwd) 覆盖三种时序：
+ * 挂载即就绪 / 异步加载完 / 用户切项目。空回放不占坑——journal 可能属于
+ * 切换后的项目；已 successful 回放过一次就不再重放（不把两个项目的对话混一起）。
+ */
+let replayDone = false
+/**
+ * 独立回放窗口（后端 open_replay_window 拉起，hash 路由带
+ * `?replay=<段号>&cwd=<目录>`）已接管回放：此时挂载时的
+ * tryReplay 必须让位——窗口里可能没有选中项目，而 query 给出的
+ * 段号 + 目录才是权威目标，不能被活动项目的「最近一次会话」覆盖。
+ */
+let queryReplayActive = false
+async function tryReplay() {
+  const dir = cwd.value
+  if (!dir || replayDone || queryReplayActive || messages.value.length > 0) return
+  const rep = await loadReplay(undefined, dir)
+  if (!rep.messages.length) return
+  replayDone = true
+  // 回放期间用户可能已经手动发了消息（极端快）：只补空列表，不覆盖。
+  if (messages.value.length === 0) messages.value.push(...rep.messages)
+}
+watch(cwd, () => void tryReplay(), { immediate: true })
+
+/**
+ * 运行记录回放（WorkDSH「之前的运行记录」对位）：按 journal 段号重建历史会话，
+ * 替换当前对话区。流式中禁止——半轮替换等于毁掉进行中的任务；
+ * 手动回放后置 replayDone，挂载自动回放不再覆盖。
+ */
+const loadingHistory = ref(false)
+async function openRunRecord(index: number) {
+  if (streaming.value) {
+    warn('本轮还在执行中，等它结束后再打开历史会话。')
+    return
+  }
+  if (loadingHistory.value) return
+  loadingHistory.value = true
+  try {
+    const rep = await loadReplay(undefined, cwd.value || undefined, index)
+    if (!rep.messages.length) {
+      warn('这条记录没有可重建的消息（可能只剩内核启动标记）。')
+      return
+    }
+    replayDone = true
+    messages.value = rep.messages
+    traceLog('history:open', String(index))
+  } finally {
+    loadingHistory.value = false
+  }
+}
+
+/**
+ * 侧栏运行记录的跨组件信箱：侧栏塞段号（可能发生在本页挂载前），
+ * 这里等 cwd 就位后消费——cwd 就位意味着活动项目已加载，回放的
+ * 目录一致性校验才有意义。立即消费并清空，避免重复回放。
+ */
+watch(
+  [pendingReplayIndex, cwd],
+  ([index]) => {
+    if (index === null || !cwd.value) return
+    pendingReplayIndex.value = null
+    void openRunRecord(index)
+  },
+  { immediate: true },
+)
+
+/**
+ * 独立回放窗口消费：query 带 replay 段号时（有 cwd 用 query 的，没有
+ * 退活动项目目录），直接走 loadReplay 按段重建——不等活动项目加载，
+ * 窗口可能是为空项目/纯回放用途拉起的。与 pendingReplayIndex 信箱
+ * 消费同一套回放入口（openRunRecord 的同款 guard 与 traceLog）。
+ */
+async function consumeReplayQuery() {
+  const target = parseReplayQuery(route.query)
+  if (!target) return
+  queryReplayActive = true
+  if (streaming.value) {
+    warn('本轮还在执行中，等它结束后再打开历史会话。')
+    return
+  }
+  loadingHistory.value = true
+  try {
+    const rep = await loadReplay(undefined, target.cwd || cwd.value || undefined, target.index)
+    if (!rep.messages.length) {
+      warn('这条记录没有可重建的消息（可能只剩内核启动标记）。')
+      return
+    }
+    replayDone = true
+    messages.value = rep.messages
+    traceLog('history:open-window', String(target.index))
+  } finally {
+    loadingHistory.value = false
+  }
+}
 
 onUnmounted(() => {
   stopArtifacts?.()

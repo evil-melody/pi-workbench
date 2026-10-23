@@ -11,7 +11,7 @@ use tauri::Manager;
 /// `[{type:image_url,...}]` 这种 content 数组会报 `text.startsWith is not a function`）。
 /// 所以多模态走引用路径的绕行方案，真·视觉理解等内核支持 content block 后再翻。
 /// 附件统一收口到 `app_config_dir/attachments/`，避免散落、也便于导入时按同一目录找回。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn attachment_add(app: tauri::AppHandle, src: String) -> Result<String, String> {
     let src_path = Path::new(&src);
     if !src_path.exists() {

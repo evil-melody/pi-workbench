@@ -201,7 +201,7 @@ pub fn skills_list(
 ) -> Result<Vec<SkillEntry>, String> {
     let mut entries = Vec::new();
 
-    // 扫描位置以 capabilities.json 为准；清单缺失或字段缺失时退回 Pi 的约定位置。
+    // 扫描位置以 pi-manifest.json 为准；清单缺失或字段缺失时退回 Pi 的约定位置。
     let manifest = CapabilityManifest::discover();
     let dirs = manifest
         .as_ref()
@@ -393,7 +393,7 @@ fn land_skill(
 ///
 /// `path` 可以是 SKILL.md 本身，也可以是包含 SKILL.md 的目录。
 /// 目标位置沿用来源：来自项目 `.pi/skills` 的装到项目级，其余装到用户级。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn skills_install(
     app: AppHandle,
     path: String,
@@ -482,7 +482,7 @@ pub fn uninstall_target(name: &str, root: Option<&str>, user_dir: &Path) -> Opti
 ///
 /// 只认本应用安装过的形态（`<技能目录>/<name>/SKILL.md`）：
 /// 用户手工放在别处的技能直接拒绝，避免「一点卸载就把原有资产删了」。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn skills_uninstall(
     app: AppHandle,
     name: String,

@@ -1,11 +1,5 @@
 {
-  "$schema": "../gen/schemas/desktop-schema.json",
   "version": 1,
-  "permissions": [
-    "core:default",
-    "dialog:default",
-    "opener:default"
-  ],
   "kernel": {
     "pi_version": "0.87.1"
   },
@@ -23,6 +17,9 @@
     "agent-memory.ts",
     "agent-skill-pool.ts",
     "agent-browser-session.ts",
-    "agent-codebase.ts"
+    "agent-codebase.ts",
+    "agent-guard.ts",
+    "agent-mcp-bridge.ts",
+    "agent-tool-gate.ts"
   ]
 }

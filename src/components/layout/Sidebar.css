@@ -244,6 +244,54 @@
   color: var(--text);
 }
 
+/* 项目行的展开箭头（有目录才有运行记录可展开）。 */
+.ws-caret {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.ws-caret:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.ws-caret :deep(svg),
+.ws-caret :deep(.icon) {
+  transition: transform 0.15s ease;
+}
+
+.ws-caret.open :deep(svg),
+.ws-caret.open :deep(.icon) {
+  transform: rotate(90deg);
+}
+
+/* 无目录项目没有展开箭头：占同宽保持名字列对齐。 */
+.ws-caret-spacer {
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+}
+
+/* 运行记录挂在自己项目的行下：缩进贴出层级，占满列表宽。 */
+.ws-runs {
+  display: block !important;
+  cursor: default !important;
+  padding: 0 0 var(--sp-1) 14px !important;
+}
+
+.ws-runs:hover {
+  background: transparent !important;
+}
+
 .ws-name {
   flex: 1;
   min-width: 0;
@@ -272,6 +320,33 @@
   opacity: 0.6;
   cursor: pointer;
   transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+/* 项目行「···」（对齐 WorkBuddy）：hover 才露操作入口，常态不占视觉 */
+.ws-more {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-faint);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.ws-list li:hover .ws-more,
+.ws-more:focus-visible {
+  opacity: 1;
+}
+
+.ws-more:hover {
+  background: var(--bg-elev);
+  color: var(--text);
 }
 
 .ws-open:hover,
@@ -353,6 +428,67 @@
 .settings:hover {
   background: var(--bg-hover);
   color: var(--text);
+}
+
+/* ── 项目菜单配套：弹窗内表单与按钮（AppModal footer 用）────── */
+.ws-dialog-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.ws-dialog-row > span {
+  flex-shrink: 0;
+}
+
+.ws-dialog-text {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.ws-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.ws-btn:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.ws-btn.primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.ws-btn.primary:hover {
+  background: color-mix(in srgb, var(--accent) 85%, black);
+  color: var(--accent-ink);
+}
+
+.ws-btn.danger {
+  border-color: transparent;
+  background: var(--danger);
+  color: #fff;
+  font-weight: 600;
+}
+
+.ws-btn.danger:hover {
+  background: color-mix(in srgb, var(--danger) 85%, black);
+  color: #fff;
 }
 
 /* ── 关于弹窗内的键值表 ────────────────────────────────────── */

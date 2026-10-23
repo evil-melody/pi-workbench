@@ -111,6 +111,17 @@
   filter: brightness(1.08);
 }
 
+/* AUDIT-014②：卸载确认弹窗的破坏性操作按钮 */
+.tool-btn.danger {
+  background: var(--danger, #e5534b);
+  border-color: var(--danger, #e5534b);
+  color: var(--accent-ink);
+}
+
+.tool-btn.danger:hover {
+  filter: brightness(1.08);
+}
+
 /* ── Title & Sub tabs ───────────────────────────────────────── */
 .market-title {
   margin: 0 0 16px;
@@ -269,7 +280,10 @@
   display: grid;
   place-items: center;
   border-radius: 12px;
-  color: #fff;
+  /* AUDIT-014③：背景色由模板经 CSS 自定义属性 --card-bg 传入（功能性动态值，
+     豁免纯样式抽离铁律）；无值时退化为面板底色。 */
+  background: var(--card-bg, var(--bg-elev));
+  color: var(--accent-ink);
   font-size: 18px;
   font-weight: 700;
 }

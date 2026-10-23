@@ -51,9 +51,9 @@ function duplicateKeys(obj) {
   const counts = new Map()
   for (const p of obj.properties) {
     const name =
-      ts.isIdentifier(p.name) || ts.isPrivateIdentifier(p.name)
+      p.name && (ts.isIdentifier(p.name) || ts.isPrivateIdentifier(p.name))
         ? p.name.text
-        : ts.isStringLiteral(p.name)
+        : p.name && ts.isStringLiteral(p.name)
           ? p.name.text
           : null
     if (name === null) continue
@@ -181,10 +181,14 @@ async function main() {
 
     const walk = (n) => {
       if (ts.isCallExpression(n)) {
-        const callee = n.expression
-        if (ts.isPropertyAccessExpression(callee)) {
-          const kind = REGISTER[callee.name.text]
-          if (kind) {
+      const callee = n.expression
+      if (ts.isPropertyAccessExpression(callee)) {
+        // 普通对象直接索引会命中 Object.prototype 上的继承方法（如 toString /
+        // valueOf），把它们误判成已注册工具而报「缺少对象字面量」。必须用自有键判断。
+        const kind = Object.prototype.hasOwnProperty.call(REGISTER, callee.name.text)
+          ? REGISTER[callee.name.text]
+          : undefined
+        if (kind) {
             // 行号要按 SF 的行表换算，直接加偏移会给出对不上的位置。
             const line = sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1
             const where = `${path}:${line}`

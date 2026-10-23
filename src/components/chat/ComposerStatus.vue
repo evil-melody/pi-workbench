@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import { activityMessage, type ActivityState } from '@/composables/useActivity'
 import { fmtCost, fmtTokens } from '@/composables/piEvents'
@@ -37,6 +37,20 @@ const shortError = computed(() => {
   return e.length > 60 ? `${e.slice(0, 57)}…` : e
 })
 
+/** 索引已耗时（秒）：转圈没刻度用户只能干等；显示 Ns 后「多久算异常」一目了然。 */
+const indexElapsed = ref(0)
+let indexTimer: ReturnType<typeof setInterval> | null = null
+watch(codebaseIndexing, (on) => {
+  if (on) {
+    indexElapsed.value = 0
+    indexTimer = setInterval(() => indexElapsed.value++, 1000)
+  } else if (indexTimer) {
+    clearInterval(indexTimer)
+    indexTimer = null
+  }
+})
+onUnmounted(() => indexTimer && clearInterval(indexTimer))
+
 /** 手动（重新）索引：仅在绑定了活动项目时可用。 */
 async function reindex() {
   if (!props.projectId) return
@@ -52,7 +66,7 @@ async function reindex() {
       <button
         type="button"
         class="abort"
-        title="中断本轮（pi_stop）"
+        title="中断本轮"
         @click="emit('interrupt')"
       >
         <AppIcon name="stop" :size="11" />
@@ -80,7 +94,7 @@ async function reindex() {
     <span v-if="codebaseVisible" class="codebase" :class="codebaseClass">
       <template v-if="codebaseIndexing">
         <span class="spinner sm" aria-hidden="true" />
-        <span>索引代码库中…</span>
+        <span>索引代码库中… {{ indexElapsed }}s（全仓首次约 10-60s）</span>
       </template>
       <template v-else-if="codebaseStatus?.status === 'indexed'">
         <AppIcon name="database" :size="11" />

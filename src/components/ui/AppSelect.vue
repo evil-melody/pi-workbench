@@ -50,7 +50,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="root" class="app-select" :style="width ? { width } : undefined">
+  <!-- AUDIT-019：宽度经 CSS 自定义属性传入（功能性动态值，豁免纯样式抽离铁律），
+       不再裸写 { width } 内联样式。 -->
+  <div ref="root" class="app-select" :style="width ? { '--select-w': width } : undefined">
     <button
       type="button"
       class="trigger"

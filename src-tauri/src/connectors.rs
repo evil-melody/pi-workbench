@@ -469,7 +469,7 @@ pub fn connectors_list(state: State<ConnectorRuntimeState>, mcp: State<McpState>
     out
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn connectors_config(
     id: String,
@@ -495,7 +495,7 @@ pub fn connectors_config(
     })
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn connectors_create(
     input: ConnectorInput,
@@ -547,7 +547,7 @@ pub fn connectors_create(
     summary_of(&dev, &mcp)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn connectors_update(
     id: String,
@@ -607,7 +607,7 @@ pub fn connectors_update(
     summary_of(&dev, &mcp)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn connectors_remove(
     id: String,
@@ -640,7 +640,7 @@ pub fn connectors_remove(
     Ok(())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn connectors_set_enabled(
     id: String,
@@ -703,7 +703,7 @@ pub fn connectors_selection(state: State<ConnectorRuntimeState>, sessionId: Stri
         .unwrap_or_default()
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn connectors_set_selection(
     sessionId: String,
@@ -826,7 +826,7 @@ fn tool_server(fqn: &str) -> Option<String> {
     Some(rest[..idx].to_string())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn connectors_apply_scope(
     app: AppHandle,

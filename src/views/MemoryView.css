@@ -69,3 +69,110 @@
   padding: 2px 8px;
   border-radius: var(--r-full);
 }
+
+/* 语义向量检索面板（B5） */
+.vec-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.vec-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.vec-head .app-icon {
+  color: var(--accent);
+}
+.vec-sub {
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.vec-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vec-bar .app-icon {
+  color: var(--text-faint);
+}
+/* AUDIT-005：原生 input 换成 AppInput 后，选择器提到 `.vec-bar .vec-input`
+ * （0,3,0）压过 AppInput 自带 `.app-input`（0,2,0），检索框样式稳定生效。 */
+.vec-bar .vec-input {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  background: var(--bg-input, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 7px 10px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  box-shadow: none;
+  transition: border-color 0.15s ease;
+}
+.vec-bar .vec-input:focus {
+  border-color: var(--accent);
+  box-shadow: none;
+}
+
+.vec-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.vec-warn {
+  color: var(--warn, #d9a23b);
+}
+
+.vec-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.vec-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.vec-score {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  min-width: 38px;
+  text-align: right;
+}
+.vec-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vec-tags {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}

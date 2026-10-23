@@ -38,6 +38,9 @@
   align-items: baseline;
   gap: 6px;
   padding: 4px 8px 4px 0;
+  /* AUDIT-020①：缩进由模板经 --row-indent 传入（功能性动态值，豁免铁律）。
+     深度无上界，离散 depth 类会丢深层 fidelity，故走 CSS 变量模式。 */
+  padding-left: var(--row-indent, 8px);
   cursor: pointer;
   font-size: 12px;
   line-height: 1.45;

@@ -438,27 +438,10 @@
 }
 
 /* ── 从链接安装扩展 ─────────────────────────────── */
-.modal-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(15, 17, 21, 0.55);
-  backdrop-filter: blur(3px);
-}
+/* AUDIT-013：modal-mask/modal-card/modal-head/modal-foot 随手搓弹层一并删除，
+   安装弹窗已收敛到 AppModal。只保留弹体内文案样式。 */
 
-.modal-card {
-  width: min(460px, calc(100vw - 40px));
-  padding: 18px 20px 16px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--bg-panel);
-  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.32);
-}
-
-.modal-card code {
+.modal-desc code {
   padding: 1px 5px;
   border-radius: 4px;
   background: var(--accent-dim);
@@ -467,22 +450,9 @@
   font-size: 11.5px;
 }
 
-.modal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
 .modal-desc {
   margin: 0 0 12px;
   color: var(--text-faint);
   font-size: 12.5px;
   line-height: 1.7;
-}
-
-.modal-foot {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 14px;
 }

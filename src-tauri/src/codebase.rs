@@ -88,24 +88,66 @@ fn now_ms() -> u64 {
         .as_millis() as u64
 }
 
+/// 索引硬超时（秒）。实测全仓 ~10s 即完成；超时 = CLI 挂死（守护进程卡住等），
+/// 必须杀掉并把失败亮出来，绝不让前端「索引代码库中…」永远转圈。
+const INDEX_TIMEOUT_SECS: u64 = 300;
+
 /// 运行一次 `codebase-memory-mcp cli --json index_repository {"repo_path":...}`。
 ///
 /// 注意：CLI 会在 JSON 之前打印 deprecation warning 之类的前导行，
 /// 所以这里只截取第一个 `{` 到最后一个 `}` 之间的内容当作 JSON。
+/// 用 spawn + try_wait 轮询实现硬超时（std 没有带超时的 output()）。
 fn run_index(repo_path: &str) -> Result<Value, String> {
     let bin = find_binary()?;
     let arg = serde_json::json!({ "repo_path": repo_path }).to_string();
-    let output = Command::new(&bin)
+    let mut child = Command::new(&bin)
         .args(["cli", "--json", "index_repository", &arg])
-        .output()
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
         .map_err(|e| format!("启动 {} 失败: {}", TOOL_NAME, e))?;
 
-    if !output.status.success() {
-        let err = String::from_utf8_lossy(&output.stderr);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(INDEX_TIMEOUT_SECS);
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(st)) => break Ok(st),
+            Ok(None) => {
+                if std::time::Instant::now() >= deadline {
+                    // 超时：杀进程树（直接 kill 本进程即可，CLI 无子进程树）。
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    break Err(format!(
+                        "索引超过 {}s 未完成，已强制终止（CLI 挂死或仓库过大）",
+                        INDEX_TIMEOUT_SECS
+                    ));
+                }
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
+            Err(e) => break Err(format!("等待 {} 退出失败: {}", TOOL_NAME, e)),
+        }
+    };
+
+    let status = match status {
+        Ok(s) => s,
+        Err(msg) => return Err(msg),
+    };
+
+    if !status.success() {
+        // 被杀/非零退出：stderr 已随管道持有，读出来定位。
+        let mut err = String::new();
+        if let Some(mut se) = child.stderr.take() {
+            use std::io::Read;
+            let _ = se.read_to_string(&mut err);
+        }
         return Err(format!("{} 退出码非零: {}", TOOL_NAME, err));
     }
 
-    let text = String::from_utf8(output.stdout).map_err(|e| format!("{} 输出不是 UTF-8: {}", TOOL_NAME, e))?;
+    let mut stdout = String::new();
+    if let Some(mut so) = child.stdout.take() {
+        use std::io::Read;
+        let _ = so.read_to_string(&mut stdout);
+    }
+    let text = stdout;
     let trimmed = text.trim();
     let start = trimmed.find('{').ok_or_else(|| format!("{} 没有输出 JSON:\n{}", TOOL_NAME, trimmed))?;
     let end = trimmed.rfind('}').ok_or_else(|| format!("{} 输出没有闭合的 JSON:\n{}", TOOL_NAME, trimmed))?;
@@ -186,24 +228,40 @@ pub async fn project_index_codebase(
             Ok(m) => m,
             Err(e) => {
                 let st = app2.state::<ProjectsState>();
-                let mut store = st.store.lock().map_err(|x| x.to_string())?;
-                crate::projects::set_codebase_status(&mut store, &id2, None, None, None, None, Some(e.clone()));
+                {
+                    // 锁作用域必须在这里收掉：save() 内部会对同一把 std Mutex 再次
+                    // lock —— 持锁调 save 是自死锁（症状：前端「索引代码库中…」永远
+                    // 转圈、projects.json 里 codebase_* 字段永远不落盘）。
+                    let mut store = st.store.lock().map_err(|x| x.to_string())?;
+                    crate::projects::set_codebase_status(
+                        &mut store,
+                        &id2,
+                        None,
+                        None,
+                        None,
+                        None,
+                        Some(e.clone()),
+                    );
+                }
                 crate::projects::save(&app2, &st)?;
                 return Err(e);
             }
         };
 
         let st = app2.state::<ProjectsState>();
-        let mut store = st.store.lock().map_err(|x| x.to_string())?;
-        crate::projects::set_codebase_status(
-            &mut store,
-            &id2,
-            meta.project_name.clone(),
-            meta.nodes,
-            meta.edges,
-            meta.indexed_at,
-            None,
-        );
+        {
+            // 同上：先落库（持锁）、放锁、再持久化，绝不持锁跨 save()。
+            let mut store = st.store.lock().map_err(|x| x.to_string())?;
+            crate::projects::set_codebase_status(
+                &mut store,
+                &id2,
+                meta.project_name.clone(),
+                meta.nodes,
+                meta.edges,
+                meta.indexed_at,
+                None,
+            );
+        }
         crate::projects::save(&app2, &st)?;
 
         Ok(CodebaseIndexStatus {

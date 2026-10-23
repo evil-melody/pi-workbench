@@ -19,7 +19,7 @@ import AppTextarea from '@/components/ui/AppTextarea.vue'
 import FilesWorkspace from '@/components/fs/FilesWorkspace.vue'
 import TerminalPanel from '@/components/terminal/TerminalPanel.vue'
 import AgentBrowserPane from '@/components/chat/AgentBrowserPane.vue'
-import { pickDirectory } from '@/composables/useDirPicker'
+import { PICK_TIMEOUT_NOTE, pickDirectoryGuarded } from '@/composables/useDirPicker'
 import {
   WORK_ITEM_STATUS,
   addAsset,
@@ -108,8 +108,14 @@ const pickingDir = ref(false)
 
 async function bindDirectory() {
   pickingDir.value = true
-  const dir = await pickDirectory(app.value?.path)
+  // AUDIT-016①：同 ProjectsView——系统选择器不返回时超时复位并明示，
+  // 不把界面永久停在 picking 态。
+  const { dir, timedOut } = await pickDirectoryGuarded(app.value?.path)
   pickingDir.value = false
+  if (timedOut) {
+    errorText.value = PICK_TIMEOUT_NOTE
+    return
+  }
   if (!dir) return
   const next = await invoke<ProjectSnapshot>('project_set_path', {
     id: projectId.value,
@@ -429,7 +435,7 @@ onMounted(refresh)
             <b>项目指令</b>
             <span>{{ usage?.tokens ?? 0 }} / {{ usage?.budget ?? 0 }} tokens</span>
           </div>
-          <div class="pw-bar"><i :style="{ width: usagePercent + '%' }" /></div>
+          <div class="pw-bar"><i :style="{ '--budget-w': usagePercent + '%' }" /></div>
           <small v-if="usageLevel === 'over'" class="pw-warn-text">
             已超出预算，保存会被内核拒绝，请先精简指令。
           </small>

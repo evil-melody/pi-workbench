@@ -3,6 +3,7 @@ mod attachments;
 mod artifacts;
 mod browser;
 mod capabilities;
+mod checkpoint;
 mod connectors;
 mod codebase;
 mod conversation;
@@ -10,14 +11,17 @@ mod diag;
 mod experts;
 mod extensions;
 mod fs;
+mod governance;
 mod library;
 mod mcp;
+mod memory_vec;
 mod models;
 mod net;
 mod pi_bridge;
 mod pi_events;
 pub mod projects;
 mod roles;
+mod run_meta;
 mod skills;
 mod state;
 mod terminal;
@@ -35,13 +39,19 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(PiState::default())
         .manage(ProjectsState::default())
+        .manage(run_meta::RunMetaState::default())
         .manage(McpState::default())
         .manage(RolesState::default())
         .manage(ConnectorRuntimeState::default())
         .manage(LibraryState::default())
+        .manage(governance::GovernanceState::default())
         .setup(|app| {
             let handle = app.handle().clone();
+            governance::load(&handle, &app.state::<governance::GovernanceState>());
             projects::load(&handle, &app.state::<ProjectsState>());
+            // 运行记录元数据（置顶/重命名/归档/删除）在磁盘上，启动时读回，
+            // 否则每次重启侧栏里的置顶与重命名全部丢失。
+            run_meta::load(&handle, &app.state::<run_meta::RunMetaState>());
             mcp::load(&handle, &app.state::<McpState>());
             // 连接器定义在磁盘上，但运行时（进程 + 握手结果）只存在于内存，
             // 不恢复的话每次重启应用，列表里明明在的连接器都停在 Disabled。
@@ -76,7 +86,7 @@ pub fn run() {
                 }
                 None => {
                     // 清单缺失只影响「能力 → 提供方」的可追溯性，不阻塞启动。
-                    println!("提示：未找到 capabilities.json，能力清单退化为内置默认值");
+                    println!("提示：未找到 pi-manifest.json，能力清单退化为内置默认值");
                 }
             }
             Ok(())
@@ -88,9 +98,20 @@ pub fn run() {
             pi_bridge::pi_send,
             pi_bridge::pi_stop,
             pi_bridge::pi_doctor,
+            pi_bridge::pi_ui_response,
+            pi_bridge::pi_journal_read,
+            pi_bridge::pi_journal_sessions,
+            pi_bridge::checkpoint_begin_turn,
+            pi_bridge::checkpoint_rewind,
+            governance::governance_get,
+            governance::governance_usage,
+            memory_vec::memory_vec_status,
+            memory_vec::memory_vec_search,
+            memory_vec::memory_vec_reindex,
             fs::fs_read_dir,
             fs::fs_read_file,
             fs::fs_write_file,
+            fs::reveal_path,
             artifacts::artifacts_scan,
             artifacts::artifacts_read,
             artifacts::artifacts_open,
@@ -100,6 +121,8 @@ pub fn run() {
             projects::projects_templates,
             projects::project_add,
             projects::project_remove,
+            projects::project_rename,
+            projects::project_reveal,
             projects::project_get,
             projects::project_archive,
             projects::project_unarchive,
@@ -147,7 +170,6 @@ pub fn run() {
             library::library_remove,
             library::library_set_enabled,
             library::library_publish,
-            library::library_reindex,
             library::library_revisions,
             library::library_rollback,
             library::library_search,
@@ -181,6 +203,9 @@ pub fn run() {
             agent_ops::agent_memory_store,
             agent_ops::agent_skill_publish,
             agent_ops::agent_browser_open,
+            run_meta::run_meta_list,
+            run_meta::run_meta_update,
+            run_meta::open_replay_window,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Pi Workbench");

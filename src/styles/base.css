@@ -55,6 +55,16 @@
   --sh-1: 0 1px 2px rgba(0, 0, 0, 0.32);
   --sh-2: 0 12px 32px rgba(0, 0, 0, 0.42);
 
+  /* 兼容别名：部分组件沿用了另一套设计令牌命名（--surface / --surface-2 / --fg /
+     --fg-dim / --bg-soft），统一映射到本项目令牌。否则深色模式下这些 var()
+     取不到会回退到浅色硬编码值（如 var(--surface, #fff) 在暗色下变成白底）。
+     它们引用的是本文件定义的主令牌，故随主题自动切换，无需在 light 块重复。 */
+  --surface: var(--bg-elev);
+  --surface-2: var(--bg-panel);
+  --fg: var(--text);
+  --fg-dim: var(--text-dim);
+  --bg-soft: var(--bg-hover);
+
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Noto Sans Mono CJK SC', monospace;
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;

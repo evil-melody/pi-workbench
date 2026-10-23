@@ -6,6 +6,7 @@ import LibraryPanel from '@/components/panels/LibraryPanel.vue'
 import CapabilitiesView from '@/views/CapabilitiesView.vue'
 import PluginsView from '@/views/PluginsView.vue'
 import SettingsView from '@/views/SettingsView.vue'
+import NotFoundView from '@/views/NotFoundView.vue'
 
 const routes = [
   { path: '/', redirect: '/chat' },
@@ -59,6 +60,11 @@ const routes = [
   { path: '/agent-ops/memory', redirect: { path: '/library', query: { view: 'memory' } } },
   { path: '/agent-ops/skills', redirect: { path: '/capabilities', query: { tab: 'market' } } },
   { path: '/agent-ops/browser', redirect: { path: '/capabilities', query: { tab: 'browser' } } },
+  /**
+   * AUDIT-006：catch-all 必须放在最后——vue-router 按序匹配，
+   * 提前会把上面的业务路径全吞掉。没有它，未知路径白屏无兜底。
+   */
+  { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView },
 ]
 
 export default createRouter({

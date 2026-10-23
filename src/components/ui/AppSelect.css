@@ -1,11 +1,13 @@
 .app-select {
   position: relative;
   display: inline-block;
+  /* AUDIT-019：宽度由模板经 --select-w 传入；未传时为 auto（行为同从前）。 */
+  width: var(--select-w, auto);
 }
 
-/* 未显式传 width 时才给默认下限；调用方一旦指定宽度（如思考深度 72px），
+/* 未显式传 --select-w 时才给默认下限；调用方一旦指定宽度（如思考深度 72px），
    就由调用方负责宽度，min-width 不再反向撑大控件。 */
-.app-select:not([style]) {
+.app-select:not([style*='--select-w']) {
   min-width: 140px;
 }
 

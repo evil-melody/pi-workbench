@@ -1,31 +1,11 @@
-/* 发布确认弹窗 —— 把「谁点了确认、确认了什么、什么时候失效」摆到台面上 */
-
-.pc-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: rgba(8, 10, 14, 0.55);
-  backdrop-filter: blur(3px);
-}
-
-.pc-panel {
-  width: 100%;
-  max-width: 420px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
-  overflow: hidden;
-}
+/* 发布确认弹窗 —— 把「谁点了确认、确认了什么、什么时候失效」摆到台面上。
+   AUDIT-022：pc-backdrop/pc-panel 与 modal-* 过渡随手搓弹层一并删除，
+   外壳由 AppModal 提供；这里只留面板内内容与按钮样式。 */
 
 .pc-head {
   display: flex;
   gap: 12px;
-  padding: 18px 20px 14px;
-  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
 }
 
 .pc-badge {
@@ -54,7 +34,6 @@
 
 .pc-list {
   margin: 0;
-  padding: 14px 20px 6px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -98,7 +77,7 @@
 }
 
 .pc-note {
-  margin: 8px 20px 0;
+  margin: 12px 0 0;
   padding: 10px 12px;
   border-radius: 9px;
   background: var(--surface-2);
@@ -108,11 +87,11 @@
   color: var(--text-dim);
 }
 
+/* AppModal 的 footer 已提供布局，这里只做按钮间距。 */
 .pc-actions {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding: 16px 20px 18px;
 }
 
 .pc-btn {
@@ -145,14 +124,4 @@
 .pc-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-}
-
-.modal-enter-active,
-.modal-leave-active {
-  transition: opacity 0.18s ease;
-}
-
-.modal-enter-from,
-.modal-leave-to {
-  opacity: 0;
 }

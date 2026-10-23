@@ -96,13 +96,26 @@ fn synthetic(kind: &str, name: &str, detail: Option<Value>, meta: &EventMeta) ->
 
 /// 内层块：是否是工具调用，以及它是 call 还是 result。
 ///
-/// 返回 `(kind, name, detail)`；`None` 表示不是工具块。
+/// 返回 `(kind, name, detail)`；`None` 表示不是工具块或没有可展示信息。
 fn tool_block(block: &Value) -> Option<(String, String, Option<Value>)> {
     let t = event_type(block)?;
-    if !norm_type(&t).starts_with("tool") {
+    let nt = norm_type(&t);
+    if !nt.starts_with("tool") {
         return None;
     }
-    let name = first_string(block, NAME_KEYS).unwrap_or_else(|| "unknown".to_string());
+    // 增量块（toolcall_delta）只有参数碎片：无名字无完整参数，合成出来
+    // 只会是一行 `unknown` 噪音（每次调用还会随 delta 数量翻倍），不合成。
+    if nt.contains("delta") {
+        return None;
+    }
+    // 起始块（toolcall_start）普遍不带名字（内核 0.87.x 实测）：没有名字
+    // 就没有可展示的信息——曾兜底写死 "unknown"，轨迹里满屏 unknown 全是
+    // 它。无名不成行，等带名字的块再合成。
+    // 名字先取块顶层，再取嵌套 toolCall 对象——toolcall_start/end 把名字
+    // 与入参都放在 toolCall 里，只查顶层永远落空。
+    let tc = first_object(block, &["toolCall", "tool_call"]);
+    let name = first_string(block, NAME_KEYS)
+        .or_else(|| tc.and_then(|tc| first_string(tc, NAME_KEYS)))?;
     // 有输出字段 → 这是一次执行的结果；否则按调用处理。
     let has_out = OUT_KEYS
         .iter()
@@ -114,7 +127,13 @@ fn tool_block(block: &Value) -> Option<(String, String, Option<Value>)> {
             .cloned();
         Some(("tool_result".to_string(), name, detail))
     } else {
-        let detail = first_object(block, ARG_KEYS).cloned();
+        // 入参同理：顶层 arguments 没有就翻 toolCall.arguments。
+        let detail = first_object(block, ARG_KEYS)
+            .or_else(|| {
+                tc.and_then(|tc| tc.get("arguments"))
+                    .filter(|x| x.is_object())
+            })
+            .cloned();
         Some(("tool_call".to_string(), name, detail))
     }
 }
@@ -254,6 +273,43 @@ mod tests {
         assert_eq!(
             out[1].get("toolArgs").and_then(|v| v.as_str()),
             Some("fn main() {}")
+        );
+    }
+
+    #[test]
+    fn nameless_start_block_synthesizes_nothing() {
+        // toolcall_start 普遍不带名字：曾兜底写死 "unknown"，轨迹满屏 unknown。
+        let m = meta();
+        let raw = msg_update(json!({ "type": "toolcall_start", "toolCall": { "id": "t1" } }));
+        let mut out = Vec::new();
+        enrich(&raw, &m, &mut out);
+        assert_eq!(out.len(), 1, "无名起始块不应合成工具事件");
+        assert!(out.iter().all(|v| v.get("toolName").is_none()));
+    }
+
+    #[test]
+    fn delta_block_synthesizes_nothing() {
+        let m = meta();
+        let raw = msg_update(json!({ "type": "toolcall_delta", "delta": "{\"a\"" }));
+        let mut out = Vec::new();
+        enrich(&raw, &m, &mut out);
+        assert_eq!(out.len(), 1, "增量块是参数碎片，不合成");
+    }
+
+    #[test]
+    fn named_end_block_still_synthesizes_call() {
+        let m = meta();
+        let raw = msg_update(json!({
+            "type": "toolcall_end",
+            "toolCall": { "id": "t1", "name": "read", "arguments": { "path": "/tmp/a" } }
+        }));
+        let mut out = Vec::new();
+        enrich(&raw, &m, &mut out);
+        assert_eq!(out.len(), 2);
+        assert_eq!(event_type(&out[1]).as_deref(), Some("tool_call"));
+        assert_eq!(
+            out[1].get("toolName").and_then(|v| v.as_str()),
+            Some("read")
         );
     }
 

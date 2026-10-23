@@ -15,8 +15,8 @@ Vue 工作区  ──invoke──>  Tauri(Rust)  ──stdio JSON──>  pi --m
    └──event<──────────────────┘   Pi 事件流（message_update / tool_call / agent_settled …）
 ```
 
-- **Pi 内核**：Tauri 启动 `pi --mode rpc --no-session --extension <sandbox-env.ts> --extension <role-inject.ts> …`，扩展清单以 `capabilities.json#extensions` 为单一真源
-- **Pi extension 层**：`src-tauri/extensions/` 下的 `sandbox-env.ts`（声明式沙箱接缝）、`role-inject.ts`（专家角色注入）、`agent-*.ts`（团队 / 记忆 / 技能池 / 浏览器会话）随内核激活
+- **Pi 内核**：Tauri 启动 `pi --mode rpc --no-session --extension <sandbox-env.ts> --extension <role-inject.ts> …`，扩展清单以 `pi-manifest.json#extensions` 为单一真源（共 10 个扩展）
+- **Pi extension 层**：`src-tauri/extensions/` 下的 `sandbox-env.ts`（声明式沙箱接缝）、`role-inject.ts`（专家角色注入）、`agent-teams.ts` / `agent-memory.ts` / `agent-skill-pool.ts` / `agent-browser-session.ts`（团队 / 记忆 / 技能池 / 浏览器会话）、`agent-codebase.ts`（代码库索引）、`agent-guard.ts` / `agent-tool-gate.ts`（工具守卫与硬审批）、`agent-mcp-bridge.ts`（MCP 桥接）随内核激活
 - **专家角色**：`role-inject.ts` 每轮把当前角色追加到 Pi 系统提示，角色由 `roles.rs` 管理（详见 [docs/roles.md](docs/roles.md)）
 - **运行层状态**：`agent_ops.rs` 与 `agent-*.ts` 读写同一份 `.pi/<kind>/` 磁盘状态，人面与 agent 面一致
 - **沙箱**：目前只有 extension 接缝 —— 由 `sandbox_list` / `sandbox_run` 两个 Pi 工具暴露给模型，读工作区 `.pi/sandboxes/<id>/`；无 Rust 侧沙箱模块，也没有对应面板。目录为空时工具如实报 0 个环境并退回宿主 PATH
@@ -89,7 +89,8 @@ npm run verify:ui     # 真实渲染巡检（无头 Chrome 跑 dist：截图 + �
 
 **模型**同样在启动时注入：设置页保存模型配置后也会触发 `pi_restart`，新 provider / model / api-key 在新进程里生效。
 
-能力清单 `src-tauri/capabilities.json` 是这三块的单一真源，启动时加载并校验（含 `pi` 版本与清单钉住版本是否一致）。
+能力清单 `src-tauri/pi-manifest.json` 是这三块的单一真源，启动时加载并校验（含 `pi` 版本与清单钉住版本是否一致）。
+它与 Tauri 的权限体系（`src-tauri/capabilities/default.json`）是两套机制，2026-10-17 起已拆分为两个文件，不再混写。
 
 ## 构建校验
 
@@ -114,7 +115,7 @@ pnpm run verify:ui    # 真实渲染巡检（需本机 Chrome）
 - ✅ 工具白名单：`defaultTools` 注入 / 取回，改完自动 `pi_restart` 生效；可选集由后端 `catalog` 给出
 - ✅ 模型配置：写入内核启动参数，保存后自动重启内核生效；连通性自测走系统信任库 + 系统代理
 - ✅ 运行层：团队 / 记忆 / 技能池 / 浏览器会话，面板与 Pi 工具共用同一份 `.pi/<kind>/` 状态（端到端落盘需在 `pnpm tauri dev` 内确认）
-- ✅ 能力清单 `capabilities.json` 加载与校验（含内核版本对齐），扩展清单是其唯一依据
+- ✅ 能力清单 `pi-manifest.json` 加载与校验（含内核版本对齐），扩展清单是其唯一依据
 - 🟡 沙箱：仅 Pi extension 工具接缝（`sandbox_list` / `sandbox_run`）；无 Rust 模块、无 UI 面板
 - 🟡 Pi extension 插件层已接入（代码与语法校验通过；端到端加载待人工在 `pnpm tauri dev` 中确认）
 - 🟡 资料库已接 fs（文本预览与回写），二进制 / Office 预览未做；技能安装需重启内核
@@ -135,13 +136,19 @@ pnpm run verify:ui    # 真实渲染巡检（需本机 Chrome）
 │   └── alignments/                  # 历史对齐记录（归档）
 ├── src/                             # Vue 前端（对话 / 项目 / 资料库 / 能力中心 / 设置）
 └── src-tauri/
-    ├── extensions/
+    ├── extensions/                  # Pi 扩展（10 个，清单见 pi-manifest.json#extensions）
     │   ├── sandbox-env.ts           # 声明式沙箱环境 + 企业能力接缝
     │   ├── role-inject.ts           # 角色注入（before_agent_start → addendum 段）
     │   ├── agent-teams.ts           # 团队编排（create / dispatch / status）
     │   ├── agent-memory.ts          # 长期记忆（store / recall）
     │   ├── agent-skill-pool.ts      # 技能池（publish / list / install）
-    │   └── agent-browser-session.ts # 浏览器会话（open / fetch / screenshot）
+    │   ├── agent-browser-session.ts # 浏览器会话（open / fetch / screenshot）
+    │   ├── agent-codebase.ts        # 代码库索引（index / status）
+    │   ├── agent-guard.ts           # 工具守卫（bash 命令拦截）
+    │   ├── agent-tool-gate.ts       # 硬审批（ctx.ui.confirm → 前端批准横幅）
+    │   └── agent-mcp-bridge.ts      # MCP 桥接（mcp__ 工具转发）
+    ├── capabilities/
+    │   └── default.json             # Tauri ACL（Tauri 原生权限机制）
     └── src/
         ├── mcp.rs                   # MCP Gateway
         ├── agent_ops.rs             # 运行层状态读写（与 extension 共根）
@@ -149,8 +156,8 @@ pnpm run verify:ui    # 真实渲染巡检（需本机 Chrome）
         ├── skills.rs                # SKILL.md 解析 / 扫描 / 安装 + 内核 get_commands 合并
         ├── tools.rs                 # defaultTools 白名单注入 / 取回 / 可选集
         ├── models.rs                # 模型配置 → 内核启动参数
-        ├── capabilities.rs          # capabilities.json 加载与校验
+        ├── capabilities.rs          # pi-manifest.json 加载与校验
         ├── pi_bridge.rs             # Pi RPC 桥（启动 / 复用 / 重启 / 注入内置 extension）
         ├── fs.rs / terminal.rs / projects.rs / state.rs
-        └── capabilities.json        # 能力清单单一真源（含扩展清单）
+        └── pi-manifest.json         # 能力清单单一真源（含扩展清单）
 ```

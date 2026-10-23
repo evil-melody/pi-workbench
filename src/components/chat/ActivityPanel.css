@@ -173,3 +173,139 @@
   border-radius: 3px;
   font-size: 10px;
 }
+
+/* A4 崩溃重放：从 journal 重建转写的操作区。 */
+.replay-zone {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.replay-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  padding: 5px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.replay-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.replay-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.replay-note {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.replay-note.err {
+  color: var(--danger);
+}
+
+.replay-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow: auto;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-elev);
+}
+
+.replay-msg {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.replay-msg b {
+  flex: none;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.replay-msg span {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* usage（治理五件套）：journal 聚合出的模型用量摘要。 */
+.usage-zone {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.usage-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.usage-head b {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.usage-refresh {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.usage-refresh:hover {
+  color: var(--text);
+}
+
+.usage-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  min-width: 0;
+}
+
+.usage-model {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.usage-num {
+  flex: none;
+  color: var(--text-faint);
+}

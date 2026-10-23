@@ -21,7 +21,7 @@ use std::process::Command;
 use tauri::Manager;
 
 /// 运行态根目录：`<app_config_dir>/.pi`。
-fn agent_ops_root(app: &tauri::AppHandle) -> Option<PathBuf> {
+pub(crate) fn agent_ops_root(app: &tauri::AppHandle) -> Option<PathBuf> {
     app.path().app_config_dir().ok().map(|d| d.join(".pi"))
 }
 
@@ -36,7 +36,7 @@ fn short_id() -> String {
 }
 
 /// 团队定义 + 历史调度条数。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn agent_teams_list(app: tauri::AppHandle) -> Result<Vec<Value>, String> {
     let Some(root) = agent_ops_root(&app) else {
         return Ok(vec![]);
@@ -79,7 +79,7 @@ pub fn agent_teams_list(app: tauri::AppHandle) -> Result<Vec<Value>, String> {
 }
 
 /// 新建团队：写 `<root>/teams/<id>.json`。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn agent_team_create(
     app: tauri::AppHandle,
     name: String,
@@ -115,7 +115,7 @@ pub fn agent_team_create(
 }
 
 /// 记忆条目（最近 200 条，含 ts/text/tags）。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn agent_memory_list(app: tauri::AppHandle) -> Result<Vec<Value>, String> {
     let Some(root) = agent_ops_root(&app) else {
         return Ok(vec![]);
@@ -138,14 +138,15 @@ pub fn agent_memory_list(app: tauri::AppHandle) -> Result<Vec<Value>, String> {
 }
 
 /// 写入一条记忆：追加到 `<root>/memory/memory.jsonl`。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn agent_memory_store(app: tauri::AppHandle, text: String, tags: Vec<String>) -> Result<Value, String> {
     let root = agent_ops_root(&app).ok_or_else(|| "取配置目录失败".to_string())?;
     let text = text.trim().to_string();
     if text.is_empty() {
         return Err("记忆内容不能为空".into());
     }
-    let entry = json!({ "ts": now_ms(), "text": text, "tags": tags });
+    let ts = now_ms() as i64;
+    let entry = json!({ "ts": ts, "text": text, "tags": tags });
     let dir = root.join("memory");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     use std::io::Write;
@@ -155,11 +156,13 @@ pub fn agent_memory_store(app: tauri::AppHandle, text: String, tags: Vec<String>
         .open(dir.join("memory.jsonl"))
         .map_err(|e| e.to_string())?;
     f.write_all(format!("{}\n", entry).as_bytes()).map_err(|e| e.to_string())?;
+    // B5 向量化钩子：fire-and-forget，失败只记日志，词面主路径不受影响。
+    crate::memory_vec::spawn_upsert(&app, ts, text, tags);
     Ok(entry)
 }
 
 /// 技能池中的技能（名称 + 描述）。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn agent_skillpool_list(app: tauri::AppHandle) -> Result<Vec<Value>, String> {
     let Some(root) = agent_ops_root(&app) else {
         return Ok(vec![]);
@@ -187,7 +190,7 @@ pub fn agent_skillpool_list(app: tauri::AppHandle) -> Result<Vec<Value>, String>
 }
 
 /// 发布技能到技能池：写 `<root>/skills-pool/<name>/SKILL.md`。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn agent_skill_publish(
     app: tauri::AppHandle,
     name: String,
@@ -210,7 +213,7 @@ pub fn agent_skill_publish(
 }
 
 /// 浏览器会话状态（最近一次 session.json；无则 inactive）。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn agent_browser_status(app: tauri::AppHandle) -> Result<Value, String> {
     let Some(root) = agent_ops_root(&app) else {
         return Ok(json!({ "active": false }));
@@ -230,7 +233,7 @@ pub fn agent_browser_status(app: tauri::AppHandle) -> Result<Value, String> {
 }
 
 /// 在用户真实浏览器中打开网址（桌面 agent 友好的外部跳转）。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn agent_browser_open(app: tauri::AppHandle, url: String) -> Result<Value, String> {
     let root = agent_ops_root(&app).ok_or_else(|| "取配置目录失败".to_string())?;
     let url = url.trim().to_string();

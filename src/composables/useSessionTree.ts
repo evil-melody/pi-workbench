@@ -32,20 +32,24 @@ export interface FlatNode {
   hasBranch: boolean
 }
 
+/**
+ * 节点图标名（AUDIT-020）：返回 AppIcon 的 name，不再用 emoji 字符——
+ * 图标体系统一走 UI Kit 的 AppIcon（随主题变色、线宽一致）。
+ */
 const KIND_ICON: Record<string, string> = {
-  message: '💬',
-  thinking_level_change: '🧠',
-  model_change: '🔀',
-  usage: '⚡',
-  compaction: '🗜',
-  branch_summary: '🌱',
-  context_edit: '✂️',
-  label: '🏷',
-  custom: '🔧',
+  message: 'chat',
+  thinking_level_change: 'sparkles',
+  model_change: 'cpu',
+  usage: 'zap',
+  compaction: 'layers',
+  branch_summary: 'branch',
+  context_edit: 'edit',
+  label: 'info',
+  custom: 'tool',
 }
 
 export function iconOf(kind: string): string {
-  return KIND_ICON[kind] ?? '·'
+  return KIND_ICON[kind] ?? 'chevron-right'
 }
 
 /** message 条目的正文。AgentMessage.content 可能是字符串，也可能是块数组。 */
@@ -109,4 +113,34 @@ export function flattenTree(
     flattenTree(node.children ?? [], leafId, depth + 1, out)
   }
   return out
+}
+
+/**
+ * 展示层噪音过滤：内核自动重试 / 上下文修剪会往会话里写
+ * 「(assistant 无正文)」空条目和 context_edit 条目——数据里要有（fork 结构靠它们），
+ * 树上不必显示。纯函数，可单测。
+ */
+export function visibleNodes(nodes: FlatNode[]): FlatNode[] {
+  return nodes.filter((n) => {
+    if (n.kind === 'context_edit') return false
+    if (n.kind === 'message' && n.text === '（assistant 无正文）') return false
+    return true
+  })
+}
+
+/**
+ * 该条目能否分叉：Pi 的 RPC `fork` 默认 position=before，**只接受 user message
+ * 条目**（见内核 agent-session-runtime.js：非 user message 直接抛
+ * "Invalid entry ID for forking"）。UI 必须与这条硬约束对齐。
+ */
+export function canFork(node: FlatNode): boolean {
+  return node.kind === 'message' && node.role === 'user'
+}
+
+/** 「分叉末端」的落点：最后一条 user message 的 id（重新打开它即从末端续跑）。 */
+export function forkTargetId(nodes: FlatNode[]): string | null {
+  for (let i = nodes.length - 1; i >= 0; i--) {
+    if (canFork(nodes[i])) return nodes[i].id
+  }
+  return null
 }

@@ -28,3 +28,12 @@ serde_json = "1"
 #   · system-proxy      读取系统代理设置（公司网络/代理环境必需）
 #   · http2             多数 OpenAI 兼容网关默认走 HTTP/2
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls", "system-proxy", "http2"] }
+# B5 语义向量召回：嵌入式向量库（LanceDB 本地目录，无服务端）。
+# 向量表 memory_vectors：id/text/tags/ts + vector(FixedSizeList<f32>)。
+lancedb = "0.21"
+# lancedb 0.21 只 re-export arrow_schema，array 类型需直接依赖；
+# 版本必须与 Cargo.lock 中 lancedb 解析的 arrow-rs 55.x 对齐（55.2.0）。
+arrow-array = "55"
+arrow-schema = "55"
+# 检索结果流（SendableRecordBatchStream）消费需 StreamExt。
+futures = "0.3"

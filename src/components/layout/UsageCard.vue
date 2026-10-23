@@ -95,8 +95,9 @@ onMounted(() => {
       </div>
 
       <div class="uc-bar" aria-hidden="true">
-        <i class="bar-in" :style="{ width: `${ratio.i}%` }" />
-        <i class="bar-out" :style="{ width: `${ratio.o}%` }" />
+        <!-- 功能性动态值（进出比例），豁免纯样式抽离铁律：CSS 变量传值 -->
+        <i class="bar-in" :style="{ '--bar-in-w': `${ratio.i}%` }" />
+        <i class="bar-out" :style="{ '--bar-out-w': `${ratio.o}%` }" />
       </div>
 
       <p class="uc-foot">

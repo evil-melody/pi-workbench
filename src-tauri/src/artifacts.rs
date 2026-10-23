@@ -262,7 +262,7 @@ fn base64_of(bytes: &[u8]) -> String {
 }
 
 /// 从多条会话文本里解析出成果。已存在的按规范路径去重，项目外的路径直接丢弃。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn artifacts_scan(
     root: String,
     sources: Vec<ScanSource>,
@@ -292,7 +292,7 @@ pub fn artifacts_scan(
 }
 
 /// 读取单个成果内容供预览。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn artifacts_read(
     root: String,
     path: String,
@@ -358,7 +358,7 @@ pub fn artifacts_read(
 ///
 /// 这里只校验文件存在，**不套项目内边界**：用户是主动点「用外部应用打开」的，
 /// 再限制目标反而妨碍使用；自动抽取才需要 `resolve` 把关（见 artifacts_scan）。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn artifacts_open(app: tauri::AppHandle, path: String) -> Result<(), String> {
     if !std::path::Path::new(&path).is_file() {
         return Err(format!("文件不存在：{path}"));

@@ -147,14 +147,14 @@ pub fn all_roles(app: &AppHandle) -> Vec<Role> {
     roles
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn role_list(app: AppHandle) -> Vec<Role> {
     all_roles(&app)
 }
 
 /// 切换角色：把选中角色的 prompt 写进项目级 `.pi/roles/current.md`。
 /// Pi extension（role-inject）每轮从该文件读取并追加到系统提示，因此切换即时生效、无需重启内核。
-#[tauri::command]
+#[tauri::command(async)]
 pub fn role_set(
     app: AppHandle,
     state: State<RolesState>,
@@ -176,7 +176,7 @@ pub fn role_set(
     Ok(role)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn role_current(
     app: AppHandle,
     state: State<RolesState>,

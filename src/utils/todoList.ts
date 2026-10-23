@@ -46,8 +46,3 @@ export function parseTodoList(
 
   return out
 }
-
-/** 清单里已有的已完成项，用于「保留 Pi 的勾选结果，不被本地状态覆盖」。 */
-export function doneTexts(todo: TodoItem[]): string[] {
-  return todo.filter((t) => t.done).map((t) => t.text)
-}

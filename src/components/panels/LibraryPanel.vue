@@ -455,7 +455,8 @@ loadTree('/')
       </div>
       <div v-if="stats" class="lib-quota">
         <div class="quota-bar" role="img" :aria-label="`已用 ${formatBytes(stats.used_bytes)}`">
-          <span :style="{ width: `${usedRatio * 100}%` }"></span>
+          <!-- 功能性动态值（配额比例），豁免纯样式抽离铁律：CSS 变量传值 -->
+          <span :style="{ '--quota-w': `${usedRatio * 100}%` }"></span>
         </div>
         <span class="quota-text">
           {{ stats.asset_count }} 份 · {{ formatBytes(stats.used_bytes) }} / {{ formatBytes(stats.max_total_bytes) }}
@@ -572,7 +573,7 @@ loadTree('/')
             :key="item.node.path"
             class="tree-node"
             :class="{ active: item.node.asset_id && item.node.asset_id === selectedId, dir: item.node.is_dir }"
-            :style="{ paddingLeft: `${12 + item.depth * 16}px` }"
+            :style="{ '--tree-indent': `${12 + item.depth * 16}px` }"
             @click="openNode(item.node)"
           >
             <AppIcon :name="fileIcon(item.node)" :size="14" />

@@ -1,0 +1,206 @@
+/* 运行记录列表：侧栏 / 过程抽屉共用一块板子，样式只随主题变量走。
+ * 对齐 WorkBuddy：无整行标题、条目无前导图标；hover 整行高亮，右侧才露「···」。 */
+
+.run-history {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rh-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rh-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font-size: 12.5px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.rh-item:hover,
+.rh-item:focus-visible {
+  background: var(--bg-hover);
+  border-color: var(--border);
+  outline: none;
+}
+
+/* 批量多选态：勾中的行高亮（accent-dim 底 + accent 边），与 hover 态区分 */
+.rh-item.checked {
+  background: var(--accent-dim);
+  border-color: var(--accent-soft);
+}
+
+/* 归档记录：整行置灰，但仍可点开 / 取消归档（不是删除） */
+.rh-item.archived {
+  opacity: 0.55;
+}
+
+/* 置顶标记：行首星标（后端合并置顶，这里只做视觉确认） */
+.rh-pin {
+  flex-shrink: 0;
+  color: var(--warn);
+}
+
+/* 多选态行首 checkbox（公共 AppCheckbox，禁原生控件） */
+.rh-check {
+  flex-shrink: 0;
+}
+
+/* 多选态下「···」让位给勾选，行高回落一点保持整齐 */
+.rh-item:has(.rh-check) {
+  padding-left: 6px;
+}
+
+.rh-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.rh-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* hover 才显「···」（对齐 WorkBuddy：常态不占空间，鼠标滑上去才露操作入口） */
+.rh-more-btn {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.rh-item:hover .rh-more-btn,
+.rh-item:focus-within .rh-more-btn {
+  opacity: 1;
+}
+
+.rh-more-btn:hover {
+  background: var(--bg-active);
+  color: var(--text);
+}
+
+/* 「···」菜单本体样式已抽到 ui/ContextMenu.css（与侧栏项目菜单共用） */
+
+/* 行内 toast：Teleport 到 body 的固定底栏，2.6s 自消失 */
+.rh-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 44px;
+  transform: translateX(-50%);
+  z-index: 60;
+  margin: 0;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: var(--bg-elev);
+  box-shadow: var(--sh-2);
+  font-size: 12.5px;
+  color: var(--text);
+  pointer-events: none;
+}
+
+/* 弹窗内表单行（重命名）与说明文本 */
+.rh-dialog-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.rh-dialog-text {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--text-dim);
+}
+
+.rh-btn {
+  padding: 6px 14px;
+  border-radius: var(--r-sm);
+  font-size: 12.5px;
+}
+
+.rh-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.rh-btn.primary:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  filter: brightness(1.08);
+}
+
+.rh-btn.danger {
+  color: var(--danger);
+  border-color: var(--danger-soft);
+}
+
+.rh-btn.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+
+/* 分享降级：手动复制的摘要文本（等宽 + 保换行 + 限高滚动） */
+.rh-share-pre {
+  max-height: 220px;
+  overflow: auto;
+  margin: 10px 0 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: all;
+}
+
+.rh-more {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  color: var(--text-dim);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.rh-more:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}

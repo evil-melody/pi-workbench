@@ -142,7 +142,7 @@ const rows = computed<Row[]>(() => {
       name: s.name,
       sub: s.kind,
       desc: s.description || '（暂无简介）',
-      version: s.version || 'v0.1.0',
+      version: s.version || '未知',
       source: s.author || s.via || '本地',
       installed: true,
       color: hashColor(s.name),
@@ -284,8 +284,18 @@ function openInstall(mode: 'path' | 'url') {
   showInstallModal.value = true
 }
 
-async function uninstallSkill(name: string) {
-  if (!window.confirm(`卸载技能「${name}」？将删除其 SKILL.md，内核重启后生效。`)) return
+/** 卸载确认（AUDIT-014②）：window.confirm 是原生阻断框，且样式/焦点不可控，
+ *  改为 AppModal 确认流——pendingUninstall 非空即打开。 */
+const pendingUninstall = ref<string | null>(null)
+
+function uninstallSkill(name: string) {
+  pendingUninstall.value = name
+}
+
+async function confirmUninstall() {
+  const name = pendingUninstall.value
+  if (!name) return
+  pendingUninstall.value = null
   try {
     await skillsUninstall(name)
     hubNotice.value = `「${name}」已卸载，重启内核后生效`
@@ -487,7 +497,8 @@ onMounted(load)
             <AppIcon name="check" :size="14" />
           </span>
           <div class="card-top">
-            <span class="card-icon" :style="{ background: r.color }">{{ firstChar(r.name) }}</span>
+            <!-- 功能性动态值（哈希色），豁免纯样式抽离铁律：CSS 变量传色值 -->
+            <span class="card-icon" :style="{ '--card-bg': r.color }">{{ firstChar(r.name) }}</span>
             <span class="card-title">
               <strong :title="r.name">{{ r.name }}</strong>
               <span class="card-sub">{{ r.sub }}</span>
@@ -573,6 +584,22 @@ onMounted(load)
         <button class="tool-btn primary" :disabled="installing || !installPath.trim()" @click="installSkill">
           {{ installing ? '安装中…' : '安装' }}
         </button>
+      </template>
+    </AppModal>
+
+    <!-- AUDIT-014②：卸载确认（原 window.confirm 原生阻断框） -->
+    <AppModal
+      :open="!!pendingUninstall"
+      title="卸载技能"
+      size="sm"
+      @close="pendingUninstall = null"
+    >
+      <p class="form-hint">
+        确定卸载技能「{{ pendingUninstall }}」？将删除其 SKILL.md，内核重启后生效。此操作不可撤销。
+      </p>
+      <template #footer>
+        <button class="tool-btn" @click="pendingUninstall = null">取消</button>
+        <button class="tool-btn danger" @click="confirmUninstall">确认卸载</button>
       </template>
     </AppModal>
   </section>

@@ -2,7 +2,7 @@
 /**
  * 项目主页 —— 卡片式项目列表与归档 / 绑定目录入口。
  *
- * 版式来源：packages/plugins/projects/src/client/ProjectsPanel.tsx
+ * 版式来源：本仓项目面板的既有版式规范
  * 与 styles.ts，仅把 React 实现换成 Vue。
  *
  * 与内核的接合点：
@@ -14,7 +14,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
-import { pickDirectory } from '@/composables/useDirPicker'
+import { PICK_TIMEOUT_NOTE, pickDirectoryGuarded } from '@/composables/useDirPicker'
 import {
   describeProjectError,
   type Project,
@@ -96,8 +96,14 @@ function applyTemplate(id: string) {
 async function chooseDirectory() {
   dirError.value = ''
   pickingDir.value = true
-  const dir = await pickDirectory()
+  // AUDIT-015①：裸 pickDirectory() 在系统选择器被吞时会把界面永久停在
+  // 「正在选择…」；改用带 120s 超时 + 代际丢弃的 Guarded 版本。
+  const { dir, timedOut } = await pickDirectoryGuarded()
   pickingDir.value = false
+  if (timedOut) {
+    dirError.value = PICK_TIMEOUT_NOTE
+    return
+  }
   if (dir) draftPath.value = dir
 }
 

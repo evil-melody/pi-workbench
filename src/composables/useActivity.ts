@@ -27,7 +27,7 @@ function empty(): ActivityState {
  * - 有 lastAgentError 或消息里含失败语义 → failed
  * - 否则 idle。
  *
- * 当后端补齐细粒度事件后，可整体替换为 `packages/plugins/activity/src/projection.ts`
+ * 当后端补齐细粒度事件后，可整体替换为独立的事件投影模块
  * 的真实实现。
  */
 export function useActivity(
