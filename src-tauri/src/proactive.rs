@@ -312,7 +312,7 @@ pub fn mark_running(job: &mut Job, now: u64) {
 
 /// 成功：按计划时刻排下一次周期（错过多个周期时直接跳到未来最近一个），
 /// attempts 归零。这样调度偏差不随运行次数累积。
-pub fn mark_done(job: &mut Job, now: u64, inbox_id: String) {
+pub fn mark_done(job: &mut Job, now: u64) {
     job.status = JobStatus::Done;
     job.attempts = 0;
     job.last_error = None;
@@ -553,7 +553,7 @@ pub fn job_prompt(job: &Job) -> String {
 }
 
 /// 执行一个到点任务。**串行**：由唯一的调度线程调用，天然不会并发。
-fn execute(app: &AppHandle, mut job: Job) {
+fn execute(app: &AppHandle, job: Job) {
     let started_at = now_ms();
     write_policy(app, Some(&job)).ok();
     // 新一次运行重置额度用量；工具门会边跑边写回已用次数。
@@ -603,7 +603,7 @@ fn execute(app: &AppHandle, mut job: Job) {
                     text.clone(),
                 );
                 if let Some(j) = store.jobs.iter_mut().find(|j| j.id == job.id) {
-                    mark_done(j, now, inbox_id.clone());
+                    mark_done(j, now);
                 }
                 let _ = persist(app, &store);
                 inbox_id
@@ -1070,7 +1070,7 @@ mod tests {
     fn mark_done_resets_attempts_and_schedules_next() {
         let mut j = job("j", 0);
         j.attempts = 2;
-        mark_done(&mut j, 1_000, "inbox".into());
+        mark_done(&mut j, 1_000);
         assert_eq!(j.status, JobStatus::Done);
         assert_eq!(j.attempts, 0);
         // 按计划时刻推进：0 + 1 个周期，而不是「完成时刻 + 周期」。
@@ -1082,7 +1082,7 @@ mod tests {
         let mut j = job("j", 0);
         j.interval_secs = 60;
         // 迟了 10 个周期才完成：直接跳到第 11 个周期，不补跑。
-        mark_done(&mut j, 10 * 60_000 + 5_000, "inbox".into());
+        mark_done(&mut j, 10 * 60_000 + 5_000);
         assert_eq!(j.next_at, 11 * 60_000);
     }
 
@@ -1096,7 +1096,7 @@ mod tests {
         for _ in 0..1000 {
             let now = j.next_at + 5_000; // 模拟 tick 延迟与执行耗时
             mark_running(&mut j, now);
-            mark_done(&mut j, now, "inbox".into());
+            mark_done(&mut j, now);
         }
         assert_eq!(j.next_at, 1000 * interval, "1000 个周期后计划时刻零漂移");
     }
