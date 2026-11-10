@@ -1,11 +1,14 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import AppButton from './AppButton.vue'
 
 const props = defineProps<{
   open: boolean
   title: string
   // xl：artifact 文档预览用（原手搓 overlay 是 960px，表格/文档需要更宽的面板）。
-  size?: 'sm' | 'md' | 'lg' | 'xl'
+  // page：整页设置搬进参照仓 720px 对话框（modal.ts）。
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'page'
 }>()
 
 // AUDIT-011：补 update:open 事件，让 v-model:open 双向绑定真正生效
@@ -104,6 +107,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
         v-if="open"
         ref="panel"
         class="modal-backdrop"
+        :class="size ?? 'md'"
         role="dialog"
         aria-modal="true"
         tabindex="-1"
@@ -113,9 +117,9 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
         <div class="modal-panel" :class="size ?? 'md'">
           <div class="modal-header">
             <h3>{{ title }}</h3>
-            <button class="modal-close" aria-label="关闭" @click="requestClose">
+            <AppButton variant="icon" class="modal-close" :aria-label="t('关闭')" @click="requestClose">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
-            </button>
+            </AppButton>
           </div>
           <div class="modal-body">
             <slot />

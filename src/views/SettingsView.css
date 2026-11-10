@@ -1,28 +1,48 @@
-.settings {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg);
-  color: var(--text);
-}
-
-.settings-header {
-  flex-shrink: 0;
-  padding: 18px 24px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-panel);
-}
-
-.settings-header h1 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-}
-
+/* 设置现在是 720px 对话框（AppModal size="page"）：内容区只负责左右两栏，
+   高度由对话框的 modal-body 撑开，页面级底色与标题都交给对话框。 */
 .settings-body {
   flex: 1;
   display: flex;
   min-height: 0;
+  color: var(--text);
+}
+
+/* 后台与启动：卡片把两项设置与当前状态收在一起，说明文字保持弱化。 */
+.bg-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-panel);
+  max-width: 640px;
+}
+
+.bg-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border);
+}
+
+.bg-label {
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.bg-status {
+  color: var(--text);
+  font-size: var(--fs-sm);
+}
+
+.bg-hint {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
 }
 
 .settings-tabs {
