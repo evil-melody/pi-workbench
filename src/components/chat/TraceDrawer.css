@@ -93,7 +93,7 @@
   border: 1px solid transparent;
   border-radius: var(--r-sm);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
 .td-tab:hover {

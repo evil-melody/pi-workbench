@@ -10,6 +10,12 @@ import { IN_TAURI } from './usePi'
 
 const MAX = 1000
 
+/**
+ * 防重入：`console.warn` 里发 IPC，而 IPC 自己失败时 Tauri 也用 `console.warn` 报，
+ * 两者会互相触发形成正反馈。转发期间不再转发。
+ */
+let forwarding = false
+
 function stringify(v: unknown): string {
   if (typeof v === 'string') return v
   if (v instanceof Error) return `${v.name}: ${v.message}`
@@ -21,9 +27,14 @@ function stringify(v: unknown): string {
 }
 
 export function webLog(level: 'info' | 'warn' | 'error', ...args: unknown[]) {
-  if (!IN_TAURI) return
+  if (!IN_TAURI || forwarding) return
   const text = args.map(stringify).join(' ').slice(0, MAX)
-  void invoke('app_log', { level, msg: text }).catch(() => {})
+  forwarding = true
+  try {
+    void invoke('app_log', { level, msg: text }).catch(() => {})
+  } finally {
+    forwarding = false
+  }
 }
 
 /** 关键路径打点：比 console 更可控，只在桌面模式下发。 */
@@ -40,6 +51,14 @@ export function installWebLogBridge() {
   const warn = console.warn.bind(console)
   const error = console.error.bind(console)
   console.warn = (...args: unknown[]) => {
+    // 传输层告警不能再回灌：它由 invoke 失败触发，转成 IPC 会再触发自己，
+    // 一次失败就被放大成无限刷屏（tauri 的 scripts/ipc-protocol.js 里
+    // fetch 失败走 console.warn，并把标志位置 true；本桥若再发 IPC 就是正反馈）。
+    // 只放过、走原生输出，保留现场但不参与转发。
+    if (typeof args[0] === 'string' && args[0].includes('IPC custom protocol failed')) {
+      warn(...args)
+      return
+    }
     webLog('warn', ...args)
     warn(...args)
   }

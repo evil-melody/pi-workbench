@@ -11,7 +11,7 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 
 .acard:hover {
@@ -36,7 +36,7 @@
   background: var(--bg);
   color: var(--accent);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-micro);
   line-height: 16px;
   text-align: center;
 }
@@ -50,7 +50,7 @@
 
 .acard .name {
   overflow: hidden;
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -58,5 +58,5 @@
 .acard .sub {
   color: var(--text-dim);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--fs-micro);
 }

@@ -11,7 +11,7 @@
   align-items: center;
   gap: 6px;
   margin-bottom: 12px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   font-weight: 500;
   color: var(--text-dim);
   text-transform: uppercase;
@@ -20,7 +20,7 @@
 
 .count {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-faint);
 }
 
@@ -31,7 +31,7 @@
   height: 20px;
   border-radius: var(--r-sm);
   color: var(--text-faint);
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 .reset:hover {
@@ -55,9 +55,9 @@
   padding: 8px 10px;
   border-radius: var(--r-sm);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text);
-  transition: background 0.15s ease;
+  transition: background var(--dur-fast) var(--ease);
 }
 
 .todo:hover {
@@ -101,7 +101,7 @@
   border-radius: var(--r-sm);
   background: var(--accent-dim);
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-micro);
   line-height: 1.5;
 }
 
@@ -110,7 +110,7 @@
   background: var(--bg-elev);
   padding: 1px 3px;
   border-radius: var(--r-sm);
-  font-size: 10px;
+  font-size: var(--fs-micro);
 }
 
 .from-pi {
@@ -119,6 +119,6 @@
   border-radius: var(--r-full);
   background: var(--accent-dim);
   color: var(--accent);
-  font-size: 10px;
+  font-size: var(--fs-micro);
   line-height: 16px;
 }

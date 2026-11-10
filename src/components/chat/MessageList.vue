@@ -533,7 +533,7 @@ async function copyMsg(key: string, text: string) {
 
       <!-- ── assistant turn：一个头像、一段回复（F5：等待态不再给整行挂 waiting 类） ── -->
       <div v-else class="msg-row assistant">
-        <div class="msg-body">
+        <div class="msg-body" :class="{ 'no-rail': !row.live && turnSteps(row) === 0 }">
           <!-- 头像并进 turn 栅格第一格：rail 竖线（left:12.5px）与头像圆心同一次坐标，
                头像留在 .msg-row 的 flex 里时两者的参照系不同，线会整体右偏 38px。 -->
           <div class="msg-avatar">
@@ -718,7 +718,7 @@ async function copyMsg(key: string, text: string) {
                完整 token 口径 hover 可查。本轮时长仍不显（ts 只到消息粒度，被中断那轮的
                首末差更不是「耗时」），没有可信口径就不编。 -->
           <div
-            v-if="row.usage && !row.msgs.some((m) => m.streaming)"
+            v-if="row.usage && !row.msgs.some((m) => m.streaming) && (turnSteps(row) > 0 || row.usage.cost.total > 0)"
             class="msg-usage"
             :title="t('输入 {0} · 输出 {1} · 缓存读 {2} · 缓存写 {3} · 合计 {4} tokens', [row.usage.input, row.usage.output, row.usage.cacheRead, row.usage.cacheWrite, row.usage.totalTokens])"
           >
