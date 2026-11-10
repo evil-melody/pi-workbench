@@ -9,6 +9,7 @@ Tauri 2 + Vite + Vue 3 桌面工作台，以 [Pi](https://pi.dev)（极简 agent
 ```
 Vue 工作区  ──invoke──>  Tauri(Rust)  ──stdio JSON──>  pi --mode rpc（微内核）
    │                          │                              │
+   │                          ├─ proactive.rs  主动任务账本 / 调度 / 收件箱
    │                          ├─ mcp.rs        MCP Gateway（stdio JSON-RPC 客户端）
    │                          ├─ agent_ops.rs  运行层状态（团队 / 记忆 / 技能池 / 浏览器会话）
    │                          └─ fs / terminal / projects / library / connectors
@@ -19,7 +20,7 @@ Vue 工作区  ──invoke──>  Tauri(Rust)  ──stdio JSON──>  pi --m
 - **Pi extension 层**：`src-tauri/extensions/` 下的 `sandbox-env.ts`（声明式沙箱接缝）、`role-inject.ts`（专家角色注入）、`agent-teams.ts` / `agent-memory.ts` / `agent-skill-pool.ts` / `agent-browser-session.ts`（团队 / 记忆 / 技能池 / 浏览器会话）、`agent-codebase.ts`（代码库索引）、`agent-guard.ts` / `agent-tool-gate.ts`（工具守卫与硬审批）、`agent-mcp-bridge.ts`（MCP 桥接）随内核激活
 - **专家角色**：`role-inject.ts` 每轮把当前角色追加到 Pi 系统提示，角色由 `roles.rs` 管理（详见 [docs/roles.md](docs/roles.md)）
 - **运行层状态**：`agent_ops.rs` 与 `agent-*.ts` 读写同一份 `.pi/<kind>/` 磁盘状态，人面与 agent 面一致
-- **沙箱**：目前只有 extension 接缝 —— 由 `sandbox_list` / `sandbox_run` 两个 Pi 工具暴露给模型，读工作区 `.pi/sandboxes/<id>/`；无 Rust 侧沙箱模块，也没有对应面板。目录为空时工具如实报 0 个环境并退回宿主 PATH
+- **沙箱**：目前只有 extension 接缝 —— 由 `sandbox_list` / `sandbox_run` 两个 Pi 工具暴露给模型，读工作区 `.pi/sandboxes/<id>/`；无 Rust 侧沙箱模块，也没有对应面板。目录为空时工具如实报 0 个环境；`sandbox_run` 在无就绪环境（未声明 / 未构建）时直接拒绝执行（fail-closed），不回退宿主 PATH
 
 ## 运行
 
@@ -53,12 +54,14 @@ npm run verify:ui     # 真实渲染巡检（无头 Chrome 跑 dist：截图 + �
 
 ## 主要功能
 
-- **对话**：Pi RPC 流式输出，左侧「轨迹」面板按时间排列内核事件（工具调用 / 结果 / 轮次 / 退出），带计数徽标与自动贴底
+- **对话**：Pi RPC 流式输出，每轮末尾一行 `N 步 · $成本` 收据（用量缺失且本轮被中止时改显 `已中断`）；消息与轮次带时刻，跨年只留年份，journal 回放没有本地时刻就不画时钟；右侧「轨迹」列常驻（窗宽 < 1180px 转浮层），内核事件按「图标 / 工具+对象 / 时长」逐行排列，原始 JSON 只在展开体里，带计数徽标与自动贴底
+- **收件箱 / 定时任务**（阶段 1 MVP）：`proactive.rs` 维护任务账本（`proactive.json`）与单调度线程，到点复用常驻 Pi 内核执行并把结论写入收件箱 + 系统通知；账本跨重启存活，上次崩在 `running` 的任务会在启动时标为 `interrupted` 并自动重排，失败按 60s × 次数退避重试（上限 3 次）。通知发出后 90 秒内应用获得焦点即视为点击，自动打开收件箱并定位到对应任务；应用已在前台时点通知不会触发焦点事件，因此不跳转。预授权可在任务卡片上编辑 bash 命令前缀与单次风险动作额度，改动即时生效；写入根固定为项目目录，越界动作直接 block 并记入 `proactive-audit.jsonl`。调度以「计划时刻 + 周期」推进，1000 周期压测零漂移（`scheduler_does_not_drift_over_1000_cycles`）。**后台驻留**：主窗口首次关闭时询问一次「驻留后台 / 直接退出」并持久化，设置页可改回每次询问；驻留态托盘菜单提供打开主窗口、暂停主动任务、下次任务状态与彻底退出；登录项默认关闭、设置页显式开启；内核空闲 5 分钟回收，任务到点自动重拉；彻底退出停调度、停内核并清理预授权策略文件；单实例插件阻止重复调度器。**边界**：外部 IM / 邮件 / webhook 触达通道未接入；应用真正退出期间不调度（无系统级守护进程）。
 - **项目**：卡片式项目列表，支持归档 / 绑定目录 / 预算与工作项；进入项目工作台后 Pi 以该项目目录为 cwd 启动
-- **资料库**：资料库 / 搜索 / 最近 / 输出 / **记忆** 五个 tab；文本可预览与回写，二进制与 Office 预览未做
+- **资料库**：资料库 / 搜索 / 最近 / 输出 / **记忆** 五个 tab；文本可预览与回写；Office 预览已接：docx/xlsx 直接渲染，pptx/pdf 降级提示用「原件」打开（12 MiB 上限）
+- **记忆**：删除进入 24 小时待撤销态，期间可在记忆页恢复；也可跳过窗口立即永久删除（二次确认 + `memory-audit.jsonl` 留痕）。到期由调度 tick 自动硬失效，召回与向量检索都按有效条目过滤。召回注入统一挂在扩展 `before_agent_start`，对话与主动任务共用同一条路径；主动任务单轮写入上限 3 条。用户画像由记忆保留标签（`profile:preference|taboo|goal|workflow=`）折叠成只读视图，不另立手工档案。词面召回评测基线见 [eval/memory-recall-100.jsonl](eval/memory-recall-100.jsonl)（`pnpm eval:memory`），本轮不接向量库
 - **能力中心**：专家 / 技能 / 连接器 / **团队** / **技能池** / **浏览器** 六个 tab，前三个是能力市场，后三个是运行层面板
 - **插件**：发现社区插件与本地安装入口
-- **设置**：模型配置（多模型、可切默认、连通性自测）、工具激活（`defaultTools` 白名单）、关于
+- **设置**：模型配置（多模型、可切默认、连通性自测）、工具激活（`defaultTools` 白名单）、后台与启动（关窗行为、登录项）、关于
 
 ## 专家角色
 
@@ -118,7 +121,7 @@ pnpm run verify:ui    # 真实渲染巡检（需本机 Chrome）
 - ✅ 能力清单 `pi-manifest.json` 加载与校验（含内核版本对齐），扩展清单是其唯一依据
 - 🟡 沙箱：仅 Pi extension 工具接缝（`sandbox_list` / `sandbox_run`）；无 Rust 模块、无 UI 面板
 - 🟡 Pi extension 插件层已接入（代码与语法校验通过；端到端加载待人工在 `pnpm tauri dev` 中确认）
-- 🟡 资料库已接 fs（文本预览与回写），二进制 / Office 预览未做；技能安装需重启内核
+- ✅ 资料库已接 fs（文本预览与回写）；Office 预览：docx/xlsx 渲染，pptx/pdf 降级提示用「原件」打开（12 MiB 上限）；技能安装需重启内核
 - ✅ 路径穿越防护：文件接口以活动项目为根，软链逃逸一并拦截
 - ✅ MCP JSON-RPC id 全局唯一，多 server 并存不再错配响应
 - 🔜 下一步见 [docs/IMPLEMENTATION-PLAN.md](docs/IMPLEMENTATION-PLAN.md)：

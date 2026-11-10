@@ -355,11 +355,14 @@ async function main() {
   await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
   await page.waitForTimeout(250)
   await shot('01c-hero-dark')
+  // 批 1 F8 把首页的装饰渐变撤了（底色收敛为纯 --bg），守卫随之改量 backgroundColor：
+  // 要守的还是同一件事——切到深色时首页整体变暗，透明品牌图不露白底方块。
   const darkBg = await page
     .locator('.chat-hero')
-    .evaluate((el) => getComputedStyle(el).backgroundImage)
+    .evaluate((el) => getComputedStyle(el).backgroundColor)
     .catch(() => '')
-  assert('深色主题下首页背景随之切换', darkBg.includes('rgb(18, 26, 34)'), darkBg.slice(0, 64))
+  const [darkR, darkG, darkB] = darkBg.match(/\d+/g)?.map(Number) ?? [255, 255, 255]
+  assert('深色主题下首页背景随之切换', darkR + darkG + darkB < 200, darkBg.slice(0, 64))
   await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'))
   await page.waitForTimeout(150)
 
@@ -773,11 +776,12 @@ async function main() {
     `export=${await page2.getByTitle('导出当前会话为 JSON 文件').count()} import=${await page2.getByTitle('从 JSON 文件导入会话').count()}`,
   )
 
-  // 发出去了就得看得见「在跑」：回答首字到达前必须有一个机器人侧的等待气泡，
+  // 发出去了就得看得见「在跑」：回答首字到达前必须有 live 步，
   // agent 步骤条也要直接在对话区可见，而不是藏进默认收起的抽屉里。
-  const waitingBubble = await page2.locator('.msg-row.waiting').count()
+  // 批 1 F5：等待态不再是自渲染的 `.msg-row.waiting`，收敛为 rail 尾部的 live 步。
+  const waitingBubble = await page2.locator('.turn-status').count()
   assert(
-    '等待模型响应：回答首字到达前有机器人占位气泡',
+    '等待模型响应：回答首字到达前有 live 步占位',
     waitingBubble === 1,
     `count=${waitingBubble}`,
   )
@@ -788,18 +792,45 @@ async function main() {
     `count=${stepStrip}`,
   )
 
-  // 头部必须单行：pill 高度就是一行控件的高度（≤ 44px），不能折成两行。
+  // 头部（P1-6 收紧）：pill 与控制组各是一行控件（内部 trigger 28px + 内衬 2px +
+  // 边框 2px = 34px，上限 36），header = 10 + 10 内衬 + 一行控件 + 下边框 ≤ 64。
+  // 原来 ≤ 44 / ≤ 104 是在给「两行 header」发通行证，噪声就是这么留下来的。
   const headerBox = await page2.locator('.chat-header').first().boundingBox()
   const pillBox = await page2.locator('.header-pill').first().boundingBox()
   assert(
-    '头部：上下文 pill 不折行',
-    !!pillBox && pillBox.height <= 44,
+    '头部：上下文 pill 是一行控件高度（≤36）',
+    !!pillBox && pillBox.height <= 36,
     `pill height=${pillBox?.height}`,
   )
+  const ctrlBox = await page2.locator('.chat-controls').first().boundingBox()
   assert(
-    '头部：整个 header 保持单行高度',
+    '头部：控制组是一行控件高度（≤36）',
+    !!ctrlBox && ctrlBox.height <= 36,
+    `controls height=${ctrlBox?.height}`,
+  )
+  // flex-wrap:nowrap 后单行是唯一形态：两组控件的垂直中心必须重合。
+  assert(
+    '头部：选择器组与控制组同在一行（中心线重合）',
+    !!pillBox && !!ctrlBox && Math.abs(pillBox.y + pillBox.height / 2 - (ctrlBox.y + ctrlBox.height / 2)) <= 1,
+    `pill mid=${pillBox ? (pillBox.y + pillBox.height / 2).toFixed(1) : 'n/a'} controls mid=${
+      ctrlBox ? (ctrlBox.y + ctrlBox.height / 2).toFixed(1) : 'n/a'
+    }`,
+  )
+  assert(
+    '头部：header 单行（≤64）',
     !!headerBox && headerBox.height <= 64,
     `header height=${headerBox?.height}`,
+  )
+  // 旧形态下线：系统裸文本（.sys-line）与结果区的复制按钮列（.crow-aside）都不该再出现。
+  assert(
+    '中栏：旧的系统裸文本行（.sys-line）已下线',
+    (await page2.locator('.sys-line').count()) === 0,
+    `count=${await page2.locator('.sys-line').count()}`,
+  )
+  assert(
+    '工具展开体：旧的参数/结果 label 列（.crow-aside）已下线',
+    (await page2.locator('.crow-aside').count()) === 0,
+    `count=${await page2.locator('.crow-aside').count()}`,
   )
 
   // 底部状态不再用浮在输入框上方的大卡片，而是收进 composer 里的一条细 status 行。
@@ -1187,7 +1218,7 @@ async function main() {
         cursor: !!el.querySelector('.cursor'),
         tail: (el.textContent ?? '').slice(0, 24),
       })),
-      waiting: document.querySelectorAll('.msg-row.waiting').length,
+      liveSteps: document.querySelectorAll('.turn-status').length,
       q: window.__PI_STUB__.q,
     }))
     console.log('DBG drained:', JSON.stringify(dbg))
