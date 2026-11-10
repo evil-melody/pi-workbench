@@ -133,7 +133,6 @@ function runMember(
 ): Promise<MemberResult> {
   const provider = process.env.PI_LAUNCH_PROVIDER
   const model = process.env.PI_LAUNCH_MODEL
-  const apiKey = process.env.PI_LAUNCH_API_KEY
   const cwd = process.cwd()
 
   const boardText = board.length
@@ -149,7 +148,8 @@ function runMember(
     const args = ['--mode', 'chat']
     if (provider) args.push('--provider', provider)
     if (model) args.push('--model', model)
-    if (apiKey && apiKey.trim()) args.push('--api-key', apiKey)
+    // 不传 --api-key：argv 对本机其他用户可见。成员继承内核对进程的环境
+    // （PI_CODING_AGENT_DIR + PI_LAUNCH_API_KEY），按 models.json 条目取密钥。
 
     let child
     try {

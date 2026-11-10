@@ -11,7 +11,6 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
@@ -211,13 +210,22 @@ pub fn run_meta_update(
 /// `#/chat?replay=<index>&cwd=<encodeURIComponent(cwd)>`，对话页据此
 /// 只读重建该段会话——不新拉内核、不改 journal。
 ///
-/// label 带时间戳保证唯一：同一段反复点「独立窗口」应各开一窗，而不是复用。
+/// label 由 `(cwd, index)` 稳定派生：同一段重复打开时只聚焦已有窗口，
+/// 不再叠第二个；换项目/换段号才建新窗。
 /// **必须 async**：Windows 上在同步命令里创建 Webview2 窗口会死锁
 /// （tauri 官方 Known issues，见 `WebviewWindowBuilder::new` 文档），
 /// 且建窗涉及 webview 进程创建，不能落主线程。
 #[tauri::command(async)]
 pub fn open_replay_window(app: AppHandle, cwd: String, index: u32) -> Result<(), String> {
-    let label = format!("replay-{index}-{}", now_ms());
+    let label = format!("replay-{index}-{:08x}", cwd_tag(&cwd));
+    if let Some(existing) = app.get_webview_window(&label) {
+        // 已打开：还原最小化、置前、聚焦。任何一步失败都只是体验问题，
+        // 窗口还在，不报错。
+        let _ = existing.unminimize();
+        let _ = existing.show();
+        let _ = existing.set_focus();
+        return Ok(());
+    }
     let url = format!(
         "index.html#/chat?replay={index}&cwd={}",
         encode_uri_component(&cwd)
@@ -235,11 +243,14 @@ pub fn open_replay_window(app: AppHandle, cwd: String, index: u32) -> Result<(),
 
 // ── 工具函数 ──────────────────────────────────────────────────
 
-fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
+fn cwd_tag(raw: &str) -> u32 {
+    // FNV-1a：只为把 cwd 折成稳定的窗口标签后缀（同目录 → 同标签）。
+    let mut hash: u32 = 0x811c_9dc5;
+    for byte in raw.bytes() {
+        hash ^= byte as u32;
+        hash = hash.wrapping_mul(0x0100_0193);
+    }
+    hash
 }
 
 /// `encodeURIComponent` 对位：除未保留字符

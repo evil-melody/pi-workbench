@@ -905,6 +905,42 @@ pub fn library_read(
     })
 }
 
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryBytes {
+    pub kind: String,
+    pub content: String,
+}
+
+#[tauri::command(async)]
+#[allow(non_snake_case)]
+pub fn library_bytes(
+    app: AppHandle,
+    state: State<LibraryState>,
+    id: String,
+) -> Result<LibraryBytes, String> {
+    let mut store = state.store.lock().unwrap();
+    let Some(asset) = find(&store, &id) else {
+        return Err("library/not-found".to_string());
+    };
+    if !asset.enabled {
+        return Err(format!("library/disabled: {}", asset.name));
+    }
+    let rel_path = asset.rel_path.clone();
+    let root = library_root(&app)?;
+    let bytes = fs::read(asset_path(&root, &rel_path)).map_err(|e| e.to_string())?;
+    if bytes.len() as u64 > crate::artifacts::OFFICE_LIMIT {
+        return Err("library/too-large: 超过 12 MiB 预览上限，请用「原件」打开".to_string());
+    }
+    let dot = rel_path.rfind('.').unwrap_or(0);
+    let kind = rel_path[dot..].trim_start_matches('.').to_ascii_lowercase();
+    push_unique(&mut store.recent, &id);
+    Ok(LibraryBytes {
+        kind,
+        content: format!("data:application/octet-stream;base64,{}", crate::artifacts::base64_of(&bytes)),
+    })
+}
+
 #[tauri::command(async)]
 #[allow(non_snake_case)]
 pub fn library_write(

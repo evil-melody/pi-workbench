@@ -114,27 +114,72 @@ pub fn agent_team_create(
     Ok(def)
 }
 
-/// 记忆条目（最近 200 条，含 ts/text/tags）。
+/// 记忆条目（物化后的有效条目，最近 200 条，含 id/ts/text/tags）。
+/// 墓碑行不在这里出现；待撤销条目走 `agent_memory_trash`。
 #[tauri::command(async)]
 pub fn agent_memory_list(app: tauri::AppHandle) -> Result<Vec<Value>, String> {
-    let Some(root) = agent_ops_root(&app) else {
-        return Ok(vec![]);
-    };
-    let f = root.join("memory").join("memory.jsonl");
-    if !f.exists() {
-        return Ok(vec![]);
+    Ok(crate::memory_store::active(&app)
+        .into_iter()
+        .take(200)
+        .filter_map(|e| serde_json::to_value(e).ok())
+        .collect())
+}
+
+/// 待撤销条目：24 小时窗口内可恢复，到期由调度 tick 硬失效。
+#[tauri::command(async)]
+pub fn agent_memory_trash(app: tauri::AppHandle) -> Result<Vec<Value>, String> {
+    Ok(crate::memory_store::pending(&app)
+        .into_iter()
+        .filter_map(|e| serde_json::to_value(e).ok())
+        .collect())
+}
+
+/// 删除记忆：进入 24 小时待撤销态，召回立即不可见。
+#[tauri::command(async)]
+pub fn agent_memory_forget(app: tauri::AppHandle, id: String) -> Result<Vec<Value>, String> {
+    crate::memory_store::soft_delete(&app, &id, crate::proactive::now_ms())?;
+    agent_memory_list(app)
+}
+
+/// 撤销删除：把待撤销条目恢复为有效记忆。
+#[tauri::command(async)]
+pub fn agent_memory_restore(app: tauri::AppHandle, id: String) -> Result<Vec<Value>, String> {
+    crate::memory_store::restore(&app, &id, crate::proactive::now_ms())?;
+    agent_memory_list(app)
+}
+
+/// 立即永久删除：跳过 24 小时窗口硬失效，写审计后不可恢复。
+#[tauri::command(async)]
+pub fn agent_memory_purge(app: tauri::AppHandle, id: String) -> Result<Vec<Value>, String> {
+    crate::memory_store::purge_now(&app, &id, crate::proactive::now_ms())?;
+    agent_memory_list(app)
+}
+
+/// 更正一条记忆：追加 `update` 事件行，原行保留作审计。
+#[tauri::command(async)]
+pub fn agent_memory_update(
+    app: tauri::AppHandle,
+    id: String,
+    text: Option<String>,
+    tags: Option<Vec<String>>,
+) -> Result<Vec<Value>, String> {
+    crate::memory_store::update(
+        &app,
+        &id,
+        text.as_deref(),
+        tags.as_deref(),
+        crate::proactive::now_ms(),
+    )?;
+    agent_memory_list(app)
+}
+
+/// 用户画像：由记忆保留标签折叠而成，只读视图，不另立档案。
+#[tauri::command(async)]
+pub fn agent_profile_get(app: tauri::AppHandle) -> Result<Value, String> {
+    match crate::memory_store::refresh_profile(&app) {
+        Some(p) => serde_json::to_value(p).map_err(|e| e.to_string()),
+        None => Ok(json!({ "generatedAt": 0, "sourceMtime": 0 })),
     }
-    let text = std::fs::read_to_string(&f).map_err(|e| e.to_string())?;
-    let mut out = Vec::new();
-    for line in text.lines().filter(|l| !l.trim().is_empty()) {
-        if let Ok(v) = serde_json::from_str::<Value>(line) {
-            out.push(v);
-        }
-        if out.len() >= 200 {
-            break;
-        }
-    }
-    Ok(out)
 }
 
 /// 写入一条记忆：追加到 `<root>/memory/memory.jsonl`。
@@ -146,7 +191,8 @@ pub fn agent_memory_store(app: tauri::AppHandle, text: String, tags: Vec<String>
         return Err("记忆内容不能为空".into());
     }
     let ts = now_ms() as i64;
-    let entry = json!({ "ts": ts, "text": text, "tags": tags });
+    let id = crate::memory_vec::entry_id(ts, &text);
+    let entry = json!({ "id": id, "ts": ts, "text": text, "tags": tags, "source": "ui" });
     let dir = root.join("memory");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     use std::io::Write;
@@ -158,6 +204,7 @@ pub fn agent_memory_store(app: tauri::AppHandle, text: String, tags: Vec<String>
     f.write_all(format!("{}\n", entry).as_bytes()).map_err(|e| e.to_string())?;
     // B5 向量化钩子：fire-and-forget，失败只记日志，词面主路径不受影响。
     crate::memory_vec::spawn_upsert(&app, ts, text, tags);
+    crate::memory_store::refresh_profile(&app);
     Ok(entry)
 }
 

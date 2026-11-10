@@ -14,9 +14,15 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 sha2 = "0.10"
-tauri = { version = "2", features = ["protocol-asset"] }
+tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
+# 主动任务完成后向系统通知中心推送结果（阶段 1 的「结果回推」出口）。
+tauri-plugin-notification = "2"
+# 关窗驻留后台 + 登录项自启：进程模型由 background.rs 统一管理。
+tauri-plugin-autostart = "2"
+# 驻留态下重复启动要聚焦已有窗口，避免两个调度器同时跑同一份账本。
+tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # 远端能力安装 / 模型连通性探测等出网请求。

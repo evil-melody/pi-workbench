@@ -6,9 +6,32 @@
 
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::path::Path;
 use tauri::{AppHandle, Manager};
 
 pub const SETTINGS_FILE: &str = "app-settings.json";
+
+/// 写入含凭据的配置文件：仅当前用户可读写（0600）。
+///
+/// `fs::write` 建文件走 0666 & umask，密钥在目录里对其他本机用户可读。
+/// 已在磁盘上的旧文件如果已是 0644，这里一并收紧。
+fn write_private(path: &Path, text: &str) -> Result<(), String> {
+    fs::write(path, text).map_err(|e| e.to_string())?;
+    restrict_perms(path)
+}
+
+/// 把已存在的配置文件权限收紧到 0600（迁移旧版 0644 文件）。
+fn restrict_perms(path: &Path) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if path.exists() {
+            fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
 
 fn bool_true() -> bool {
     true
@@ -109,6 +132,8 @@ pub fn settings_load(app: AppHandle) -> AppSettings {
         Ok(t) => t,
         Err(_) => return AppSettings::default(),
     };
+    // 旧版本用默认权限写盘；读到就顺手收紧，避免密钥长期 0644。
+    let _ = restrict_perms(&path);
 
     if let Ok(mut s) = serde_json::from_str::<AppSettings>(&text) {
         s.ensure_default_model();
@@ -147,7 +172,7 @@ pub fn settings_save(app: AppHandle, settings: AppSettings) -> Result<(), String
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let text = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
-    fs::write(&path, text).map_err(|e| e.to_string())?;
+    write_private(&path, &text)?;
     Ok(())
 }
 
@@ -245,11 +270,10 @@ fn write_models_json(app: &AppHandle, model: &ModelConfig) -> Result<(), String>
         entry["apiKey"] = serde_json::Value::String(model.api_key.clone());
     }
     root["providers"][model.provider.as_str()] = entry;
-    fs::write(
+    write_private(
         &path,
-        serde_json::to_string_pretty(&root).map_err(|e| e.to_string())?,
-    )
-    .map_err(|e| e.to_string())?;
+        &serde_json::to_string_pretty(&root).map_err(|e| e.to_string())?,
+    )?;
     Ok(())
 }
 
@@ -282,5 +306,22 @@ mod tests {
         let parsed: AppSettings = serde_json::from_str(legacy).unwrap_or_default();
         // 旧版直接反序列化会失败，走 load 里的兼容分支；这里只验证新格式解析
         assert!(parsed.models.is_empty() || parsed.models[0].provider == "openai");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_private_sets_0600() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("pi-wb-perm-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("secret.json");
+        fs::write(&p, "{}").unwrap();
+        fs::set_permissions(&p, fs::Permissions::from_mode(0o644)).unwrap();
+
+        write_private(&p, "{\"k\":1}").unwrap();
+
+        let mode = fs::metadata(&p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+        let _ = fs::remove_dir_all(&dir);
     }
 }

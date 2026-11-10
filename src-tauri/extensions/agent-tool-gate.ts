@@ -13,9 +13,23 @@
  * 审批回传协议（rpc 模式）：Pi 发 `{"type":"extension_ui_request","id",...}`，
  * 宿主回 `{"type":"extension_ui_response","id","confirmed":bool}`——
  * Tauri 侧由 `pi_ui_response` 命令下发，前端 ApprovalDialog 消费。
+ *
+ * 无人值守（阶段 1）：调度器执行 jobs 时会把预授权写进
+ * `<PI_CODING_AGENT_DIR>/proactive-policy.json`。本扩展每次工具调用前读该文件：
+ * 在授权范围内自动放行，越界一律 block（不是弹窗等待）——无人值守时没人点按钮，
+ * 边界必须由代码裁定；越界动作记入 `proactive-audit.jsonl` 供事后审计。
+ * 没有 activeJob 时行为与之前完全一致（交互审批）。
  */
 import path from 'node:path'
-import { copyFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs'
+import {
+  appendFileSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from 'node:fs'
 
 type GateLevel = 'allow' | 'confirm' | 'block'
 type GateVerdict = { level: GateLevel; reason?: string; terminate?: boolean }
@@ -123,6 +137,118 @@ function isProtectedPath(p: string | undefined): boolean {
   return false
 }
 
+// —— 无人值守预授权（硬边界，阶段 1） ——
+//
+// 策略文件由 Rust 调度器在任务开始/结束时整体覆写，扩展只读不写；
+// 文件缺失、解析失败、过期一律视为「没有预授权」→ 走原来的交互审批。
+
+export type ActiveJob = {
+  id: string
+  startedAt: number
+  expiresAt: number
+  grant?: {
+    bashAllow?: string[]
+    writeRoots?: string[]
+    maxToolCalls?: number
+  }
+}
+
+const agentDir = () => (process.env.PI_CODING_AGENT_DIR ?? '').trim()
+
+/** 读当前无人值守任务；过期或结构不合法返回 null。 */
+export function readActiveJob(): ActiveJob | null {
+  const dir = agentDir()
+  if (!dir) return null
+  try {
+    const raw = JSON.parse(readFileSync(path.join(dir, 'proactive-policy.json'), 'utf8'))
+    const job = raw?.activeJob
+    if (!job || typeof job.id !== 'string') return null
+    if (typeof job.expiresAt === 'number' && Date.now() > job.expiresAt) return null
+    return job as ActiveJob
+  } catch {
+    return null
+  }
+}
+
+/** 预授权审计：只追加一行 JSON，写失败不影响闸门判定。 */
+export function auditDenial(job: ActiveJob, toolName: string, detail: string): void {
+  const dir = agentDir()
+  if (!dir) return
+  try {
+    appendFileSync(
+      path.join(dir, 'proactive-audit.jsonl'),
+      JSON.stringify({
+        kind: 'gate_denied',
+        job: job.id,
+        tool: toolName,
+        detail: detail.slice(0, 500),
+        at: Date.now(),
+      }) + '\n',
+    )
+  } catch {
+    /* 审计落盘失败不改变拒绝结论 */
+  }
+}
+
+/** 单次运行的累计风险动作计数：跨工具调用保留，任务切换时归零。 */
+let countedJobId = ''
+let countedCalls = 0
+
+/** 消耗一次风险动作额度；超出返回 false，并把用量写回供设置页展示。 */
+export function consumeToolBudget(job: ActiveJob): boolean {
+  if (countedJobId !== job.id) {
+    countedJobId = job.id
+    countedCalls = 0
+  }
+  const cap = job.grant?.maxToolCalls ?? 40
+  const ok = countedCalls < cap
+  if (ok) countedCalls += 1
+  const dir = agentDir()
+  if (dir) {
+    try {
+      writeFileSync(
+        path.join(dir, 'proactive-usage.json'),
+        JSON.stringify({ jobId: job.id, used: countedCalls, max: cap, at: Date.now() }),
+      )
+    } catch {
+      /* 展示用数据，写失败不影响额度判定 */
+    }
+  }
+  return ok
+}
+
+/** 判断一次需审批的动作是否落在预授权内。 */
+export function withinGrant(
+  job: ActiveJob,
+  toolName: string,
+  input: Record<string, unknown> | undefined,
+): { ok: boolean; reason: string } {
+  const inp: Record<string, unknown> = input ?? {}
+  if (toolName === 'bash') {
+    const command = String(inp.command ?? '').trim()
+    // 前缀匹配挡不住「白名单命令; 任意命令」，含分隔符/替换/重定向一律拒绝。
+    if (/[;&|`$()<>\n\r]/.test(command)) {
+      return { ok: false, reason: '命令包含链式分隔符、变量展开或重定向' }
+    }
+    const allow = job.grant?.bashAllow ?? []
+    if (!allow.length) return { ok: false, reason: '预授权未允许任何风险命令' }
+    const hit = allow.find((prefix) => prefix.trim() && command.startsWith(prefix.trim()))
+    return hit
+      ? { ok: true, reason: `命中预授权前缀：${hit}` }
+      : { ok: false, reason: '命令不在预授权前缀白名单内' }
+  }
+  if (toolName === 'write' || toolName === 'edit') {
+    const target = String(inp.path ?? '')
+    const abs = path.isAbsolute(target) ? target : path.resolve(process.cwd(), target)
+    const roots = job.grant?.writeRoots ?? []
+    const hit = roots.find((root) => root.trim() && abs.startsWith(root.trim() + path.sep))
+    return hit
+      ? { ok: true, reason: `落在预授权写入根：${hit}` }
+      : { ok: false, reason: '目标不在预授权写入根内' }
+  }
+  return { ok: false, reason: `未对工具 ${toolName} 预授权` }
+}
+
 /**
  * 纯函数分类器：给定工具名与输入，返回闸门判定。
  * 仅处理 bash / edit / write；其他工具一律 allow（交给各自逻辑）。
@@ -162,6 +288,21 @@ export function classifyToolCall(
   return { level: 'allow' }
 }
 
+/**
+ * 就绪沙箱检查（裁剪版）：`.pi/sandboxes/<id>/` 存在且 `.pi/envs/<id>/bin` 已构建。
+ * 与 sandbox-env.ts 的 listEnvs 同语义，这里只做布尔判定，避免跨扩展 import
+ * （seed_defaults 只同步清单扁平文件，共享模块不进清单会断相对 import）。
+ */
+function hasReadySandbox(cwd: string): boolean {
+  try {
+    const base = path.join(cwd, '.pi', 'sandboxes')
+    if (!existsSync(base)) return false
+    return readdirSync(base).some((id) => existsSync(path.join(cwd, '.pi', 'envs', id, 'bin')))
+  } catch {
+    return false
+  }
+}
+
 /** 交互审批：有 UI 时走 ctx.ui.confirm，超时（默认 90s）/ 无 UI / 异常 → false。 */
 async function requestApproval(
   ctx: any,
@@ -186,8 +327,18 @@ export default function (pi: any) {
   pi.on('tool_call', async (event: any, ctx: any) => {
     const toolName: string = event?.toolName ?? ''
     const verdict = classifyToolCall(toolName, event?.input)
+    // 只在有无人值守任务时启用预授权判定；否则保留原有的交互审批路径。
+    const active = readActiveJob()
 
     if (verdict.level === 'allow') {
+      // 无人值守下，即便分类器判 allow，写入仍必须落在预授权写入根内。
+      if (active && (toolName === 'edit' || toolName === 'write')) {
+        const g = withinGrant(active, toolName, event?.input)
+        if (!g.ok) {
+          auditDenial(active, toolName, String(event?.input?.path ?? g.reason))
+          return { block: true, reason: `超出预授权写入边界：${g.reason}`, terminate: false }
+        }
+      }
       // G3 checkpoint：edit/write 放行前备份目标文件（相对路径按 cwd 解析）。
       // 失败不拦——备份链断了最多少一次回滚，误拦是直接干不了活。
       if (toolName === 'edit' || toolName === 'write') {
@@ -204,11 +355,44 @@ export default function (pi: any) {
       return { block: true, reason: verdict.reason ?? '被执行守卫拦截', terminate: verdict.terminate }
     }
 
-    // confirm：风险命令需用户批准
     const detail =
       toolName === 'bash'
         ? String(event?.input?.command ?? '')
         : `${toolName}: ${String(event?.input?.path ?? '')}`
+
+    // 无人值守：预授权内自动放行，越界一律拒绝并留审计。
+    // 这里不能走 ctx.ui.confirm——夜间没人点按钮，等待只会把任务拖到超时。
+    if (active) {
+      // 额度只计「需审批的风险动作」：读文件/搜索不消耗额度，
+      // 否则一个正常任务几十次只读调用就把额度烧光。
+      if (!consumeToolBudget(active)) {
+        auditDenial(active, toolName, '超出单次运行风险动作额度')
+        return {
+          block: true,
+          reason: `超出无人值守预授权的风险动作额度（${active.grant?.maxToolCalls ?? 40} 次）`,
+          terminate: false,
+        }
+      }
+      const g = withinGrant(active, toolName, event?.input)
+      if (g.ok) return
+      auditDenial(active, toolName, detail || g.reason)
+      return {
+        block: true,
+        reason: `超出无人值守预授权边界，需人工确认：${g.reason}`,
+        terminate: false,
+      }
+    }
+
+    // 沙箱联动：存在就绪沙箱时，风险 bash 命令直接重定向进沙箱，免宿主审批。
+    if (toolName === 'bash' && hasReadySandbox(process.cwd())) {
+      return {
+        block: true,
+        reason: `风险命令已重定向：请调用 sandbox_run(envId=...) 在沙箱内执行（原因：${verdict.reason ?? ''}）`,
+        terminate: false,
+      }
+    }
+
+    // confirm：风险命令需用户批准
     const approved = await requestApproval(
       ctx,
       '执行审批',

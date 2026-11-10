@@ -20,7 +20,7 @@ const TEXT_LIMIT: u64 = 512 * 1024;
 const IMAGE_LIMIT: u64 = 4 * 1024 * 1024;
 /// Office/PDF 是压缩包，无法按文本读；整体转 base64 交给前端解析器，
 /// 上限单独设——10MB 级的 docx 在预览窗口里是常态。
-const OFFICE_LIMIT: u64 = 12 * 1024 * 1024;
+pub(crate) const OFFICE_LIMIT: u64 = 12 * 1024 * 1024;
 
 /// 判定为「未知二进制」的最大嗅探长度：这一段里出现 NUL 即判为二进制。
 const NUL_SNIFF: usize = 2048;
@@ -243,7 +243,7 @@ fn encode_image(bytes: &[u8]) -> Result<String, String> {
     Ok(format!("data:image/png;base64,{}", base64_of(bytes)))
 }
 
-fn base64_of(bytes: &[u8]) -> String {
+pub(crate) fn base64_of(bytes: &[u8]) -> String {
     const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity((bytes.len() + 2) / 3 * 4);
     for chunk in bytes.chunks(3) {

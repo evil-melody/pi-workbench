@@ -1,6 +1,7 @@
 mod agent_ops;
 mod attachments;
 mod artifacts;
+mod background;
 mod browser;
 mod capabilities;
 mod checkpoint;
@@ -12,13 +13,16 @@ mod experts;
 mod extensions;
 mod fs;
 mod governance;
+mod i18n;
 mod library;
 mod mcp;
 mod memory_vec;
+mod memory_store;
 mod models;
 mod net;
 mod pi_bridge;
 mod pi_events;
+mod proactive;
 pub mod projects;
 mod roles;
 mod run_meta;
@@ -30,14 +34,27 @@ mod tools;
 use connectors::ConnectorRuntimeState;
 use library::LibraryState;
 use state::{McpState, PiState, ProjectsState, RolesState};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // 单实例必须最先注册：驻留后台时第二次启动只聚焦已有窗口，
+        // 避免两个进程各自跑一个调度器、同时写同一份主动任务账本。
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            background::show_main(app);
+        }))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            // 登录项带固定参数启动：setup 据此首帧隐藏窗口，做到「随登录静默启动」。
+            Some(vec!["--autostart"]),
+        ))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(PiState::default())
+        .manage(proactive::ProactiveState::default())
+        .manage(background::BackgroundState::default())
         .manage(ProjectsState::default())
         .manage(run_meta::RunMetaState::default())
         .manage(McpState::default())
@@ -52,6 +69,22 @@ pub fn run() {
             // 运行记录元数据（置顶/重命名/归档/删除）在磁盘上，启动时读回，
             // 否则每次重启侧栏里的置顶与重命名全部丢失。
             run_meta::load(&handle, &app.state::<run_meta::RunMetaState>());
+            // 主动任务账本：启动时读回并把「上次崩在 Running」的任务标成中断/重排，
+            // 然后拉起唯一的调度线程（10s 一轮，复用 pi_status 做并发判定）。
+            proactive::load(&handle, &app.state::<proactive::ProactiveState>());
+            // 后台偏好先于调度线程：托盘状态行与暂停开关要用到它。
+            background::load(&handle, &app.state::<background::BackgroundState>());
+            background::setup_tray(&handle)?;
+            // 窗口默认不可见：登录项启动只驻留托盘；手动启动在 setup 里显式 show，
+            // 两条路径都不会出现「先闪一下再隐藏」。
+            if let Some(window) = handle.get_webview_window("main") {
+                if std::env::args().any(|a| a == "--autostart") {
+                    let _ = window.hide();
+                } else {
+                    let _ = window.show();
+                }
+            }
+            proactive::start(handle.clone());
             mcp::load(&handle, &app.state::<McpState>());
             // 连接器定义在磁盘上，但运行时（进程 + 握手结果）只存在于内存，
             // 不恢复的话每次重启应用，列表里明明在的连接器都停在 Disabled。
@@ -97,6 +130,7 @@ pub fn run() {
             pi_bridge::pi_call,
             pi_bridge::pi_send,
             pi_bridge::pi_stop,
+            pi_bridge::pi_status,
             pi_bridge::pi_doctor,
             pi_bridge::pi_ui_response,
             pi_bridge::pi_journal_read,
@@ -174,6 +208,7 @@ pub fn run() {
             library::library_rollback,
             library::library_search,
             library::library_open,
+            library::library_bytes,
             experts::experts_list,
             experts::expert_draft_load,
             experts::expert_draft_save,
@@ -197,6 +232,12 @@ pub fn run() {
             models::settings_test_model,
             agent_ops::agent_teams_list,
             agent_ops::agent_memory_list,
+            agent_ops::agent_memory_trash,
+            agent_ops::agent_memory_forget,
+            agent_ops::agent_memory_restore,
+            agent_ops::agent_memory_purge,
+            agent_ops::agent_memory_update,
+            agent_ops::agent_profile_get,
             agent_ops::agent_skillpool_list,
             agent_ops::agent_browser_status,
             agent_ops::agent_team_create,
@@ -206,9 +247,57 @@ pub fn run() {
             run_meta::run_meta_list,
             run_meta::run_meta_update,
             run_meta::open_replay_window,
+            proactive::proactive_snapshot,
+            proactive::proactive_job_create,
+            proactive::proactive_job_set_enabled,
+            proactive::proactive_job_remove,
+            proactive::proactive_job_run_now,
+            proactive::proactive_job_set_grant,
+            proactive::proactive_take_focus,
+            proactive::proactive_inbox_mark,
+            proactive::proactive_inbox_mark_all_read,
+            background::background_get,
+            background::background_set_close_action,
+            background::background_set_autostart,
+            background::background_set_paused,
+            background::background_resolve_close,
+            background::tray_relocalize,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Pi Workbench");
+        .on_window_event(|window, event| {
+            let tauri::WindowEvent::CloseRequested { api, .. } = event else {
+                return;
+            };
+            let app = window.app_handle();
+            match background::close_action(app) {
+                background::CloseAction::Ask => {
+                    // 首次关闭：留给前端弹一次选择，结果持久化后不再询问。
+                    api.prevent_close();
+                    let _ = app.emit("background://ask-close", ());
+                }
+                background::CloseAction::Background => {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+                background::CloseAction::Quit => {
+                    // 统一走 exit：RunEvent::Exit 里停内核、清策略文件。
+                    api.prevent_close();
+                    app.exit(0);
+                }
+            }
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building Pi Workbench")
+        .run(|app, event| match event {
+            // Dock 图标被点击且没有可见窗口时，把主窗口拉回来。
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen { .. } => background::show_main(app),
+            tauri::RunEvent::Exit => {
+                // 彻底退出：停内核并清理无人值守授权，异常残留不会带进下一次启动。
+                proactive::clear_policy(app);
+                pi_bridge::shutdown_kernel(app.state::<PiState>().inner());
+            }
+            _ => {}
+        });
 }
 
 /// 清单钉住的内核版本与实际 `pi` 不一致时给出警告。

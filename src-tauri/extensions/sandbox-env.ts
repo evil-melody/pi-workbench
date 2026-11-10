@@ -12,7 +12,7 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 type ToolResult = { content: string; details?: unknown; terminate?: boolean };
@@ -26,7 +26,8 @@ type ToolResult = { content: string; details?: unknown; terminate?: boolean };
  *   <base>/.pi/sandboxes/<env_id>/env.json
  *   <base>/.pi/envs/<env_id>            <- nix develop --profile 产物
  *
- * 目录为空时 list 返回 0 个环境、run 退回宿主 PATH，不静默假装沙箱生效。
+ * 目录为空时 list 返回 0 个环境；run 直接拒绝执行（fail-closed），
+ * 不回退宿主 PATH——「以为在沙箱里、其实跑在宿主机」比不执行更危险。
  */
 function sandboxesBase(cwd: string): string {
   return path.join(cwd, ".pi", "sandboxes");
@@ -66,6 +67,60 @@ function nixAvailable(): boolean {
   }
 }
 
+type ProfileCheck = { dir: string } | { error: string };
+
+/**
+ * 把 envId 解析成已构建的 profile。
+ *
+ * fail-closed：envId 缺失、未声明、未构建，一律返回错误；绝不回退宿主环境。
+ * 走到这里的命令都是被判定为「风险」的，宿主执行正是要避免的那条路。
+ */
+function requireProfile(cwd: string, rawEnvId: unknown): ProfileCheck {
+  const id = String(rawEnvId ?? "").trim();
+  if (!id || !/^[A-Za-z0-9._-]+$/.test(id) || id === "." || id === "..") {
+    const ids = listEnvs(cwd).map((e) => e.id);
+    return {
+      error:
+        `sandbox_run 已改为 fail-closed，必须显式传 envId。` +
+        `可用环境：${ids.length ? ids.join(", ") : "无（先在 .pi/sandboxes 下声明并用 nix develop --profile 构建）"}`,
+    };
+  }
+  if (!existsSync(path.join(sandboxesBase(cwd), id, "env.json"))) {
+    return { error: `未声明的沙箱环境: ${id}（缺少 .pi/sandboxes/${id}/env.json）` };
+  }
+  const dir = path.join(cwd, ".pi", "envs", id);
+  if (!existsSync(path.join(dir, "bin"))) {
+    return { error: `沙箱环境未构建: ${id}（缺少 .pi/envs/${id}/bin）` };
+  }
+  return { dir };
+}
+
+// —— U9：session ↔ 沙箱环境绑定表 ——
+// key = `<sessionId>:<entryId>`，value = 该分支当时使用的环境声明。
+// 切换分支时查表，环境未构建/声明变化则尽力重建；无 nix 静默跳过。
+
+function bindingsFile(cwd: string): string {
+  return path.join(cwd, ".pi", "bindings.json");
+}
+
+function readBindings(cwd: string): Record<string, any> {
+  try {
+    return JSON.parse(readFileSync(bindingsFile(cwd), "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function writeBindings(cwd: string, b: Record<string, any>) {
+  try {
+    mkdirSync(path.dirname(bindingsFile(cwd)), { recursive: true });
+    // ponytail: 绑定表仅供尽力重建，容忍崩溃损坏，不做原子写
+    writeFileSync(bindingsFile(cwd), JSON.stringify(b, null, 2));
+  } catch {
+    /* 不可写则忽略 */
+  }
+}
+
 /** Pi 的 ToolDefinition 是单对象注册（name/label/description/parameters/execute），
  *  execute 签名为 (toolCallId, params, signal, onUpdate, ctx)。
  *  旧写法 registerTool("name", {...}) 会让 Pi 报 “Tool \"undefined\" must define an object parameter schema”。
@@ -85,7 +140,7 @@ export default function (pi: any) {
       const cwd = process.cwd();
       const envs = listEnvs(cwd);
       const lines = [
-        `nix: ${nixAvailable() ? "available" : "missing (host fallback)"}`,
+        `nix: ${nixAvailable() ? "available" : "missing"}（sandbox_run 在无就绪环境时拒绝执行）`,
         `envs: ${envs.length}`,
         ...envs.map((e) => `- ${e.id} ${e.name} [${e.mode}] ready=${e.ready} pkgs=${(e.packages as string[]).join(",")}`),
       ];
@@ -97,28 +152,35 @@ export default function (pi: any) {
   pi.registerTool({
     name: "sandbox_run",
     label: "沙箱内执行命令",
-    description: "在指定 Nix 沙箱环境内执行一条 shell 命令（环境由 flake 声明，可复现）",
+    description: "在指定 Nix 沙箱环境内执行一条 shell 命令（环境由 flake 声明，可复现）；须显式传 envId，无可用环境时拒绝执行",
     parameters: {
       type: "object",
       properties: {
         envId: {
           type: "string",
-          description: "sandbox_list 返回的 env id；不传则使用当前环境",
+          description: "必填：sandbox_list 返回且已构建的 env id（不传则拒绝执行）",
         },
         command: { type: "string", description: "要执行的 shell 命令" },
         cwd: { type: "string", description: "工作目录，默认项目根" },
       },
-      required: ["command"],
+      required: ["command", "envId"],
       additionalProperties: false,
     },
     execute: async (_toolCallId: string, args: any): Promise<ToolResult> => {
       const cwd = args?.cwd ?? process.cwd();
-      const profile = path.join(cwd, ".pi", "envs", String(args?.envId ?? ""));
-      const useProfile = existsSync(path.join(profile, "bin"));
-      const env = { ...process.env };
-      if (useProfile) {
-        env.PATH = `${path.join(profile, "bin")}:${env.PATH ?? ""}`;
+      const check = requireProfile(cwd, args?.envId);
+      if ("error" in check) {
+        return { content: check.error, details: { envId: args?.envId ?? null, failed: true, refused: true } };
       }
+      const env = { ...process.env };
+      env.PATH = `${path.join(check.dir, "bin")}:${env.PATH ?? ""}`;
+      // D7 环境隔离：HOME/TMPDIR 指向 profile 内，避免沙箱进程写宿主目录。
+      const home = path.join(check.dir, "home");
+      const tmp = path.join(cwd, ".pi", "tmp", String(args?.envId));
+      mkdirSync(home, { recursive: true });
+      mkdirSync(tmp, { recursive: true });
+      env.HOME = home;
+      env.TMPDIR = tmp;
       try {
         const out = execFileSync("sh", ["-lc", String(args?.command ?? "")], {
           cwd,
@@ -126,10 +188,10 @@ export default function (pi: any) {
           encoding: "utf8",
           stdio: ["ignore", "pipe", "pipe"],
         });
-        return { content: out ?? "(ok)", details: { envId: args?.envId ?? null, usedProfile: useProfile } };
+        return { content: out ?? "(ok)", details: { envId: args?.envId ?? null } };
       } catch (e: any) {
         const msg = e?.stdout ? `${e.stdout}${e.stderr ?? ""}` : String(e?.message ?? e);
-        return { content: msg, details: { envId: args?.envId ?? null, usedProfile: useProfile, failed: true } };
+        return { content: msg, details: { envId: args?.envId ?? null, failed: true } };
       }
     },
   });
@@ -147,7 +209,56 @@ export default function (pi: any) {
     },
   });
 
-  // 4) 激活本插件的两个工具。
+  // 4) U9 hook：分支切换后记录 leaf↔环境绑定。
+  //    session_tree 的事件字段名未经内核文档坐实，防御式提取，取不到就跳过。
+  pi.on("session_tree", async (event: any, ctx: any) => {
+    const cwd = ctx?.workingDirectory ?? process.cwd();
+    const sessionId = String(event?.sessionId ?? ctx?.sessionId ?? "");
+    const leafId = String(event?.newLeafId ?? event?.leafId ?? "");
+    if (!sessionId || !leafId) return;
+    const envs = listEnvs(cwd);
+    const env = envs.find((e) => e.ready) ?? envs[0];
+    if (!env) return;
+    const bindings = readBindings(cwd);
+    bindings[`${sessionId}:${leafId}`] = {
+      name: env.name,
+      packages: env.packages,
+      env_id: env.id,
+    };
+    writeBindings(cwd, bindings);
+  });
+
+  // 5) U9 hook：分支切换前查绑定表，环境未构建/声明变化则尽力重建。
+  pi.on("session_before_tree", async (event: any, ctx: any) => {
+    const cwd = ctx?.workingDirectory ?? process.cwd();
+    const sessionId = String(event?.sessionId ?? ctx?.sessionId ?? "");
+    const targetId = String(event?.targetEntryId ?? event?.entryId ?? "");
+    if (!sessionId || !targetId) return;
+    const binding = readBindings(cwd)[`${sessionId}:${targetId}`];
+    if (!binding) return;
+    const meta = readEnvJson(path.join(sandboxesBase(cwd), binding.env_id, "env.json"));
+    const same =
+      JSON.stringify((meta?.packages as string[]) ?? []) === JSON.stringify(binding.packages ?? []);
+    const ready = existsSync(path.join(cwd, ".pi", "envs", binding.env_id, "bin"));
+    if (same && ready) return;
+    if (!nixAvailable()) return; // 无 nix：只尽力，不假装重建
+    try {
+      execFileSync(
+        "nix",
+        [
+          "develop",
+          "--profile",
+          path.join(cwd, ".pi", "envs", binding.env_id),
+          path.join(sandboxesBase(cwd), binding.env_id, "flake.nix"),
+        ],
+        { cwd, stdio: "ignore", timeout: 120000 },
+      );
+    } catch {
+      /* 重建失败静默：sandbox_run 会因 profile 不就绪而拒绝执行 */
+    }
+  });
+
+  // 6) 激活本插件的两个工具。
   //    不得传空数组：setActiveTools([]) 的语义是「只激活列出的工具」，会把内置工具全部停掉。
   try {
     pi.setActiveTools(["sandbox_list", "sandbox_run"]);

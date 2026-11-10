@@ -28,6 +28,15 @@ pub struct PiState {
     /// 事件 journal 落盘路径：每条 pi://event 追加写入该 jsonl，供审计/回放（B2）。
     /// 未启动时为 None；每次 pi_start 重新指向 <app_config_dir>/.pi/journal/events.jsonl。
     pub journal_path: Mutex<Option<PathBuf>>,
+    /// 当前轮次的开始时刻（Unix ms），空 = 空闲。
+    /// 由 `pi://event` 的 agent_start / agent_settled 维护，`pi_status` 对外暴露。
+    /// 主动任务调度必须先读它：内核是单进程单任务，并行发起第二轮只会互相踩。
+    pub running_since: Mutex<Option<u64>>,
+    /// 最近一次内核退出（码, 时刻）：主动任务据此区分「正常停」与「崩溃」，决定是否重试。
+    pub last_exit: Mutex<Option<(i32, u64)>>,
+    /// 最近一次内核活动时刻（Unix ms）：启动、下发、每条 stdout 记录都会刷新。
+    /// 驻留后台时据此判断「空闲满 5 分钟」，回收内核进程。
+    pub last_event_at: AtomicU64,
 }
 
 #[derive(Default)]

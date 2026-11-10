@@ -5,13 +5,29 @@ use serde_json::json;
 use tauri::{AppHandle, Emitter};
 
 /// 在指定 cwd 运行 shell 命令，按行流式推到前端（term://output / term://done）。
+///
+/// cwd 必须先过 `fs::resolve(root, cwd)`：前端给的路径此前不设边界，
+/// 传 `/` 就等于在宿主机任意目录执行命令。root 是当前项目根。
 #[tauri::command]
-pub fn term_exec(app: AppHandle, id: String, cwd: String, cmd: String) {
+pub fn term_exec(
+    app: AppHandle,
+    id: String,
+    cwd: String,
+    cmd: String,
+    root: String,
+) -> Result<(), String> {
+    if root.trim().is_empty() {
+        return Err("终端缺少项目根目录（root），拒绝执行".to_string());
+    }
+    let dir = crate::fs::resolve(&root, &cwd)?;
+    if !dir.is_dir() {
+        return Err(format!("终端工作目录不存在: {}", dir.display()));
+    }
     std::thread::spawn(move || {
         match Command::new("sh")
             .arg("-c")
             .arg(&cmd)
-            .current_dir(&cwd)
+            .current_dir(&dir)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -56,4 +72,5 @@ pub fn term_exec(app: AppHandle, id: String, cwd: String, cmd: String) {
             }
         }
     });
+    Ok(())
 }

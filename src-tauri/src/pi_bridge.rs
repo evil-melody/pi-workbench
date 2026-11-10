@@ -3,6 +3,7 @@ use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::atomic::Ordering;
 use std::sync::mpsc::{self, Sender};
 use std::sync::{MutexGuard, TryLockError};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -233,11 +234,25 @@ pub fn pi_start(
     state: State<PiState>,
     gov: State<'_, crate::governance::GovernanceState>,
 ) -> Result<(), String> {
+    start_kernel(&app, cwd, state.inner(), gov.inner())
+}
+
+/// 拉起 / 复用内核的实现体。
+///
+/// 从 `pi_start` 命令中抽出，供主动任务调度器在无人值守时直接复用同一套
+/// 拉起逻辑（扩展注入、密钥注入、事件 journal、单进程单任务语义），
+/// 不另起进程、不复制一份 spawn 代码。
+pub(crate) fn start_kernel(
+    app: &AppHandle,
+    cwd: Option<String>,
+    state: &PiState,
+    gov: &crate::governance::GovernanceState,
+) -> Result<(), String> {
     let agent_dir = app
         .path()
         .app_config_dir()
         .map_err(|e| format!("取配置目录失败: {e}"))?;
-    let launch = crate::models::pi_model_launch(&app);
+    let launch = crate::models::pi_model_launch(app);
 
     // 准入闸门（access/model-policy）：显式选择的 provider/model 必须过
     // 治理配置（governance.json 的 model_policy），命中拒绝名单直接不启动。
@@ -284,7 +299,7 @@ pub fn pi_start(
         append_session_open(&journal_path, cwd);
     }
 
-    let bin = resolve_pi_bin(&app)?;
+    let bin = resolve_pi_bin(app)?;
     let mut cmd = Command::new(&bin.path);
     // 子进程 PATH 必须显式带上 pi 所在目录与常见 Node 目录：pi 是 `#!/usr/bin/env node`
     // 的 JS 包装，桌面进程那份 PATH 里既没有 pi 也没有 node，不注入就 spawn/启动即失败。
@@ -301,17 +316,16 @@ pub fn pi_start(
     cmd.env("PI_CODING_AGENT_DIR", &agent_dir);
     // G3：checkpoint 备份目录。扩展（agent-tool-gate）在 edit/write 放行前把目标
     // 文件复制进 `<这里>/turn-<seq>/<镜像路径>`，rewind 时原样还原。
-    cmd.env("PI_CHECKPOINT_DIR", checkpoint_base(&app));
+    cmd.env("PI_CHECKPOINT_DIR", checkpoint_base(app));
     if let Some(l) = &launch {
       cmd.arg("--provider").arg(&l.provider);
       cmd.arg("--model").arg(&l.model);
-      // 透传给团队子进程（agent-teams 的 runMember 读 PI_LAUNCH_* 复用同一模型，
-      // 避免成员以默认模型在错误目录跑——见 WORKDSH-ALIGN-26 的 A3）。
+      // 密钥不再走 argv：`ps` 对同机其他用户可见，等于把 key 公开。
+      // 凭据已由 models::write_models_json 写入 models.json（0600），Pi 按 provider 读取；
+      // PI_LAUNCH_* 只给团队子进程继承（子进程同样继承 PI_CODING_AGENT_DIR）。
       cmd.env("PI_LAUNCH_PROVIDER", &l.provider);
       cmd.env("PI_LAUNCH_MODEL", &l.model);
-      // 空 key 时不传 arg / 不传 env：让 Pi 退回环境变量，避免用空串覆盖已配置凭据。
       if !l.api_key.trim().is_empty() {
-        cmd.arg("--api-key").arg(&l.api_key);
         cmd.env("PI_LAUNCH_API_KEY", &l.api_key);
       }
     }
@@ -320,7 +334,7 @@ pub fn pi_start(
     }
     // 内置插件随 Pi 一起启动：沙箱接缝 + 角色注入。
     // app_config_dir 下不一定有插件（开发态在源码树里），故按候选路径逐个探测。
-    for ext in find_extensions(&app) {
+    for ext in find_extensions(app) {
         cmd.arg("--extension").arg(&ext);
     }
     cmd.stdin(Stdio::piped())
@@ -381,6 +395,24 @@ pub fn pi_start(
                 .ok()
         });
         let mut emit = |raw: Value| {
+            // 任意内核记录都算活动：驻留后台的内核空闲 5 分钟后才允许回收。
+            state_ref
+                .last_event_at
+                .store(unix_ms(), Ordering::Relaxed);
+            // 单进程单任务：记录「是否有一轮在跑」。
+            // 内核同一时刻只服务一个 agent 轮次，主动任务调度先读这个状态，
+            // 避免在第一轮未落定时又发起第二轮把上下文搅在一起。
+            match raw.get("type").and_then(|v| v.as_str()) {
+                Some("agent_start") => {
+                    *state_ref.running_since.lock().unwrap() = Some(unix_ms())
+                }
+                // agent_end 是单轮结束，agent_settled 是含重试在内的整体落定；
+                // 两者都视为空闲，任一先到即可释放调度位。
+                Some("agent_end") | Some("agent_settled") => {
+                    *state_ref.running_since.lock().unwrap() = None
+                }
+                _ => {}
+            }
             seq += 1;
             let mut batch: Vec<Value> = Vec::with_capacity(2);
             pi_events::enrich(
@@ -428,10 +460,23 @@ pub fn pi_start(
         // Some，pi_send 往死管道写「成功」返回，前端拿到 dispatch:sent 却永远等不到
         // 回复——正是「消息发出去了，然后什么都没有」的静默黑洞。
         *state_ref.stdin_tx.lock().unwrap() = None;
+        *state_ref.running_since.lock().unwrap() = None;
+        // 记录退出码：主动任务据此区分「正常停」与「崩溃」，决定是否重试。
+        // try_wait 顺带回收 zombie；若已被 stop_child 取走则为 None。
+        let code = state_ref
+            .child
+            .lock()
+            .unwrap()
+            .as_mut()
+            .and_then(|c| c.try_wait().ok().flatten())
+            .map(|s| s.code().unwrap_or(-1))
+            .unwrap_or(-1);
+        *state_ref.last_exit.lock().unwrap() = Some((code, unix_ms()));
         emit(Value::String("process_exit".into()));
     });
 
     *state.child.lock().unwrap() = Some(child);
+    state.last_event_at.store(unix_ms(), Ordering::Relaxed);
     *state.stdin_tx.lock().unwrap() = Some(tx);
     *state.launch_sig.lock().unwrap() = Some(sig);
     // 记住 cwd：pi_restart 换模型 / 换工具白名单后要原地重建同一工作目录。
@@ -581,7 +626,10 @@ pub fn pi_call(
 /// 发消息主链路上，与内核子进程共享一把 `stdin_tx` 锁；一旦锁被占用（如重启竞态），
 /// 非 async 命令会把主线程按住。发消息是最高频操作，不允许任何冻结可能。
 #[tauri::command(async)]
-pub fn pi_send(json: String, state: State<PiState>) -> Result<(), String> {
+pub fn pi_send(app: AppHandle, json: String, state: State<PiState>) -> Result<(), String> {
+    // 用户主动下发命令 = 回到交互模式：撤掉无人值守预授权，
+    // 防止定时任务异常残留的授权窗口被正常对话复用。
+    crate::proactive::clear_policy(&app);
     let mut command: Value =
         serde_json::from_str(&json).map_err(|e| format!("命令不是合法 JSON: {e}"))?;
     if !command.get("id").and_then(|v| v.as_str()).is_some() {
@@ -594,6 +642,25 @@ pub fn pi_send(json: String, state: State<PiState>) -> Result<(), String> {
     }
     let stdin_tx = lock_stdin(&state)?;
     let sender = stdin_tx.as_ref().ok_or_else(|| "pi 未启动".to_string())?;
+    sender
+        .send(command.to_string())
+        .map_err(|e| format!("下发命令失败: {e}"))
+}
+
+/// 无人值守下发一条 prompt（主动任务调度器用）。
+///
+/// 与 `pi_send` 同一套语义：fire-and-forget，结果从既有 `pi://event` / journal
+/// 读取。抽出非命令版本是为了让调度线程能直接复用，而不是再拼一次 stdin 协议。
+pub(crate) fn send_prompt(state: &PiState, message: &str) -> Result<(), String> {
+    let id = {
+        let mut seq = lock_seq(state);
+        *seq += 1;
+        format!("pi{}", *seq)
+    };
+    let command = serde_json::json!({ "id": id, "type": "prompt", "message": message });
+    let stdin_tx = lock_stdin(state)?;
+    let sender = stdin_tx.as_ref().ok_or_else(|| "pi 未启动".to_string())?;
+    state.last_event_at.store(unix_ms(), Ordering::Relaxed);
     sender
         .send(command.to_string())
         .map_err(|e| format!("下发命令失败: {e}"))
@@ -959,6 +1026,87 @@ pub fn pi_stop(state: State<PiState>) -> Result<(), String> {
     Ok(())
 }
 
+/// 驻留态内核回收：仅当主窗口隐藏、没有一轮在跑、且空闲满 `idle_ms` 时停子进程。
+///
+/// 返回是否真的回收。任务到点由 `start_kernel` 重新拉起，调度 tick 与账本不受影响。
+/// 窗口可见时不回收：对话页仍在使用同一内核，停了会让下一次发送先撞一次
+/// 「pi 未启动」再自动重启。
+pub(crate) fn reap_if_idle(app: &AppHandle, state: &PiState, idle_ms: u64) -> bool {
+    let hidden = app
+        .get_webview_window("main")
+        .map(|w| !w.is_visible().unwrap_or(false))
+        .unwrap_or(false);
+    if !hidden {
+        return false;
+    }
+    if state.running_since.lock().unwrap().is_some() {
+        return false;
+    }
+    if state.child.lock().unwrap().is_none() {
+        return false;
+    }
+    let last = state.last_event_at.load(Ordering::Relaxed);
+    if last == 0 || unix_ms().saturating_sub(last) < idle_ms {
+        return false;
+    }
+    // 标记为主动重启，前端不会把随后的 process_exit 当成异常断线提示。
+    let _ = app.emit(
+        "pi://event",
+        serde_json::json!({ "type": "kernel_restarted", "at": unix_ms() }),
+    );
+    drain_pending(state, "stop", "内核空闲回收，进行中的请求已丢弃");
+    stop_child(state);
+    true
+}
+
+/// 应用彻底退出：停内核并唤醒在途请求。调度线程随进程退出，无需单独 join。
+pub(crate) fn shutdown_kernel(state: &PiState) {
+    drain_pending(state, "stop", "应用退出，内核已停止");
+    stop_child(state);
+}
+
+/// 内核运行态快照：主动任务调度的最小判据。
+///
+/// `alive` + `running` 一起回答「现在能不能再派一轮」：
+/// 内核停机要先拉起，正在跑则排队——这就是单进程单任务的调度位。
+#[derive(Serialize)]
+pub struct PiStatus {
+    /// 子进程仍存活（try_wait 未见退出）。
+    pub alive: bool,
+    /// 有一轮 agent 正在执行。
+    pub running: bool,
+    /// 本轮开始时刻（Unix ms），空闲为 null。
+    pub running_since: Option<u64>,
+    /// 最近一次退出码（-1 表示未知/被主动 kill）。
+    pub last_exit_code: Option<i32>,
+    /// 最近一次退出时刻（Unix ms）。
+    pub last_exit_at: Option<u64>,
+    /// 当前内核工作目录。
+    pub cwd: Option<String>,
+}
+
+/// **必须 async**：`try_wait` 会触发子进程状态回收，不与主线程争用。
+#[tauri::command(async)]
+pub fn pi_status(state: State<PiState>) -> PiStatus {
+    let alive = state
+        .child
+        .lock()
+        .unwrap()
+        .as_mut()
+        .map(|c| matches!(c.try_wait(), Ok(None)))
+        .unwrap_or(false);
+    let running_since = *state.running_since.lock().unwrap();
+    let last = *state.last_exit.lock().unwrap();
+    PiStatus {
+        alive,
+        running: running_since.is_some(),
+        running_since,
+        last_exit_code: last.map(|(code, _)| code),
+        last_exit_at: last.map(|(_, at)| at),
+        cwd: state.launch_cwd.lock().unwrap().clone(),
+    }
+}
+
 /// 一条 stdout 记录是否为命令响应（而非流式事件）。
 /// Pi 协议：`{"id","type":"response","command","success","data"}` 为响应，其余为事件。
 pub fn is_response(record: &Value) -> bool {
@@ -1115,6 +1263,7 @@ fn stop_child(state: &PiState) {
         let _ = child.wait();
     }
     *state.stdin_tx.lock().unwrap() = None;
+    *state.running_since.lock().unwrap() = None;
     // 清掉签名：下次 pi_start 必须重新拉起，不能复用已停的进程。
     *state.launch_sig.lock().unwrap() = None;
 }
