@@ -319,8 +319,38 @@
 - 例外：`WorkspacePicker.css`（8px/7px）由另一会话在改，未纳入本轮；`50%` 圆形（头像、状态点）保持。
 - 侧栏导航行高 36 → 44，`app-input` 28 → 44；四视口全路由横向溢出仍为 0。
 
-## 13. 批次 G：全局搜索（D-21，待确认）
+## 13. 批次 G：全局搜索（D-21，已实装）
 
-实现要点（确认后再落地）：索引来源、⌘K 快捷键冲突、无结果行为见交付说明，尚未改动代码。
+### 落地
+
+| 项 | 内容 |
+|---|---|
+| 新增 | `src/composables/useGlobalSearch.ts`、`src/components/search/CommandPalette.vue`、`src/components/search/CommandPalette.css` |
+| 改动 | `src/App.vue`（挂载）、`src/components/ui/AppModal.vue/.css`（`bare` 形态复用遮罩/焦点陷阱/Esc）、`src/components/layout/Sidebar.vue`（搜索按钮改为开面板）、`src/components/panels/LibraryPanel.vue`（`?q=` 预填）、`src/i18n/en-US/common.ts`、`src-tauri/src/run_meta.rs` |
+| 索引来源 | 会话 `pi_journal_sessions`（打开时预取）；项目 `projects_list`；记忆 `agent_memory_list` 词面过滤；文件 `library_search` 随输入查询 |
+| 交互 | ⌘K/Ctrl+K 开合，Esc 关闭，↑↓ 跨组循环，Enter 进入，悬停同步高亮 |
+| 结果 | 分组「会话/项目/文件/记忆」，单组限额 5/5/8/5；前缀命中优先 |
+| 空态 | 无输入显示最近 8 条（localStorage `pi-workbench:search-recent`）；无历史时显示四类提示 |
+| 无结果 | 「没有找到「X」」+「在资料库中搜索」（带词跳转 `#/library?view=search&q=`），不自动跳页 |
+| 失败 | 单源失败静默隐藏该组；文件/项目/记忆三源全失败且会话为空才显示错误条 |
+| 记忆向量 | 未接入 `memoryVecSearch`（嵌入模型首查延迟高）；`ponytail:` 注明升级路径为 vecStatus.ready 后并联语义命中 |
+| 回放窗口 | `open_replay_window` 的 label 改为 `(cwd, index)` 稳定派生；已存在则 `unminimize/show/set_focus`，不再叠第二个窗口 |
+
+### 四视口实测（Playwright + Chrome，`#/chat`）
+
+| 视口 | 面板 | 位置 | 在视口内 | 页面横向溢出 | 行高 | 行内溢出 |
+|---|---|---|---|---|---|---|
+| 1440×900 | 640×209 | left 400 / top 346 | 是 | 0 | 49 | 无 |
+| 1024×768 | 640×209 | left 192 / top 280 | 是 | 0 | 49 | 无 |
+| 768×900 | 640×209 | left 64 / top 346 | 是 | 0 | 49 | 无 |
+| 390×844 | 350×201 | left 20 / top 322 | 是 | 0 | 49 | 无 |
+
+- 键盘：查询 `p` 得 4 条（会话 2 / 项目 1 / 记忆 1）；↓ 移到下一条、↑ 回退、首条再 ↑ 循环到末条。
+- 回车：项目 → `#/projects/p-flow-b`；文件 → `#/library?view=search&q=会议` 且搜索框回填「会议」；记忆 → `#/library?view=memory`；会话 → 触发 `open_replay_window` 1 次并关面板。
+- 最近项：经过项目/文件/记忆三次进入后重开，空查询回放 3 条、无分组标题。
+- 无结果：`没有找到「zzz」` + `在资料库中搜索`，四类提示隐藏。
+- Esc 关闭成功；⌘K 再次按下开、再按关。输入框打开即聚焦。
+- 回放窗口复用为 Rust 侧逻辑（`get_webview_window(label)` → 聚焦），无头浏览器无法验证真实双窗；`cargo check` 通过，需桌面端手验一次。
+
 
 
