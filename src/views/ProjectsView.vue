@@ -16,6 +16,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { PICK_TIMEOUT_NOTE, pickDirectoryGuarded } from '@/composables/useDirPicker'
+import { timeAgo } from '@/utils/timeAgo'
 import {
   describeProjectError,
   type Project,
@@ -170,15 +171,8 @@ async function unarchive(id: string) {
 }
 
 function stamp(ts?: number) {
-  if (!ts) return ''
-  const diff = Date.now() - ts
-  const min = 60_000
-  const hour = 60 * min
-  const day = 24 * hour
-  if (diff < min) return t('刚刚')
-  if (diff < hour) return t('{0} 分钟前', [Math.floor(diff / min)])
-  if (diff < day) return t('{0} 小时前', [Math.floor(diff / hour)])
-  return new Date(ts).toLocaleDateString()
+  // 与侧栏/收件箱同一套相对时间，卡片不再各写一版（此前 3 天前会显示绝对日期）。
+  return timeAgo(ts) || '—'
 }
 
 onMounted(refresh)
@@ -236,11 +230,10 @@ onMounted(refresh)
             @click="openWorkspace(p.id)"
           >
             <span class="wd-p-card-icon"><AppIcon name="folder" :size="21" /></span>
-            <span>
-              <strong>{{ p.name }}</strong>
-              <small>
-                {{ t('{0} · 更新于 {1}', [p.path || t('未绑定目录'), stamp(p.updated_at)]) }}
-              </small>
+            <span class="wd-p-card-body">
+              <strong :title="p.name">{{ p.name }}</strong>
+              <small class="wd-p-card-path" :title="p.path || t('未绑定目录')">{{ p.path || t('未绑定目录') }}</small>
+              <small class="wd-p-card-time">{{ t('更新于 {0}', [stamp(p.updated_at)]) }}</small>
             </span>
           </AppButton>
           <AppButton
@@ -260,23 +253,29 @@ onMounted(refresh)
         </article>
       </div>
 
-      <div v-if="!loading && !visible.length" class="wd-p-empty">
-        {{ keyword ? t('没有匹配的项目') : projects.length ? t('没有已归档项目') : t('还没有项目') }}
+      <div v-if="!loading && !visible.length" class="empty-state wd-p-empty">
+        <span class="empty-icon"><AppIcon name="folder" :size="18" /></span>
+        <p class="empty-title">
+          {{ keyword ? t('没有匹配的项目') : projects.length ? t('没有已归档项目') : t('还没有项目') }}
+        </p>
+        <p class="empty-hint">{{ t('新建项目后，资料、技能与 AI 任务都在这里协同。') }}</p>
       </div>
 
-      <div class="wd-p-section-head">
-        <h2>{{ t('从模板创建') }}</h2>
-      </div>
+      <template v-if="templates.length">
+        <div class="wd-p-section-head">
+          <h2>{{ t('从模板创建') }}</h2>
+        </div>
 
-      <div class="wd-p-grid">
-        <AppButton v-for="t in templates" :key="t.id" variant="card" class="wd-p-card" @click="openCreate(t)">
-          <span class="wd-p-card-icon"><AppIcon name="sparkles" :size="21" /></span>
-          <span>
-            <strong>{{ t.name }}</strong>
-            <small>{{ t.description }}</small>
-          </span>
-        </AppButton>
-      </div>
+        <div class="wd-p-grid">
+          <AppButton v-for="t in templates" :key="t.id" variant="card" class="wd-p-card" @click="openCreate(t)">
+            <span class="wd-p-card-icon"><AppIcon name="sparkles" :size="21" /></span>
+            <span>
+              <strong>{{ t.name }}</strong>
+              <small>{{ t.description }}</small>
+            </span>
+          </AppButton>
+        </div>
+      </template>
     </div>
 
     <div v-if="creating" class="wd-p-modal-backdrop" @click.self="creating = false">

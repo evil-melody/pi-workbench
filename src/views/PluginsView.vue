@@ -276,7 +276,7 @@ onMounted(load)
 
       <p v-if="marketNote" class="market-note" role="status">{{ marketNote }}</p>
       <p v-if="error" class="market-note" role="alert">{{ error }}</p>
-      <div v-if="busy" class="market-note" role="status">{{ t('正在读取插件清单…') }}</div>
+      <div v-if="busy" class="load-state" role="status">{{ t('正在读取插件清单…') }}</div>
 
       <div v-else-if="tab === 'themes'" class="market-empty">
         <strong>{{ t('主题') }}</strong>
@@ -310,17 +310,15 @@ onMounted(load)
             <div class="row-title">
               <strong :title="p.name">{{ p.name }}</strong>
               <span class="row-meta">
-                <i>@{{ p.author }}</i>
-                <i>{{ p.version }}</i>
-                <i v-if="p.enabled" class="row-flag">{{ t('已载入') }}</i>
+                <i v-if="p.author && p.author !== t('未知')">@{{ p.author }}</i>
+                <i v-if="p.version && p.version !== t('未知')">{{ p.version }}</i>
               </span>
             </div>
-            <p class="row-desc">{{ p.description }}</p>
+            <p class="row-desc" :title="p.description">{{ p.description }}</p>
             <div class="row-tags">
               <span v-for="(t, idx) in p.tags" :key="idx" class="row-tag">{{ t }}</span>
             </div>
-            <p v-if="p.hasTools" class="row-tools">{{ t('工具：{0}', [p.tools.join('、')]) }}
-            </p>
+            <p v-if="p.hasTools" class="row-tools" :title="t('工具：{0}', [p.tools.join('、')])">{{ t('工具：{0}', [p.tools.join('、')]) }}</p>
           </div>
           <div class="row-actions">
             <AppButton

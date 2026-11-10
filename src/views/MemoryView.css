@@ -6,6 +6,19 @@
   max-width: none;
 }
 
+/* 骨架条按卡片宽度分档收窄，避免整行拉到 900px 的灰色长条 */
+.mem-skeleton .sk-line {
+  max-width: 520px;
+}
+
+.mem-skeleton .sk-line.w-40 {
+  max-width: 200px;
+}
+
+.mem-skeleton .sk-line.w-60 {
+  max-width: 320px;
+}
+
 .mem-list {
   list-style: none;
   margin: 0;
@@ -16,18 +29,19 @@
 }
 
 .mem-card {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  border: var(--stroke);
   border-radius: var(--r-lg);
-  padding: var(--sp-4);
+  padding: var(--pad-card);
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  transition: border-color 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
 .mem-card:hover {
   border-color: var(--border-strong);
+  box-shadow: var(--sh-1);
 }
 
 .mem-top {
@@ -41,18 +55,26 @@
 }
 
 .mem-time {
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
+  /* 390 下时间被挤成两行会把整张卡撑高 6px：时间不换行。 */
+  white-space: nowrap;
 }
 
 .mem-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   margin: 0;
-  font-size: 13.5px;
-  line-height: 1.55;
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
   color: var(--text);
   white-space: pre-wrap;
   word-break: break-word;
+  /* 正文按 4 行封顶并占满 4 行：与骨架屏同高，短记忆不把卡片压扁。 */
+  min-height: calc(4em * var(--lh-body));
 }
 
 .mem-tags {
@@ -62,10 +84,10 @@
 }
 
 .chip {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
-  background: var(--accent-dim);
-  border: 1px solid var(--accent-soft);
+  background: var(--bg-hover);
+  border: 1px solid transparent;
   padding: 2px 8px;
   border-radius: var(--r-full);
 }
@@ -85,7 +107,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13.5px;
+  font-size: var(--fs-ui);
   font-weight: 600;
   color: var(--text);
 }
@@ -94,7 +116,7 @@
 }
 .vec-sub {
   font-weight: 400;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .vec-bar {
@@ -116,10 +138,10 @@
   border-radius: var(--r-md);
   padding: 7px 10px;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   outline: none;
   box-shadow: none;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease);
 }
 .vec-bar .vec-input:focus {
   border-color: var(--accent);
@@ -131,10 +153,10 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 .vec-warn {
-  color: var(--warn, #d9a23b);
+  color: var(--warn);
 }
 
 .vec-list {
@@ -156,7 +178,7 @@
 }
 .vec-score {
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   color: var(--accent);
   min-width: 38px;
@@ -165,14 +187,14 @@
 .vec-text {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-ui);
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .vec-tags {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-faint);
   white-space: nowrap;
 }
@@ -196,7 +218,7 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   color: var(--text);
 }
@@ -207,7 +229,7 @@
 
 .trash-sub {
   font-weight: 400;
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
 }
 
 .trash-list {
@@ -243,13 +265,13 @@
 }
 
 .trash-tip {
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
 }
 
 .del-note {
   margin: 0 0 var(--sp-3);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   line-height: 1.6;
   color: var(--text-dim);
 }
@@ -260,7 +282,7 @@
   border: 1px solid var(--border);
   border-radius: var(--r);
   background: var(--bg);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   line-height: 1.55;
   color: var(--text);
   max-height: 120px;
@@ -282,7 +304,7 @@
 
 .mem-edit,
 .mem-purge {
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
 }
 
@@ -311,7 +333,7 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   color: var(--text);
 }
@@ -322,7 +344,7 @@
 
 .prof-sub {
   font-weight: 400;
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
 }
 
 .prof-list {
@@ -338,14 +360,14 @@
   display: flex;
   align-items: baseline;
   gap: var(--sp-3);
-  font-size: 13px;
+  font-size: var(--fs-ui);
 }
 
 .prof-label {
   width: 76px;
   flex-shrink: 0;
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .prof-value {
@@ -360,7 +382,7 @@
 }
 
 .prof-edit {
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
 }
 

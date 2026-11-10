@@ -14,7 +14,7 @@
 .tw {
   width: 12px;
   color: var(--text-dim);
-  font-size: 10px;
+  font-size: var(--fs-micro);
 }
 
 .nm {

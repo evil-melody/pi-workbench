@@ -15,7 +15,7 @@
   flex-shrink: 0;
   padding: var(--sp-2) var(--sp-3);
   border-bottom: 1px solid var(--border);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
 }
 
@@ -38,7 +38,7 @@
   border-radius: var(--r-sm);
   background: var(--bg-elev);
   color: var(--text);
-  font-size: 11px;
+  font-size: var(--fs-micro);
   cursor: pointer;
 }
 
@@ -64,7 +64,7 @@
   border-bottom: 1px solid var(--border);
   background: var(--accent-dim);
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-micro);
 }
 
 .fedit .editor {
@@ -74,7 +74,7 @@
   border-radius: 0;
   resize: none;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   line-height: 1.6;
   padding: var(--sp-3);
 }
@@ -93,12 +93,12 @@
 
 .empty-pane strong {
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--fs-body);
   font-weight: 500;
 }
 
 .empty-pane .muted {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
 }
 
@@ -114,7 +114,7 @@
   border-bottom: 1px solid var(--border);
   background: var(--accent-dim);
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-micro);
 }
 
 .office {
@@ -123,7 +123,7 @@
 
 .office :deep(table) {
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .office :deep(td),
@@ -134,6 +134,6 @@
 
 .office :deep(.sname) {
   margin: var(--sp-3) 0 var(--sp-2);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   color: var(--text);
 }

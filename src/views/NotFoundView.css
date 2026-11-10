@@ -22,21 +22,21 @@
 .nf-code {
   color: var(--accent);
   font-family: var(--mono);
-  font-size: 40px;
+  font-size: var(--fs-display);
   font-weight: 700;
   letter-spacing: 2px;
 }
 
 .nf-title {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--fs-xl);
   font-weight: 600;
 }
 
 .nf-desc {
   margin: 0;
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   line-height: 1.7;
 }
 
@@ -47,9 +47,9 @@
   border-radius: var(--r-md, 8px);
   background: var(--accent);
   color: var(--accent-ink);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--dur-fast) var(--ease);
 }
 
 .nf-btn:hover {

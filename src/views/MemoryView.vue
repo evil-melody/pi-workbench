@@ -397,7 +397,16 @@ onUnmounted(() => {
       </ul>
     </section>
 
-    <p v-if="busy && !visible.length" class="load-state">{{ t('正在加载记忆…') }}</p>
+    <!-- 骨架屏替代纯文字「加载中」，首屏不闪空白（ui-kit 统一原语） -->
+    <ul v-if="busy && !visible.length" class="mem-list mem-skeleton" aria-busy="true">
+      <li v-for="i in 3" :key="i" class="mem-card">
+        <!-- 与真实卡片同构：1 行头部 + 正文 + 标签行，加载完成不跳高度。 -->
+        <div class="skeleton sk-line w-40"></div>
+        <div class="skeleton sk-line"></div>
+        <div class="skeleton sk-line"></div>
+        <div class="skeleton sk-line w-60"></div>
+      </li>
+    </ul>
 
     <ul v-else-if="visible.length" class="mem-list">
       <li v-for="m in visible" :key="m.id" class="mem-card">
@@ -416,7 +425,7 @@ onUnmounted(() => {
           </AppButton>
           <AppButton variant="text" class="aops-plain mem-purge" @click="purgeTarget = m">{{ t('永久删除') }}</AppButton>
         </div>
-        <p class="mem-text">{{ m.text }}</p>
+        <p class="mem-text" :title="m.text">{{ m.text }}</p>
         <div v-if="m.tags?.length" class="mem-tags">
           <span v-for="t in m.tags" :key="t" class="chip">{{ t }}</span>
         </div>

@@ -17,7 +17,7 @@
 }
 
 .ce-label {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--fg-dim, var(--text-dim));
   display: flex;
   align-items: baseline;
@@ -26,12 +26,12 @@
 
 .ce-set {
   font-style: normal;
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--ok);
 }
 
 .ce-hint {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--fg-dim, var(--text-dim));
 }
 
@@ -42,13 +42,13 @@
 }
 
 .ce-err {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--danger);
 }
 
 .ce-error {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--danger);
   background: var(--danger-soft);
   border: 1px solid var(--danger);
@@ -58,7 +58,7 @@
 
 .ce-btn {
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-ui);
   padding: 6px 14px;
   border-radius: var(--r-sm);
   border: 1px solid var(--border, var(--border));

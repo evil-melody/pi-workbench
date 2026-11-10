@@ -23,7 +23,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-  transition: border-color 0.15s ease, transform 0.08s ease;
+  transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 
 .team-card:hover {
@@ -43,7 +43,7 @@
 
 .team-name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--fs-body);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -52,7 +52,7 @@
 .strat {
   margin-left: auto;
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-dim);
   background: var(--bg-elev);
   border: 1px solid var(--border);
@@ -67,7 +67,7 @@
 }
 
 .chip {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
   background: var(--accent-dim);
   border: 1px solid var(--accent-soft);
@@ -76,7 +76,7 @@
 }
 
 .team-foot {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   border-top: 1px solid var(--border-soft);
   padding-top: var(--sp-2);
 }
@@ -90,7 +90,7 @@
 }
 
 .dialog-block-label {
-  font-size: 13px;
+  font-size: var(--fs-ui);
   color: var(--text-dim);
 }
 
@@ -115,8 +115,8 @@
   border: 1px solid var(--border);
   background: var(--bg-elev);
   color: var(--text-dim);
-  font-size: 12px;
-  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+  font-size: var(--fs-meta);
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
 }
 
 .cand:hover {
@@ -132,12 +132,12 @@
 
 .cand-kind {
   font-style: normal;
-  font-size: 10.5px;
+  font-size: var(--fs-micro);
   opacity: 0.7;
 }
 
 .cand-hint {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
 }
 
@@ -149,7 +149,7 @@
 }
 
 .cand-label {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
 }
 

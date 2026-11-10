@@ -62,6 +62,9 @@ function friendly(e: unknown) {
     typeof e === 'string' ? e : ((e as { message?: string } | null)?.message ?? String(e))
   if (/执行中/.test(raw)) return t('任务正在执行，预授权暂不可修改。等本次跑完再保存。') // i18n-ignore: backend message pattern
   if (/额度/.test(raw)) return raw // i18n-ignore: backend message pattern
+  // 运行时异常（TypeError/ReferenceError…）直接给一句人话，绝不把英文堆栈摆到页面上。
+  if (/(TypeError|ReferenceError|SyntaxError|Cannot read|is not a function)/.test(raw))
+    return t('加载失败，请稍后重试')
   if (!raw.trim()) return t('保存失败，请稍后重试')
   return raw
 }
@@ -97,7 +100,7 @@ async function refresh() {
     apply(await snapshot())
     loadError.value = ''
   } catch (e) {
-    loadError.value = String(e)
+    loadError.value = friendly(e)
   } finally {
     loading.value = false
   }
@@ -109,7 +112,7 @@ async function act(key: string, fn: () => Promise<ProactiveSnapshot>) {
     apply(await fn())
     loadError.value = ''
   } catch (e) {
-    loadError.value = String(e)
+    loadError.value = friendly(e)
   } finally {
     busy.value = ''
   }
@@ -378,14 +381,18 @@ onMounted(() => {
           <span class="ib-dot" aria-hidden="true"></span>
           <div class="ib-item-main">
             <div class="ib-item-top">
-              <span class="ib-item-title">{{ item.title }}</span>
+              <span class="ib-item-title" :title="item.title">{{ item.title }}</span>
               <span class="ib-item-time">{{ timeAgo(item.createdAt) }}</span>
             </div>
-            <p class="ib-item-body">{{ item.body }}</p>
+            <p class="ib-item-body" :title="item.body">{{ item.body }}</p>
           </div>
         </li>
       </ul>
-      <p v-else-if="!loading" class="ib-empty">{{ t('还没有产物。新建一个定时任务，跑完后结果会自动进这里。') }}</p>
+      <div v-else-if="!loading" class="ib-empty">
+        <span class="empty-icon"><AppIcon name="inbox" :size="18" /></span>
+        <p class="empty-title">{{ t('还没有产物') }}</p>
+        <p class="empty-hint">{{ t('新建一个定时任务，跑完后结果会自动进这里。') }}</p>
+      </div>
     </section>
 
     <section class="ib-section">
@@ -400,7 +407,7 @@ onMounted(() => {
         >
           <div class="ib-job-main">
             <div class="ib-job-top">
-              <span class="ib-job-title">{{ job.title }}</span>
+              <span class="ib-job-title" :title="job.title">{{ job.title }}</span>
               <span class="ib-chip" :class="`st-${job.status}`">{{ STATUS_LABEL[job.status] }}</span>
               <span v-if="runningJob === job.id" class="ib-chip st-running">{{ t('执行中') }}</span>
               <span v-if="job.status === 'running'" class="ib-chip st-locked">{{ t('预授权已锁') }}</span>
@@ -408,7 +415,7 @@ onMounted(() => {
             <div class="ib-job-meta">
               <span>{{ intervalLabel(job.intervalSecs) }}</span>
               <span>{{ nextLabel(job) }}</span>
-              <span>{{ job.cwd }}</span>
+              <span :title="job.cwd">{{ job.cwd }}</span>
             </div>
             <p class="ib-job-grant">{{ grantLabel(job) }}</p>
             <div v-if="usageFor(job)" class="ib-usage">
@@ -472,7 +479,11 @@ onMounted(() => {
           </div>
         </li>
       </ul>
-      <p v-else-if="!loading" class="ib-empty">{{ t('还没有定时任务。主动服务的第一条闭环从这里开始。') }}</p>
+      <div v-else-if="!loading" class="ib-empty">
+        <span class="empty-icon"><AppIcon name="clock" :size="18" /></span>
+        <p class="empty-title">{{ t('还没有定时任务') }}</p>
+        <p class="empty-hint">{{ t('主动服务的第一条闭环从这里开始。') }}</p>
+      </div>
     </section>
 
     <AppModal :open="createOpen" :title="t('新建定时任务')" size="md" @close="createOpen = false">

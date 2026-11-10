@@ -16,13 +16,13 @@
 }
 
 .cp-stat {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--fg-dim, var(--text-dim));
 }
 
 .cp-btn {
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-ui);
   padding: 5px 12px;
   border-radius: var(--r-sm);
   border: 1px solid var(--border, var(--border));
@@ -52,7 +52,7 @@
 
 .cp-error {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--danger);
   background: var(--danger-soft);
   border: 1px solid var(--danger);
@@ -62,12 +62,12 @@
 
 .cp-hint {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--fg-dim, var(--text-dim));
 }
 
 .cp-muted {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--fg-dim, var(--text-dim));
 }
 
@@ -119,11 +119,11 @@
 }
 
 .cp-item-top strong {
-  font-size: 13px;
+  font-size: var(--fs-ui);
 }
 
 .cp-item-sub {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--fg-dim, var(--text-dim));
 }
 
@@ -141,7 +141,7 @@
 
 .cp-mini {
   font: inherit;
-  font-size: 11px;
+  font-size: var(--fs-micro);
   padding: 2px 8px;
   border-radius: var(--r-sm);
   border: 1px solid var(--border, var(--border));
@@ -163,7 +163,7 @@
 }
 
 .cp-badge {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   padding: 1px 7px;
   border-radius: var(--r-full);
   background: var(--bg-soft, var(--bg-hover));
@@ -205,7 +205,7 @@
 
 .cp-detail-head h4 {
   margin: 0 0 2px;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 .cp-facts {
@@ -216,13 +216,13 @@
 }
 
 .cp-facts dt {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--fg-dim, var(--text-dim));
 }
 
 .cp-facts dd {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .cp-facts code {
@@ -233,7 +233,7 @@
 
 .cp-diag {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--warn);
   background: var(--warn-soft);
   border: 1px solid var(--warn);
@@ -243,7 +243,7 @@
 
 .cp-tools-head {
   margin: 0 0 6px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   font-weight: 600;
 }
 
@@ -256,7 +256,7 @@
 }
 
 .cp-tools code {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   background: var(--bg-soft, var(--bg-hover));
   border-radius: var(--r-sm);
   padding: 1px 4px;
@@ -286,7 +286,7 @@
 
 .cp-chip {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   padding: 4px 10px;
   border-radius: var(--r-full);
   border: 1px solid var(--border, var(--border));
@@ -317,7 +317,7 @@
 }
 
 .cp-scope-list code {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   background: var(--bg-soft, var(--bg-hover));
   border-radius: var(--r-sm);
   padding: 1px 5px;

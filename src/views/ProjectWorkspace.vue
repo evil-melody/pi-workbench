@@ -395,8 +395,8 @@ onMounted(refresh)
       </AppButton>
       <span class="pw-icon"><AppIcon name="folder" :size="20" /></span>
       <div class="pw-title">
-        <strong>{{ app.name }}</strong>
-        <small>{{ app.description || t('暂无描述') }}</small>
+        <strong :title="app.name">{{ app.name }}</strong>
+        <small :title="app.description || t('暂无描述')">{{ app.description || t('暂无描述') }}</small>
       </div>
       <!-- 模式切换器常驻头部：进入工作台不消失，与对话页共用同一份档位。 -->
       <ModeSwitcher :model-value="thinkingLevel" width="auto" @update:model-value="setThinkingMode" />
@@ -451,14 +451,14 @@ onMounted(refresh)
 
         <div class="pw-pane-block">
           <b class="pw-label">{{ t('指令') }}</b>
-          <AppTextarea v-model="configDraft" :rows="9" :placeholder="t('项目背景、协作规范与输出约束')" />
+          <AppTextarea v-model="configDraft" :rows="6" :placeholder="t('项目背景、协作规范与输出约束')" />
         </div>
 
         <div class="pw-pane-block">
           <b class="pw-label">{{ t('绑定能力') }}</b>
           <AppTextarea
             v-model="capabilityText"
-            :rows="4"
+            :rows="3"
             mono
             :placeholder="t('skill:pdf-tools 解析 PDF expert:reviewer 代码评审')"
           />
@@ -485,8 +485,8 @@ onMounted(refresh)
         <ul v-if="workItems.length" class="pw-list">
           <li v-for="item in workItems" :key="item.id" class="pw-row">
             <span class="pw-row-main">
-              <strong>{{ item.title }}</strong>
-              <small>{{ item.priority }} · {{ item.tags.length ? item.tags.join('、') : t('无标签') }}</small>
+              <strong :title="item.title">{{ item.title }}</strong>
+              <small :title="item.priority + ' · ' + (item.tags.length ? item.tags.join('、') : t('无标签'))">{{ item.priority }} · {{ item.tags.length ? item.tags.join('、') : t('无标签') }}</small>
             </span>
             <AppSelect
               :model-value="item.status"
@@ -521,8 +521,8 @@ onMounted(refresh)
         <ul v-if="assets.length" class="pw-list">
           <li v-for="a in assets" :key="a.id" class="pw-row">
             <span class="pw-row-main">
-              <strong>{{ a.name }}</strong>
-              <small>{{ a.kind }} · {{ a.asset_id }}@{{ a.revision_id }}</small>
+              <strong :title="a.name">{{ a.name }}</strong>
+              <small :title="a.kind + ' · ' + a.asset_id + '@' + a.revision_id">{{ a.kind }} · {{ a.asset_id }}@{{ a.revision_id }}</small>
             </span>
             <AppButton variant="icon" class="pw-row-del" :title="t('解除关联')" :aria-label="t('解除关联')" @click="unlinkAsset(a)">
               <AppIcon name="close" :size="14" />
@@ -537,7 +537,7 @@ onMounted(refresh)
         <ul v-if="activity.length" class="pw-activity">
           <li v-for="a in activity" :key="a.id">
             <span class="pw-activity-kind">{{ a.kind }}</span>
-            <span class="pw-activity-text">{{ a.text }}</span>
+            <span class="pw-activity-text" :title="a.text">{{ a.text }}</span>
             <span class="pw-activity-time">{{ stamp(a.created_at) }}</span>
           </li>
         </ul>

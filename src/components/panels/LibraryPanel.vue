@@ -494,13 +494,13 @@ loadTree('/')
         <p class="muted">{{ t('浏览、检索并维护项目内的文件资产。原件始终保留，检索文本只是产物。') }}</p>
       </div>
       <div v-if="stats" class="lib-quota">
+        <span class="quota-text">
+          {{ t('{0} 份 · {1} / {2}', [stats.asset_count, formatBytes(stats.used_bytes), formatBytes(stats.max_total_bytes)]) }}
+        </span>
         <div class="quota-bar" role="img" :aria-label="t('已用 {0}', [formatBytes(stats.used_bytes)])">
           <!-- 功能性动态值（配额比例），豁免纯样式抽离铁律：CSS 变量传值 -->
           <span :style="{ '--quota-w': `${usedRatio * 100}%` }"></span>
         </div>
-        <span class="quota-text">
-          {{ t('{0} 份 · {1} / {2}', [stats.asset_count, formatBytes(stats.used_bytes), formatBytes(stats.max_total_bytes)]) }}
-        </span>
       </div>
     </header>
 
@@ -570,7 +570,7 @@ loadTree('/')
           >
             <div class="hit-top">
               <AppIcon name="search" :size="12" />
-              <span class="tree-name">{{ hit.name }}</span>
+              <span class="tree-name" :title="hit.name">{{ hit.name }}</span>
               <span class="hit-convert" :class="{ bad: hit.convert_status !== 'ready' }">
                 {{ convertStatusText(hit.convert_status) }}
               </span>
@@ -603,7 +603,7 @@ loadTree('/')
             @click="openAsset(m.id)"
           >
             <AppIcon name="clock" :size="14" />
-            <span class="tree-name">{{ m.name }}</span>
+            <span class="tree-name" :title="m.name">{{ m.name }}</span>
             <span class="tree-badge">{{ m.dir }}</span>
           </li>
           <li v-if="!marks.length" class="tree-empty">{{ t('还没有记录') }}</li>
@@ -622,7 +622,7 @@ loadTree('/')
             @click="openNode(item.node)"
           >
             <AppIcon :name="fileIcon(item.node)" :size="14" />
-            <span class="tree-name">{{ item.node.name }}</span>
+            <span class="tree-name" :title="item.node.name">{{ item.node.name }}</span>
             <span
               v-if="item.node.asset_id && assets.find((a) => a.id === item.node.asset_id)?.draft"
               class="tree-flag"

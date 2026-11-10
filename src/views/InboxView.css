@@ -7,7 +7,7 @@
   height: 100%;
   min-height: 0;
   overflow: auto;
-  padding: var(--sp-7) var(--sp-7) 64px;
+  padding: var(--page-y) var(--page-x) var(--page-bottom);
   color: var(--text);
   background: var(--bg);
 }
@@ -38,7 +38,8 @@
 .ib-head p {
   margin: 0;
   color: var(--text-dim);
-  font-size: var(--fs-base);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
 }
 
 .ib-head-actions {
@@ -53,19 +54,26 @@
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1);
-  height: 32px;
-  padding: 0 var(--sp-3);
-  border: 1px solid var(--border);
+  height: var(--row-h);
+  padding: 0 var(--sp-4);
+  border: 0;
   border-radius: var(--r);
-  background: var(--bg-elev);
-  color: var(--text);
-  font-size: var(--fs-base);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease);
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 .ib-btn:hover:not(:disabled) {
   background: var(--bg-hover);
+  color: var(--text);
+}
+
+.ib-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .ib-btn:disabled {
@@ -104,8 +112,9 @@
 }
 
 .ib-section h2 {
-  margin: 0 0 var(--sp-3);
-  font-size: var(--fs-lg);
+  margin: 0 0 var(--gap-head);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
   font-weight: var(--fw-semibold);
 }
 
@@ -169,6 +178,11 @@
 }
 
 .ib-item-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--fs-md);
   font-weight: var(--fw-medium);
 }
@@ -189,6 +203,8 @@
   font-size: var(--fs-base);
   line-height: var(--lh-body);
   white-space: pre-wrap;
+  /* 正文按 3 行封顶，同时占满 3 行：短摘要与长摘要的卡片同高。 */
+  min-height: calc(3em * var(--lh-body));
 }
 
 .ib-job {
@@ -219,11 +235,17 @@
 }
 
 .ib-job-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: var(--fs-md);
   font-weight: var(--fw-medium);
 }
 
 .ib-chip {
+  flex-shrink: 0;
   padding: 1px var(--sp-2);
   border-radius: var(--r-full);
   background: var(--bg-hover);
@@ -261,7 +283,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 420px;
+  max-width: 100%;
 }
 
 .ib-job-grant {
@@ -351,7 +373,7 @@
   height: 100%;
   border-radius: inherit;
   background: var(--accent);
-  transition: width 0.2s ease;
+  transition: width var(--dur) var(--ease);
 }
 
 .ib-meter-fill.full {
@@ -421,13 +443,19 @@
   cursor: default;
 }
 
+/* 空态与 ui-kit 的 .empty-state 同构：图标 + 一句主文案 + 一句去向。
+   宽度不铺满 1116，避免一句话悬在一条巨型虚线里。 */
 .ib-empty {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--sp-2);
+  min-height: 140px;
+  max-width: 720px;
   margin: 0;
-  padding: var(--sp-5);
+  padding: var(--sp-6) var(--sp-5);
   border: 1px dashed var(--border);
   border-radius: var(--r-lg);
-  color: var(--text-faint);
-  font-size: var(--fs-base);
   text-align: center;
 }
 

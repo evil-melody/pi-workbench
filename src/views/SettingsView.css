@@ -46,30 +46,31 @@
 }
 
 .settings-tabs {
-  width: 200px;
+  width: 184px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px;
-  border-right: 1px solid var(--border);
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border-right: var(--stroke);
   background: var(--bg-panel);
 }
 
 .settings-tabs button {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--sp-2);
   width: 100%;
-  padding: 10px 12px;
+  min-height: var(--row-h);
+  padding: 0 var(--sp-3);
   border: 0;
   border-radius: var(--r);
   background: transparent;
   color: var(--text-dim);
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 .settings-tabs button:hover {
@@ -78,54 +79,67 @@
 }
 
 .settings-tabs button.active {
-  background: var(--accent-soft);
-  color: var(--accent);
+  background: var(--bg-active);
+  color: var(--text);
+  font-weight: var(--fw-semibold);
 }
 
 .settings-main {
   flex: 1;
   min-width: 0;
   overflow: auto;
-  padding: 24px;
-}
-
-.settings-section {
+  padding: var(--pad-card-lg);
 }
 
 .settings-section h2 {
-  margin: 0 0 6px;
-  font-size: 17px;
-  font-weight: 600;
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
 }
 
 .section-desc {
-  margin: 0 0 18px;
-  font-size: 13px;
+  margin: 0 0 var(--sp-5);
+  font-size: var(--fs-md);
   color: var(--text-dim);
-  line-height: 1.5;
+  line-height: var(--lh-body);
 }
 
 /* 内核自检卡片：放在模型之上，是「能不能跑起来」最先要看见的一关 */
 .kernel-card {
-  margin: 0 0 20px;
-  padding: 14px 16px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--r);
+  margin: 0 0 var(--sp-5);
+  padding: var(--pad-card);
+  border: var(--stroke);
+  border-radius: var(--r-lg);
 }
 
 .kernel-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+/* 表单型选择器：与输入框同高同圆角（头部内联的 28px 紧凑档不受影响）。 */
+.settings-main :deep(.app-select) {
+  width: 100%;
+  max-width: 420px;
+}
+
+.settings-main :deep(.app-select .trigger) {
+  width: 100%;
+  height: var(--row-h);
+  padding: 0 var(--sp-3);
+  border-radius: var(--r);
+  font-size: var(--fs-md);
 }
 
 .kernel-head strong {
-  font-size: 13px;
+  font-size: var(--fs-ui);
 }
 
 .kernel-head .muted {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
 }
 
@@ -144,7 +158,7 @@
 }
 
 .field > span:first-child {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   color: var(--text-dim);
 }
@@ -175,7 +189,7 @@
   background: var(--bg-elev);
   color: var(--text-dim);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
 .eye-btn:hover {
@@ -201,10 +215,10 @@
   border-radius: var(--r);
   background: var(--bg-elev);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 .tool-btn:hover {
@@ -229,7 +243,7 @@
 
 .form-message {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
 }
 
 .form-message.ok {
@@ -253,7 +267,7 @@
   border-radius: var(--r-lg);
   background: var(--bg-panel);
   overflow: hidden;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
 .model-card:hover {
@@ -284,7 +298,7 @@
 }
 
 .model-name {
-  font-size: 13.5px;
+  font-size: var(--fs-ui);
   font-weight: 600;
   color: var(--text);
   overflow: hidden;
@@ -293,7 +307,7 @@
 }
 
 .model-provider {
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
   flex-shrink: 0;
 }
@@ -308,7 +322,7 @@
 .badge {
   padding: 2px 8px;
   border-radius: var(--r-full);
-  font-size: 11px;
+  font-size: var(--fs-micro);
   font-weight: 600;
   border: 1px solid transparent;
 }
@@ -342,7 +356,7 @@
   background: var(--bg-elev);
   color: var(--text-dim);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
   display: flex;
   align-items: center;
   text-align: center;
@@ -397,12 +411,12 @@
 }
 
 .market-empty strong {
-  font-size: 14px;
+  font-size: var(--fs-body);
   color: var(--text);
 }
 
 .market-empty .muted {
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
 }
 
@@ -424,7 +438,7 @@
 }
 
 .tool-desc {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
 }
 
@@ -446,13 +460,13 @@
 }
 
 .about-label {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-faint);
   font-weight: 600;
 }
 
 .about-value {
-  font-size: 14px;
+  font-size: var(--fs-body);
   color: var(--text);
   font-weight: 600;
 }

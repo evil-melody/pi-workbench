@@ -22,13 +22,15 @@
   min-height: 0;
   background: var(--p-bg);
   color: var(--p-text);
-  font: 14px/1.5 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
 }
 
 .wd-p-center {
-  max-width: 1600px;
+  max-width: var(--page-max);
   margin: 0 auto;
-  padding: 48px 32px 64px;
+  padding: var(--page-y) var(--page-x) var(--page-bottom);
 }
 
 .wd-p-load-error {
@@ -36,8 +38,8 @@
   padding: 12px 14px;
   border-radius: var(--r);
   background: var(--danger-soft, rgba(229, 72, 77, 0.12));
-  color: var(--danger, #e5484d);
-  font-size: 13px;
+  color: var(--danger);
+  font-size: var(--fs-ui);
 }
 
 /* ── 页头（hero） ───────────────────────────────────────────── */
@@ -45,9 +47,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 40px;
-  min-height: 208px;
-  padding: 20px 0 36px;
+  gap: var(--sp-8);
+  /* 插画与文案收在同一个阅读宽度里，宽屏下不再被甩到窗口最右 */
+  max-width: 980px;
+  min-height: 168px;
+  padding: var(--sp-5) 0 var(--sp-6);
 }
 
 .wd-p-hero-copy h1 {
@@ -60,10 +64,10 @@
 
 .wd-p-hero-copy p {
   max-width: 560px;
-  margin: 0 0 22px;
+  margin: 0 0 var(--sp-5);
   color: var(--p-muted);
-  font-size: 14px;
-  line-height: 1.7;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
 }
 
 .wd-p-hero-art {
@@ -119,7 +123,7 @@
   padding: 9px 16px;
   background: var(--bg-elev);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-ui);
 }
 
 /* 「新建项目」是浅色主按钮，不是强调色填充 */
@@ -170,14 +174,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 28px 0 14px;
-  gap: 16px;
+  margin: var(--gap-section) 0 var(--gap-head);
+  gap: var(--sp-4);
 }
 
 .wd-p-section-head h2 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
   color: var(--p-strong);
 }
 
@@ -190,24 +195,20 @@
 .wd-p-center-filters :deep(.app-input) {
   width: 220px;
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  padding: 10px 13px;
-  background: var(--bg-panel);
-  color: var(--text);
-  outline: none;
-  font-size: 13px;
+  padding: 0 var(--sp-3);
+  font-size: var(--fs-ui);
 }
 
 .wd-p-center-filters :deep(.app-input:focus) {
-  border-color: var(--border-strong);
+  border-color: var(--accent);
 }
 
 /* ── 卡片网格 ───────────────────────────────────────────────── */
 .wd-p-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(245px, 1fr));
-  gap: 16px;
+  /* 与能力中心卡片同宽：280 起跳，1116 宽下三列各 361，不再挤成 267 宽。 */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--gap-card);
 }
 
 .wd-p-card {
@@ -215,14 +216,14 @@
   display: flex;
   gap: 14px;
   align-items: center;
-  border: 1px solid var(--p-line);
+  border: var(--stroke);
   background: var(--p-surface);
   border-radius: var(--r-lg);
-  padding: 16px;
-  min-height: 88px;
+  padding: var(--pad-card);
+  min-height: 96px;
   min-width: 0;
   box-shadow: none;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
   cursor: pointer;
 }
 
@@ -234,22 +235,39 @@
 .wd-p-card strong {
   display: block;
   color: var(--p-strong);
-  font-size: 14px;
+  font-size: var(--fs-body);
   font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
+/* 标题与两行元信息各占一行：路径单独截断，时间永不参与挤宽。 */
+.wd-p-card-body {
+  display: block;
+  min-width: 0;
+  flex: 1;
+}
+
 .wd-p-card small {
   display: block;
   margin-top: 4px;
-  font-size: 12px;
-  line-height: 20px;
+  font-size: var(--fs-meta);
+  line-height: 18px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   color: var(--text-dim);
+}
+
+.wd-p-card-path {
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  color: var(--text-faint);
+}
+
+.wd-p-card-time {
+  margin-top: 2px;
 }
 
 .wd-p-card > span:last-child,
@@ -266,7 +284,7 @@
   place-items: center;
   border-radius: var(--r);
   background: var(--p-card);
-  font-size: 22px;
+  font-size: var(--fs-xl);
   color: var(--p-strong);
 }
 
@@ -306,9 +324,9 @@
   border-radius: var(--r-sm);
   background: transparent;
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 .wd-p-card-menu:hover {
@@ -316,11 +334,9 @@
   color: var(--text);
 }
 
+/* 空态样式统一由 ui-kit.css 的 .empty-state 提供（唯一实现）。 */
 .wd-p-empty {
-  display: grid;
-  place-items: center;
-  min-height: 250px;
-  color: var(--p-muted);
+  min-height: 220px;
 }
 
 /* ── 弹窗 ───────────────────────────────────────────────────── */
@@ -355,7 +371,7 @@
 
 .wd-p-modal > header h2 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--fs-section);
   font-weight: 600;
 }
 
@@ -393,12 +409,12 @@
 
 .wd-p-modal > footer > span {
   flex: 1;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .wd-p-muted {
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .wd-p-create-label {
@@ -409,14 +425,14 @@
 .wd-p-create-label b {
   display: block;
   margin-bottom: 6px;
-  font-size: 13px;
+  font-size: var(--fs-ui);
 }
 
 .wd-p-create-label small {
   display: block;
   margin-top: 4px;
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .wd-p-create-instruction-head {
@@ -428,7 +444,7 @@
 }
 
 .wd-p-create-instruction-head b {
-  font-size: 13px;
+  font-size: var(--fs-ui);
 }
 
 /* 外层容器只负责占位；样式由 AppTextarea 提供，这里只覆盖 projects 页的版式参数 */
@@ -436,7 +452,7 @@
   min-height: 132px;
   border-radius: var(--r);
   padding: 10px 13px;
-  font-size: 13px;
+  font-size: var(--fs-ui);
   line-height: 1.6;
 }
 
@@ -497,7 +513,7 @@
   background: var(--bg-panel);
   color: var(--text);
   outline: none;
-  font-size: 13px;
+  font-size: var(--fs-ui);
 }
 
 .wd-p-dir-btn {
@@ -510,7 +526,7 @@
   border-radius: var(--r);
   background: var(--bg-elev);
   color: var(--text);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   cursor: pointer;
 }
 
@@ -530,7 +546,7 @@
 }
 
 .wd-p-dir-error {
-  color: var(--danger, #e5484d);
-  font-size: 12px;
+  color: var(--danger);
+  font-size: var(--fs-meta);
 }
 

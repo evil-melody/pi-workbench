@@ -319,6 +319,9 @@ onMounted(load)
 
 <template>
   <section class="wd-market">
+    <!-- 标题在上、工具与分类在下：层级从「我在哪」到「怎么筛」，不再让两排 tab 夹住标题。 -->
+    <h1 v-if="!isEmbeddedTab" class="market-title">{{ title }}</h1>
+
     <header class="market-header">
       <nav class="market-tabs" role="tablist" :aria-label="t('能力分类')" @keydown="onTablistKeydown">
         <AppButton
@@ -356,9 +359,6 @@ onMounted(load)
         </AppButton>
       </div>
     </header>
-
-    <!-- 内嵌 tab 由融合视图自带「标题 + 说明」，外层不再叠加同名标题。 -->
-    <h1 v-if="!isEmbeddedTab" class="market-title">{{ title }}</h1>
 
     <nav v-if="tab === 'skill'" class="sub-tabs" role="tablist" :aria-label="t('技能来源')" @keydown="onTablistKeydown">
       <AppButton
@@ -506,8 +506,7 @@ onMounted(load)
             <AppIcon name="check" :size="14" />
           </span>
           <div class="card-top">
-            <!-- 功能性动态值（哈希色），豁免纯样式抽离铁律：CSS 变量传色值 -->
-            <span class="card-icon" :style="{ '--card-bg': r.color }">{{ firstChar(r.name) }}</span>
+            <span class="card-icon">{{ firstChar(r.name) }}</span>
             <span class="card-title">
               <strong :title="r.name">{{ r.name }}</strong>
               <span class="card-sub">{{ r.sub }}</span>

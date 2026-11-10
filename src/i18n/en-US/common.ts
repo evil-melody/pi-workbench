@@ -238,7 +238,6 @@ export const common: Record<string, string> = {
   '已取消': 'Cancelled',
   '已全部启用': 'All enabled',
   '已完成': 'Completed',
-  '已载入': 'Loaded',
   '已暂停': 'Paused',
   '已中断': 'Interrupted',
   '已重新读取磁盘内容': 'Reloaded from disk',
