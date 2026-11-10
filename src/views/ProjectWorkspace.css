@@ -7,7 +7,9 @@
   overflow: auto;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.5 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
 }
 
 .pw-head {
@@ -32,6 +34,11 @@
   background: var(--bg-elev);
   color: var(--text-dim);
   cursor: pointer;
+}
+
+/* 模式切换器贴右侧：标题列吃掉剩余空间，档位与「在对话中打开」并排。 */
+.pw-head .mode-switcher {
+  margin-left: auto;
 }
 
 .pw-back:hover {
@@ -492,4 +499,51 @@
   color: var(--text-faint);
   font-size: 12px;
   font-family: var(--mono);
+}
+
+/* D-04：390 下页头固定子项合计超过可用宽度，标题被压成 0；窄屏允许换行，
+   标题保底 140px，模式选择留在首行，「在对话中打开」落到第二行右对齐。
+   tab 条改为横向滚动，末位 tab 不再越界。 */
+@media (max-width: 640px) {
+  .pw-head {
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding: 12px var(--sp-4);
+  }
+
+  .pw-title {
+    flex: 1 1 140px;
+  }
+
+  .pw-head .mode-switcher {
+    margin-left: 0;
+  }
+
+  .pw-open-chat {
+    margin-left: auto;
+  }
+
+  .pw-meta {
+    padding: 12px var(--sp-4) 0;
+  }
+
+  .pw-chip-path {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .pw-tabs {
+    flex-wrap: nowrap;
+    padding: 12px var(--sp-4) 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .pw-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pw-tab {
+    flex-shrink: 0;
+  }
 }

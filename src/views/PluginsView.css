@@ -7,7 +7,9 @@
   padding: 24px clamp(20px, 3vw, 40px) 56px;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.5 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
 }
 
 /* ── Header ─────────────────────────────────────────────────── */
@@ -37,6 +39,7 @@
 .community-hero {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 14px;
   margin-bottom: 22px;
 }
@@ -55,8 +58,9 @@
 
 .community-hero h1 {
   margin: 0 0 2px;
-  font-size: 22px;
-  font-weight: 700;
+  font-size: var(--fs-page);
+  line-height: var(--lh-page);
+  font-weight: var(--fw-page);
 }
 
 .community-hero p {
@@ -455,4 +459,31 @@
   color: var(--text-faint);
   font-size: 12.5px;
   line-height: 1.7;
+}
+
+/* D-19：390 下描述曾被右侧按钮挤到 73px。窄屏改两段式：
+   首行图标 + 正文占满，操作区整体落到第二行右对齐。 */
+@media (max-width: 640px) {
+  .wd-community {
+    padding: 16px 14px 40px;
+  }
+
+  .market-section {
+    padding: 14px 12px 18px;
+  }
+
+  .market-row {
+    flex-wrap: wrap;
+    row-gap: 10px;
+    padding: 12px;
+  }
+
+  .row-body {
+    flex: 1 1 calc(100% - 54px);
+  }
+
+  .row-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }

@@ -1,0 +1,470 @@
+/*
+ * 收件箱 / 定时任务页。
+ * 只使用 base.css 的设计令牌，不写死色值；与其他视图共用同一套间距与圆角梯度。
+ */
+
+.inbox-view {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--sp-7) var(--sp-7) 64px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.ib-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-4) var(--sp-6);
+  margin-bottom: var(--sp-6);
+}
+
+/* D-02：390 下左文本容器曾被压到 27px，标题竖排；给左侧文本保底宽度，
+   放不下时操作区整体换行到下一行，绝不和标题抢宽度。 */
+.ib-head > :first-child {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.ib-head h1 {
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-page);
+  line-height: var(--lh-page);
+  font-weight: var(--fw-page);
+}
+
+.ib-head p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: var(--fs-base);
+}
+
+.ib-head-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+}
+
+.ib-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  height: 32px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-size: var(--fs-base);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.ib-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.ib-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ib-btn.primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.ib-btn.primary:hover:not(:disabled) {
+  background: var(--accent);
+  filter: brightness(1.08);
+}
+
+.ib-btn.danger {
+  border-color: transparent;
+  background: var(--danger);
+  color: #fff;
+}
+
+.ib-error {
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--fs-base);
+}
+
+.ib-section {
+  margin-bottom: var(--sp-7);
+}
+
+.ib-section h2 {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-semibold);
+}
+
+.ib-list,
+.ib-jobs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ib-item {
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg-panel);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.ib-item:hover {
+  background: var(--bg-hover);
+}
+
+.ib-item.unread {
+  border-color: var(--accent-dim);
+  background: var(--bg-elev);
+}
+
+.ib-dot {
+  width: 7px;
+  height: 7px;
+  margin-top: 7px;
+  border-radius: var(--r-full);
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.ib-item.unread .ib-dot {
+  background: var(--accent);
+}
+
+.ib-item.failure .ib-item-title {
+  color: var(--danger);
+}
+
+.ib-item-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.ib-item-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.ib-item-title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+}
+
+.ib-item-time {
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+  flex-shrink: 0;
+}
+
+.ib-item-body {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: var(--sp-1) 0 0;
+  color: var(--text-dim);
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
+  white-space: pre-wrap;
+}
+
+.ib-job {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg-panel);
+}
+
+.ib-job.highlight {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ib-job-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.ib-job-top {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.ib-job-title {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+}
+
+.ib-chip {
+  padding: 1px var(--sp-2);
+  border-radius: var(--r-full);
+  background: var(--bg-hover);
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+
+.ib-chip.st-done {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.ib-chip.st-failed,
+.ib-chip.st-interrupted {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.ib-chip.st-running {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.ib-job-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  margin-top: var(--sp-1);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+
+.ib-job-meta span:last-child {
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 420px;
+}
+
+.ib-job-grant {
+  margin: var(--sp-2) 0 0;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+.ib-job-usage {
+  margin: var(--sp-1) 0 0;
+  color: var(--accent);
+  font-size: var(--fs-xs);
+}
+
+/* 保存成功等一次性反馈 */
+.ib-ok {
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r);
+  background: var(--ok-soft);
+  color: var(--ok);
+  font-size: var(--fs-base);
+}
+
+/* 预授权入口用带文字的按钮：只放图标时用户找不到 */
+.ib-grant-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.ib-grant-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.ib-grant-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ib-chip.st-locked {
+  background: var(--bg-hover);
+  color: var(--text-faint);
+}
+
+/* 额度用量：数字 + 剩余 + 进度条，到上限时明确提示 */
+.ib-usage {
+  margin-top: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ib-usage-text {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+
+.ib-usage-full {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.ib-meter {
+  height: 4px;
+  width: 100%;
+  max-width: 260px;
+  border-radius: 999px;
+  background: var(--bg-hover);
+  overflow: hidden;
+}
+
+.ib-meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+
+.ib-meter-fill.full {
+  background: var(--danger);
+}
+
+.ib-usage-empty {
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--r);
+}
+
+.ib-hint {
+  margin: 0;
+  color: var(--warning, var(--text-dim));
+  font-size: var(--fs-sm);
+}
+
+.ib-grant-hint {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-elev);
+}
+
+.ib-job-error {
+  margin: var(--sp-1) 0 0;
+  color: var(--danger);
+  font-size: var(--fs-sm);
+}
+
+.ib-job-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex-shrink: 0;
+}
+
+.ib-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.ib-icon-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.ib-icon-btn.danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.ib-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.ib-empty {
+  margin: 0;
+  padding: var(--sp-5);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-lg);
+  color: var(--text-faint);
+  font-size: var(--fs-base);
+  text-align: center;
+}
+
+.ib-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.ib-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+}
+
+.ib-note {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+}
+
+.ib-grant-root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--r);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+
+.ib-grant-root code {
+  color: var(--text);
+  font-size: var(--fs-xs);
+  word-break: break-all;
+}

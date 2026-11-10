@@ -6,10 +6,27 @@
  * 之前它们一起挤在对话两侧，把中间压成一条窄缝，看起来就不像个对话产品。
  */
 
+/*
+ * 对话壳（ai-console.md §8）：主内容 + 常驻右列的 grid，右列有自己的宽度上限，
+ * 收起时干净回到单轨。窄窗（<1180px）由 TraceDrawer.css 把右列转 overlay。
+ */
 .chat {
-  display: flex;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   width: 100%;
   height: 100%;
+}
+
+.chat.aside-open {
+  grid-template-columns: minmax(0, 1fr) var(--chat-aside);
+}
+
+/* 窄窗不再为右列留轨（与 TraceDrawer.css 的 overlay 断点同一个 1180px）。 */
+@media (max-width: 1180px) {
+  .chat.aside-open {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .chat.hero {
@@ -26,14 +43,14 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 10px 14px 0;
+  margin: 10px var(--chat-pad) 0;
   padding: 7px 10px;
   border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--border));
   border-radius: var(--r);
   background: var(--warn-soft);
   color: var(--text);
-  font-size: 12.5px;
-  line-height: 1.5;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
 }
 
 .notice .app-icon {
@@ -49,13 +66,13 @@
   z-index: 3;
   margin: 0;
   max-width: min(680px, calc(100% - 32px));
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.10);
+  box-shadow: var(--sh-card);
 }
 
 /* ── Center chat ────────────────────────────────────────────── */
 .center {
-  flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background: var(--bg);
@@ -66,10 +83,14 @@
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  /* 窄窗兜底：控制组在极端宽度下整组换到第二行，而不是把「轨迹」挤到屏外 */
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 10px 16px;
+  /* F22（P1-6）：单行。flex-wrap:wrap 是「两行 header」的直接来源——pill 一宽，
+     控制组整组掉到第二行，头部白占 40px 且看起来像两个工具条。pill 内部本来就能
+     收缩（min-width:0 + 省略号）， nowrap 下长项目名截断即可，控制组永不收缩。 */
+  flex-wrap: nowrap;
+  gap: var(--sp-2);
+  /* D-09：顶栏曾和消息列共用 --chat-pad（内容锁 720），工作区名只剩 42px。
+     参考仓顶栏横跨整栏，这里改为整栏内衬；消息列/composer 的对齐线不变。 */
+  padding: 10px var(--sp-4);
   border-bottom: 1px solid var(--border);
   background: var(--bg-panel);
 }
@@ -86,13 +107,15 @@
   flex-wrap: nowrap;
   flex: 1 1 auto;
   min-width: 0;
-  gap: 8px;
-  padding: 4px 10px;
+  gap: var(--sp-2);
+  /* 28px 内部 trigger + 2px 内衬 + 2px 边框 = 34px：pill 高度压到 36 以内，
+     header 才是「一行」而不是「一行半」。 */
+  padding: 2px 10px;
   border: 1px solid var(--border);
   border-radius: var(--r-full);
   background: var(--bg-elev);
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .header-pill > * {
@@ -112,6 +135,12 @@
   min-width: 0;
 }
 
+/* D-09：工作区名是 pill 的主标识，优先吃剩余宽度；角色/模型选择器按内容收缩。
+   此前工作区名被后置选择器的 min-width 挤到 42px。 */
+.header-pill :deep(.ws-picker) {
+  flex: 1 1 120px;
+}
+
 .header-pill :deep(.ws-trigger),
 .header-pill :deep(.app-select .trigger) {
   min-width: 0;
@@ -125,13 +154,15 @@
   min-width: 0;
 }
 
-/* 右侧控制组（轨迹 / 计划 / 会话迁移）：永不收缩，始终在屏内可点 */
+/* 右侧控制组（轨迹 / 计划 / 会话迁移）：永不收缩，始终在屏内可点。
+   D-09：这里原来用 margin-left:auto 抢走全部剩余宽度，pill 反被压扁；
+   改由 pill flex-grow 占满，控制组自然贴右。 */
 .chat-controls {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
-  margin-left: auto;
+  margin-left: 0;
 }
 
 /* 选择器在头部允许被压缩，长文案用省略号，不撑破 pill */
@@ -154,23 +185,33 @@
   width: auto;
 }
 
-.trace-toggle {
+/*
+ * 顶栏控制组三枚按钮（轨迹 / 计划 / 会话迁移）本是同一视觉族的三份拷贝，合并为一组选择器。
+ * 高度压到 28px，与 dsh 的轻量入口（.Q51KRG_trigger{height:28px}）同档，
+ * 也和中栏 24px 过程行的密度对得上。
+ */
+.trace-toggle,
+.plan-toggle,
+.io-btn {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 30px;
+  height: 28px;
   padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: var(--r-full);
   background: var(--bg-elev);
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
 }
 
-.trace-toggle:hover {
+.trace-toggle:hover,
+.plan-toggle:hover,
+.io-btn:hover {
   border-color: var(--border-strong);
   background: var(--bg-hover);
   color: var(--text);
@@ -181,38 +222,73 @@
   color: var(--accent);
 }
 
+/*
+ * 窄窗（<1180px）：操作组收成纯图标。title 已在每个按钮上，文字只是重复；
+ * 单行 header 不换行的代价就是放不下时先丢文字、再丢 pill 里的项目名。
+ */
+@media (max-width: 1180px) {
+  .trace-toggle,
+  .plan-toggle,
+  .io-btn {
+    gap: 0;
+    padding: 0 var(--sp-2);
+  }
+
+  .trace-toggle > span,
+  .plan-toggle > span,
+  .io-btn > span {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .chat-header {
+    flex-wrap: wrap;
+    row-gap: var(--sp-2);
+  }
+
+  /* D-08：胶囊曾在此断点被允许换行，一行控件变两行、圆角包成鼓包；
+     胶囊始终单行（内部省略号），控制组整体落到第二行。
+     D-09：390 下四项标签合计仍略超胶囊，改为胶囊内横向滚动，标签保持可读。 */
+  .header-pill {
+    flex-wrap: nowrap;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .header-pill::-webkit-scrollbar {
+    display: none;
+  }
+
+  .header-pill > * {
+    flex-shrink: 0;
+  }
+
+  .header-pill :deep(.ws-picker) {
+    flex: 0 0 auto;
+  }
+
+  .chat-controls {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
 .trace-badge {
   padding: 0 5px;
   border-radius: var(--r-full);
   background: var(--accent-dim);
   color: var(--accent);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-style: normal;
   font-variant-numeric: tabular-nums;
 }
 
-/* G5 计划模式开关：与 trace-toggle 同一视觉族，激活态用强调色 */
+/* G5 计划模式开关：与 trace-toggle 同一视觉族，只补左边距与激活底色 */
 .plan-toggle {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 30px;
-  padding: 0 10px;
   margin-left: 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-full);
-  background: var(--bg-elev);
-  color: var(--text-dim);
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-
-.plan-toggle:hover {
-  border-color: var(--border-strong);
-  background: var(--bg-hover);
-  color: var(--text);
 }
 
 .plan-toggle.on {
@@ -229,10 +305,10 @@
   gap: 6px;
   margin: 0 0 8px;
   padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md, 10px);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
   background: var(--bg-elev);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .queue-seg {
@@ -251,8 +327,8 @@
   flex-shrink: 0;
   padding: 1px 7px;
   border-radius: var(--r-full);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
 }
 
 .queue-seg.steer .queue-tag {
@@ -267,7 +343,7 @@
 
 .queue-hint {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-faint);
 }
 
@@ -291,10 +367,10 @@
   border-radius: var(--r-full);
   background: none;
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-family: inherit;
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
 .queue-clear:hover {
@@ -314,7 +390,7 @@
   background: var(--accent-dim);
   color: var(--accent);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 .steer:hover {
@@ -322,7 +398,7 @@
   color: var(--accent-ink);
 }
 
-/* 会话迁移：导出 / 导入 一组紧凑按钮，与 trace-toggle 同一视觉族 */
+/* 会话迁移：导出 / 导入 一组紧凑按钮，样式并入顶部 .trace-toggle 组的公共选择器 */
 .io-group {
   flex-shrink: 0;
   display: inline-flex;
@@ -332,54 +408,38 @@
 }
 
 .io-btn {
-  display: inline-flex;
-  align-items: center;
   gap: 4px;
-  height: 30px;
   padding: 0 9px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-full);
-  background: var(--bg-elev);
-  color: var(--text-dim);
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-
-.io-btn:hover {
-  border-color: var(--border-strong);
-  background: var(--bg-hover);
-  color: var(--text);
 }
 
 .io-note {
-  margin: 6px 14px 0;
-  font-size: 12px;
+  margin: 6px var(--chat-pad) 0;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
 
 .nokernel {
   margin: 0;
-  padding: var(--sp-2) var(--sp-4);
+  padding: var(--sp-2) var(--chat-pad);
   background: var(--bg-elev);
   border-bottom: 1px solid var(--border);
   color: var(--text-dim);
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
 }
 
 .nokernel code {
   padding: 1px 5px;
   border-radius: var(--r-sm);
   background: var(--bg);
-  font-size: 11px;
+  font-size: var(--fs-xs);
 }
 
 /* G3 回滚确认弹窗：破坏性操作，警示文案用危险色，限制说明压一级。 */
 .rewind-warn {
   margin: 0 0 8px;
-  font-size: 13px;
-  line-height: 1.7;
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
   color: var(--text);
 }
 
@@ -389,40 +449,41 @@
 
 .rewind-note {
   margin: 0;
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
   color: var(--text-faint);
 }
 
-/* ── Composer（一体浮卡：textarea + 工具行同框，居中对齐消息列） ── */
+/* ── Composer（一体浮卡：textarea + 工具行同框，与消息列同一内衬线） ── */
 .composer {
   flex-shrink: 0;
   width: 100%;
-  padding: 6px var(--sp-5) calc(var(--sp-3) + env(safe-area-inset-bottom));
+  padding: 6px var(--chat-pad) calc(var(--sp-3) + env(safe-area-inset-bottom));
   background: var(--bg);
 }
 
 /*
  * 一体容器：textarea 在上、工具行在下，同在一个大圆角卡里。
  * 之前工具行留在卡外，视觉上断成两截 —— 这就是「样式还是不对」的来源。
- * max-width 860px 与 MessageList 消息列对齐，不再通栏铺满。
+ * 列宽由 .composer 的 --chat-pad 内衬决定（F2：顶栏 / 消息列 / 步骤行 / composer
+ * 四条线同一个公式），卡内不再自己 max-width + margin auto 居中，
+ * 否则内衬与居中两套机制叠加，气泡左缘和 composer 左缘必然错开。
+ * 圆角/阴影对标 dsh .uV2eYG_card{border-radius:22px;box-shadow:shadow-lv2}，
+ * 阴影走主题令牌（原来手写的 rgba(0,0,0,.03) 在浅色主题下几乎不可见）。
  */
 .input-wrap {
   width: 100%;
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 12px 12px 8px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-2xl);
   background: var(--bg-elev);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 24px rgba(0, 0, 0, 0.05);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: var(--sh-card);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
 
-/* 聚焦不换蓝：WorkBuddy 式克制 —— 只把边框压深一档，光圈留给内容 */
+/* 聚焦不换蓝：WorkBuddy 式克制 —— 只把边框压深一档，阴影保持一档不变，避免聚焦时卡片「跳起来」 */
 .input-wrap:focus-within {
   border-color: var(--border-strong);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 10px 28px rgba(0, 0, 0, 0.07);
 }
 
 .input-wrap :deep(.app-textarea) {
@@ -433,9 +494,9 @@
   border: 0;
   background: transparent;
   color: var(--text);
-  font-size: 14px;
-  line-height: 1.55;
-  padding: 0 6px;
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+  padding: 0 var(--sp-1);
   resize: none;
   outline: none;
   /* 组件自带 focus 光圈在这里全部压掉：外层卡已负责聚焦反馈，
@@ -476,7 +537,7 @@
   background: var(--accent);
   color: var(--accent-ink);
   cursor: pointer;
-  transition: filter 0.15s ease, opacity 0.15s ease;
+  transition: filter var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
 }
 
 .send:hover:not(:disabled) {
@@ -500,7 +561,7 @@
   background: transparent;
   color: var(--text-dim);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 .attach:hover:not(:disabled) {
@@ -513,14 +574,13 @@
   cursor: not-allowed;
 }
 
-/* 待发送附件托盘：缩略图 + 文件名 + 移除（与输入卡同列宽对齐） */
+/* 待发送附件托盘：缩略图 + 文件名 + 移除（随 composer 内衬同宽） */
 .att-tray {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--sp-2);
   width: 100%;
-  max-width: 860px;
-  margin: 0 auto 8px;
+  margin-bottom: var(--sp-2);
 }
 
 .att-chip {
@@ -537,7 +597,7 @@
 .att-chip.image .att-thumb {
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   object-fit: cover;
   flex-shrink: 0;
 }
@@ -548,7 +608,7 @@
 }
 
 .att-name {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -574,53 +634,40 @@
 }
 
 /*
- * 本轮 agent 步骤条。
- * 轨迹抽屉可以收起，但「agent 动没动」不能只有转圈 —— 这里把最近几个工具调用
- * 摊在对话区，用户一眼就能判断是在读文件、跑命令还是卡在某一环。
+ * 本轮 agent 步骤「收据行」（F6）。
+ * 轨迹抽屉可以收起，但「agent 动没动」不能只有转圈 —— 这里把本轮工具调用
+ * 聚合后摊在对话区，用户一眼就能判断是在读文件、跑命令还是卡在某一环。
+ *
+ * 形态从「一排 ⚡bash chip」改成一行聚合文本：同名合并计数 + 总步数 + 累计时长。
+ * 同时去掉卡片描边和底色 —— 带边框的卡有自己的内衬，和 --chat-pad 的列边线互斥，
+ * 三条对齐线必然错开（F2）；这里只留一条与正文同列的裸行。
  */
 .step-strip {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: baseline;
+  gap: var(--sp-2);
   flex-wrap: wrap;
   width: 100%;
-  max-width: 860px;
-  margin: 0 auto 8px;
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  background: var(--bg-elev);
-  font-size: 12px;
+  padding: 0 var(--chat-pad) var(--sp-1);
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
 
-.step-head {
+.step-groups {
   display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-  color: var(--text);
-  font-weight: 600;
-}
-
-.step-head .spin {
-  animation: step-spin 1.4s linear infinite;
-}
-
-@keyframes step-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
 }
 
 .step-chip {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 4px;
   max-width: 190px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--bg-hover);
+  padding: 1px var(--sp-1);
+  border-radius: var(--r-sm);
   color: var(--text-dim);
 }
 
@@ -628,6 +675,30 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+}
+
+.step-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+/* 聚合摘要（共 N 步 · 总时长）：mono + tabular-nums，数字跳动不抖 */
+.step-times {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sp-1);
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.step-dur {
+  color: var(--text-dim);
 }
 
 .step-muted {

@@ -2,9 +2,14 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: var(--sp-5) clamp(var(--sp-4), 6vw, 120px);
+  /*
+   * F2：横向内衬用 --chat-pad，与 chat-header / step-strip / composer 同一个公式。
+   * 之前这里把公式重抄了一遍，四份拷贝只要有一处不同就是「三条线对不齐」。
+   */
+  padding: var(--sp-6) var(--chat-pad) var(--sp-5);
   display: flex;
   flex-direction: column;
+  /* 块间松：turn 之间是这一档，块内间距全部比它小一档（见 .msg-body 规则）。 */
   gap: var(--sp-5);
 }
 
@@ -12,7 +17,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
   margin: auto;
   text-align: center;
   color: var(--text-dim);
@@ -20,163 +25,241 @@
 
 .empty strong {
   color: var(--text);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
 }
 
 .empty .muted {
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-faint);
 }
 
+/* 空态图标是装饰，不吃强调色：强调色只留给交互焦点、当前选中与关键动作。 */
 .empty-icon {
   width: 44px;
   height: 44px;
   display: grid;
   place-items: center;
-  border-radius: 12px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  color: var(--accent);
+  border-radius: var(--r-lg);
+  background: var(--bg-elev);
+  border: none;
+  color: var(--text-dim);
 }
 
 /* ── Message row ────────────────────────────────────────────── */
 .msg-row {
   display: flex;
   gap: var(--sp-3);
-  max-width: 860px;
+  min-width: 0;
 }
 
 /*
- * 连续 assistant 块（一次回复折算出的多条消息）：首行带头像与名字，
- * 后续行收紧上边距贴上去——同一件事不该隔出「每人一段」的空隙。
- * .msg-avatar 本身就是蓝圈（background 画在 div 上）：cont 行只清内容
- * 不够，圆圈还在——必须连背景一起透明化，只留 30px 占位对齐。
+ * turn 聚合：一次回复折算出的多条消息已在 MessageList.vue 并成一个块，
+ * 旧的「连续行负 margin 拼接」（cont hack）随聚合一起删除——现在块内
+ * 各段（Think 行 / 正文 / 工具行）靠下面的相邻间距排开。
+ *
+ * dsh 的节奏（.EvIC1a_flowItem）：过程块之间 8px、正文与块之间 16px。
+ * 工具/Think 行因此贴合成一组，只有换成正文时才留白。
  */
-/*
- * cont 行与首行之间原本隔着 .msgs 的 20px 行距，减 16px 后只留 4px——
- * 同一次回复折算出的多条消息看起来是「一段」，而不是「每人一段」。
- */
-.msg-row.cont {
-  margin-top: calc(-1 * var(--sp-4));
+.msg-body > * + * {
+  margin-top: var(--sp-1);
 }
 
+.msg-body > .crow + :not(.crow) {
+  margin-top: var(--sp-3);
+}
+
+.msg-body > :not(.crow) + .crow {
+  margin-top: var(--sp-2);
+}
+
+/*
+ * F7：用户行保留右对齐，但改为「整行右贴 + 气泡内文字左对齐」。
+ * row-reverse 和 text-align:right 一起删——头像不再每条挂（右侧只剩气泡和操作行，
+ * 右贴靠 align-self 就够了，不需要反向 flex）。
+ */
 .msg-row.user {
   align-self: flex-end;
-  flex-direction: row-reverse;
-}
-
-.msg-row.user .msg-avatar {
-  background: var(--bg-hover);
-  color: var(--text);
+  max-width: 80%;
 }
 
 .msg-row.assistant {
-  align-self: flex-start;
-}
-
-.msg-row.assistant .msg-avatar {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-
-.msg-row.system .msg-avatar {
-  background: var(--bg-elev);
-  color: var(--text-faint);
+  /* turn 体铺满 720 列：栅格里 minmax(0,1fr) 需要确定宽度，shrink-to-fit 会让竖线长短不齐。 */
+  align-self: stretch;
 }
 
 /*
- * cont 行头像透明化必须放在上面三行角色配色之后：此前写在前面的
- * `.msg-row.cont .msg-avatar` 与 `.msg-row.assistant .msg-avatar` 同特异性、
- * 后者声明更靠后而胜出——这就是「连续行的蓝圈怎么都改不掉」的真凶。
- * 提一档特异性（.assistant.cont）保证稳赢，且声明位置无关。
+ * F3：turn 里所有行共用 --turn-grid，头像 / 图标 / live 心跳环全部落在 26px rail 列，
+ * 文本落在第二列，尾随信息（计时）落在 auto 列。
  */
-.msg-row.assistant.cont .msg-avatar {
-  background: transparent;
-  color: transparent;
+.msg-row.assistant .msg-body {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--turn-grid);
+  column-gap: var(--sp-2);
 }
 
-/* 等待行并入前一段 assistant 输出：不再自己挂一个头像 + 名字 */
-.msg-row.waiting.cont {
-  margin-top: calc(-1 * var(--sp-4));
+/*
+ * rail 竖线（relay console 的 .step::before）。top:26px 起于头像下沿；
+ * 尾部 --rail 渐隐——last-row（live 步 / 操作行）下面不再拖一条线。
+ *
+ * ponytail: 线是容器级连续段，做不到「error 行单独不画」（那需要逐行伪元素）。
+ * 升级路径：改成每行一个 ::before 的行内 rail，代价是行高/间距一变就要重算。
+ */
+.msg-row.assistant .msg-body::before {
+  content: '';
+  position: absolute;
+  left: 12.5px;
+  top: var(--rail);
+  bottom: 0;
+  width: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    var(--border) 0,
+    var(--border) calc(100% - var(--rail)),
+    transparent calc(100% - var(--rail))
+  );
 }
 
-.msg-row.assistant.cont .msg-meta {
-  display: none;
+/* 悬空等待行自己就是 live 步，前面没有 turn，不画线。 */
+.msg-row.assistant .msg-body.no-rail::before {
+  content: none;
 }
 
-/* 系统行：内联提示（头像 + 标签 + 文字），无卡片 */
+.msg-row.assistant .msg-body > * {
+  grid-column: 2;
+  min-width: 0;
+}
+
+/* 工具行与 live 步要占住 rail 列，图标才落得进竖线。 */
+.msg-row.assistant .msg-body > .crow,
+.msg-row.assistant .msg-body > .turn-status {
+  grid-column: 1 / -1;
+}
+
+.msg-row.assistant .msg-avatar {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+/*
+ * 系统行 = notice（P0-2）。
+ *
+ * 原来是「π 头像 + pi 标签 + 一段裸灰字」：一条限流报错和一句普通提示长得完全一样，
+ * 用户只能逐字读。现在走 turn 的同一栅格——col1 状态图标落在 rail 上（与工具行的
+ * 图标同一列位置），col2 是 tinted 容器（border + 语义底色 + --r 圆角），语义由
+ * MessageList 的 sysNotice 判档：error 用 danger，warn 用 warn，进行中/中性用 elev。
+ * 三档底色在明暗两个主题都是「同族加深」，不靠纯色块，正文一律提到 --text。
+ */
 .msg-row.system {
   align-self: stretch;
-  max-width: 860px;
 }
 
-.sys-line {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 2px 2px;
-  color: var(--text-dim);
-  font-size: 12.5px;
-  line-height: 1.6;
-}
-
-/* π 头像：与 assistant / loading 头像同一尺寸（30px），同视觉族（蓝底白 π）。
-   连续 system 行只有首行可见头像，后续行占位对齐（visibility:hidden 保宽度）。 */
-.sys-pi {
-  flex-shrink: 0;
-  width: 30px;
-  height: 30px;
+.sys-body {
   display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-family: 'SF Mono', monospace;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
+  grid-template-columns: var(--turn-grid);
+  column-gap: var(--sp-2);
+  align-items: start;
+  width: 100%;
+  min-width: 0;
 }
 
-.sys-line strong {
-  flex-shrink: 0;
-  padding-top: 8px;
+.sys-ic {
+  grid-column: 1;
+  display: flex;
+  justify-content: center;
+  padding-top: 6px;
   color: var(--text-faint);
-  font-weight: 600;
+}
+
+.sys-note {
+  grid-column: 2;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
 }
 
 .sys-text {
+  flex: 1 1 auto;
   min-width: 0;
-  padding-top: 5px;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-/* 非首行的连续 system 行：头像与标签隐藏占位，文字与首行左对齐 */
-.sys-line .sys-pi,
-.sys-line strong {
-  visibility: visible;
+/* 长文本默认两行，剩下的靠「展开」；title 属性不做唯一兜底（截断内容要能读全）。 */
+.sys-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 
-.msg-row.system:not(.sys-first) .sys-pi,
-.msg-row.system:not(.sys-first) strong {
-  visibility: hidden;
+.sys-expand {
+  flex: none;
+  padding: 1px var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-tight);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+.sys-expand:hover {
+  color: var(--text-dim);
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+.msg-row.system.sys-error .sys-ic {
+  color: var(--danger);
+}
+
+.msg-row.system.sys-error .sys-note {
+  border-color: color-mix(in srgb, var(--danger) 32%, var(--border));
+  background: var(--danger-soft);
+}
+
+.msg-row.system.sys-warn .sys-ic {
+  color: var(--warn);
+}
+
+.msg-row.system.sys-warn .sys-note {
+  border-color: color-mix(in srgb, var(--warn) 32%, var(--border));
+  background: var(--warn-soft);
 }
 
 .msg-avatar {
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
+  width: var(--rail);
+  height: var(--rail);
   display: grid;
   place-items: center;
   border-radius: 50%;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
 }
 
 .pi-mark {
-  font-family: 'SF Mono', monospace;
-  font-size: 14px;
+  font-family: var(--mono);
+  font-size: var(--fs-md);
 }
 
 .msg-body {
@@ -184,203 +267,376 @@
   min-width: 0;
 }
 
+/* F7：气泡本体右贴由 .msg-row.user 的 align-self 负责，这里只把内容右靠，文字保持左读。 */
 .msg-row.user .msg-body {
-  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .msg-meta {
-  margin-bottom: 4px;
-  font-size: 12px;
+  margin-bottom: var(--sp-1);
+  font-size: var(--fs-sm);
   color: var(--text-faint);
 }
 
-.msg-row.user .msg-meta {
-  display: none;
+.msg-meta strong {
+  color: var(--text-dim);
+  font-weight: var(--fw-semibold);
 }
 
-/* G3：带 checkpoint 的 user 消息才显示 meta 行（只放一个「回到此处」按钮）。 */
-.msg-row.user .msg-meta.has-rewind {
+/* 用户气泡外的一排小操作（复制 / 回到此处）：dsh 的复制图标就在气泡外侧，
+   放进气泡里会让「可点」和「可复制」抢同一块点击区域。
+   F21（P1-5）：贴气泡右缘、默认不显示——每条历史消息底下常驻两个灰按钮，
+   读起来就像整屏都是可点的东西。只改透明度，收起时仍可被键盘/程序点中。 */
+.user-actions {
   display: flex;
-  align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--sp-1);
 }
 
-.rewind-btn {
+@media (hover: hover) {
+  .user-actions {
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease);
+  }
+
+  .user-actions:focus-within,
+  .msg-row.user:hover .user-actions {
+    opacity: 1;
+  }
+}
+
+/*
+ * 用户气泡的时刻（dsh `MessageIconActions` 的 clock：时间 hover 才显、按钮常驻）。
+ * Pi 这排按钮整组是 hover 浮现的，时钟挂在末尾就自动同频，不再另做一套显隐。
+ */
+.u-clock {
+  align-self: center;
+  margin-left: var(--sp-1);
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.ghost-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--sp-1);
   padding: 2px 9px;
   border: 1px solid var(--border);
-  border-radius: var(--r-full);
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--text-faint);
-  font-size: 11px;
-  line-height: 1.6;
+  font-size: var(--fs-xs);
+  font-family: inherit;
+  line-height: var(--lh-tight);
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
 }
 
-.rewind-btn:hover {
-  border-color: var(--accent);
-  background: var(--accent-dim);
+.ghost-btn:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
   color: var(--text);
 }
 
+/*
+ * 用户气泡（F7 修形，形态保留）：底色抬到 --bg-elev 与 turn 正文拉开一档，
+ * 描边收到 hairline + --sh-1 的一档投影，让它是「浮在页面上的一层」而不是一块灰。
+ * 上限 72ch：超过这个长度人的眼睛回不了行，80% 由 .msg-row.user 兜住窄窗。
+ */
 .txt {
-  display: inline-block;
+  max-width: min(72ch, 100%);
   text-align: left;
   white-space: pre-wrap;
-  line-height: 1.7;
-  padding: 12px 16px;
-  border-radius: 14px;
-  background: var(--bg-panel);
+  overflow-wrap: anywhere;
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-bubble);
+  background: var(--bg-elev);
   border: 1px solid var(--border);
+  box-shadow: var(--sh-1);
   color: var(--text);
 }
 
 .md {
-  line-height: 1.75;
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
   color: var(--text);
+  overflow-wrap: anywhere;
 }
 
 /* 流式输出期间渲染原文（无 markdown 解析）：保留换行/空白，避免被压成一段。 */
 .md.streaming {
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
   color: var(--text-dim);
 }
 
-.md :first-child {
+/*
+ * marked 注入的 HTML 不带 scoped 属性，选择器必须走 :deep()，
+ * 否则 `.md code` 会被编译成 `.md code[data-v-x]` 而永不命中（旧规则实际是死代码）。
+ */
+.md :deep(*:first-child) {
   margin-top: 0;
 }
 
-.md :last-child {
+.md :deep(*:last-child) {
   margin-bottom: 0;
 }
 
-.md code {
+.md :deep(p) {
+  margin: 0 0 var(--sp-2);
+}
+
+/* base.css 把 h1-h4 的 margin 归零了，正文标题因此和段落粘连（「项目定位」观感来源）。 */
+.md :deep(h1),
+.md :deep(h2),
+.md :deep(h3),
+.md :deep(h4) {
+  margin: var(--sp-5) 0 var(--sp-2);
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  letter-spacing: 0;
+}
+
+.md :deep(h1) {
+  font-size: var(--fs-xl);
+}
+
+.md :deep(h2) {
+  font-size: var(--fs-lg);
+}
+
+.md :deep(h3),
+.md :deep(h4) {
+  font-size: var(--fs-md);
+}
+
+.md :deep(ul),
+.md :deep(ol) {
+  margin: var(--sp-1) 0 var(--sp-2);
+  padding-left: var(--sp-5);
+}
+
+.md :deep(li + li) {
+  margin-top: var(--sp-1);
+}
+
+.md :deep(blockquote) {
+  margin: var(--sp-2) 0;
+  padding: 0 0 0 var(--sp-3);
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-dim);
+}
+
+.md :deep(hr) {
+  margin: var(--sp-4) 0;
+  border: 0;
+  border-top: 1px solid var(--border-soft);
+}
+
+.md :deep(a) {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.md :deep(a:hover) {
+  text-decoration: underline;
+}
+
+/* 行内 code 多是绝对路径：允许在列内断行，不给消息列制造横向滚动。 */
+.md :deep(code) {
   font-family: var(--mono);
   background: var(--bg-elev);
-  padding: 2px 6px;
-  border-radius: 5px;
-  font-size: 12.5px;
+  padding: 1px var(--sp-1);
+  border-radius: var(--r-sm);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
 }
 
-.md pre {
+.md :deep(pre) {
+  max-width: 100%;
+  margin: var(--sp-2) 0;
   background: var(--bg-elev);
   padding: var(--sp-3);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-soft);
   border-radius: var(--r);
-  overflow: auto;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-code);
+  overflow-x: auto;
 }
 
-.md pre code {
+.md :deep(pre code) {
   background: none;
   padding: 0;
+  overflow-wrap: normal;
 }
 
-.msg-tool {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--accent);
-  background: var(--accent-dim);
-  padding: 6px 12px;
-  border-radius: var(--r-full);
+/* 宽表格自持横向滚动，宽度不外溢到 .msgs。 */
+.md :deep(table) {
+  display: block;
+  max-width: 100%;
+  margin: var(--sp-2) 0;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: var(--fs-base);
 }
+
+.md :deep(th),
+.md :deep(td) {
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--border-soft);
+  text-align: left;
+}
+
+.md :deep(th) {
+  background: var(--bg-elev);
+  font-weight: var(--fw-semibold);
+}
+
+/* F20：.crow-label / .crow-pre / .crow-aside / .crow-out / .crow-btn 已收回 CollapsibleRow.css。 */
 
 /* ── G2 文件改动块（changed-files + 可展开 diff）───────────────── */
 .msg-files {
-  margin-top: 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md, 10px);
-  background: var(--bg-panel);
+  margin-top: var(--sp-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  background: var(--bg-elev);
   overflow: hidden;
-  max-width: 640px;
+  min-width: 0;
 }
 
 .files-head {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 12px;
-  font-size: 12px;
-  font-weight: 600;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
   color: var(--text-dim);
-  background: var(--bg-elev);
+  background: none;
   border-bottom: 1px solid var(--border-soft);
 }
 
 .files-note {
   margin-left: auto;
-  font-weight: 400;
-  font-size: 11px;
+  font-weight: var(--fw-regular);
+  font-size: var(--fs-xs);
   color: var(--text-faint);
 }
 
-.file-row + .file-row {
-  border-top: 1px solid var(--border-soft);
+.files-sum {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-medium);
+  color: var(--text-dim);
 }
 
-.file-row-btn {
+/* 文件 chip 横排：末端名一行一个，点开才出 diff（dsh 的文件入口密度）。 */
+.file-chips {
   display: flex;
-  align-items: center;
-  gap: 7px;
-  width: 100%;
-  padding: 7px 12px;
-  background: none;
-  border: 0;
-  cursor: pointer;
-  text-align: left;
-  color: var(--text);
-  font-size: 12.5px;
-  font-family: inherit;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
 }
 
-.file-row-btn:hover {
+.file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  max-width: 100%;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+.file-chip:hover,
+.file-chip.on {
+  color: var(--text);
+  border-color: var(--border-strong);
   background: var(--bg-hover);
 }
 
-.file-caret {
-  flex-shrink: 0;
-  color: var(--text-faint);
-  transition: transform 0.15s ease;
-}
-
-.file-caret.open {
-  transform: rotate(90deg);
-}
-
-.file-path {
-  flex: 1;
+.chip-name {
   min-width: 0;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: 'SF Mono', ui-monospace, monospace;
-  font-size: 12px;
+  font-family: var(--mono);
 }
 
-.file-sum {
+.chip-delta {
   flex-shrink: 0;
-  font-size: 11px;
+  font-variant-numeric: tabular-nums;
   color: var(--text-faint);
+}
+
+/* chip 展开的 diff：完整路径单独一行，长路径不挤掉行级增删。 */
+.file-diff-block {
+  border-top: 1px solid var(--border-soft);
+}
+
+.file-diff-path {
+  margin: 0;
+  padding: var(--sp-1) var(--sp-3);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* F18：unified 单栏的图例头——先说明 ± 的含义，再给增删计数。 */
+.file-diff-legend {
+  display: flex;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0 var(--sp-3) var(--sp-1);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.fdl {
+  padding: 1px 6px;
+  border-radius: var(--r-sm);
+}
+
+.fdl.del {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.fdl.add {
+  color: var(--ok);
+  background: var(--ok-soft);
 }
 
 .file-diff {
   margin: 0;
-  padding: 8px 12px;
+  padding: var(--sp-2) var(--sp-3);
   max-height: 320px;
   overflow: auto;
   background: var(--bg);
-  border-top: 1px solid var(--border-soft);
-  font-family: 'SF Mono', ui-monospace, monospace;
-  font-size: 11.5px;
-  line-height: 1.55;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-code);
   white-space: pre-wrap;
   word-break: break-all;
 }
@@ -399,63 +655,163 @@
   background: var(--danger-soft);
 }
 
-/* 等待模型响应：回答首字到达前的占位气泡 */
-.wait-line {
-  display: inline-flex;
+/*
+ * 本轮状态行（dsh TurnStatus）= turn rail 尾部的 live 步。
+ * 走 --turn-grid：心跳环落在 26px 图标列正中（就是那条竖线），状态文字落文本列，
+ * 计时落尾列——等待态因此长在 rail 上，而不再是悬空的一坨。
+ */
+.turn-status {
+  display: grid;
+  grid-template-columns: var(--turn-grid);
+  column-gap: var(--sp-2);
   align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-  color: var(--text-dim);
-  font-size: 13px;
+  min-height: var(--rail);
+  font-size: var(--fs-base);
+  white-space: nowrap;
 }
 
-.dots {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+/*
+ * 心跳环（relay console 的 live 步）：全页唯一的持续位移动画之外，这里只改 opacity，
+ * 1.6s 一轮。实底色 + position:relative 是为了盖住竖线，让环坐在节点位上。
+ */
+.ts-ic {
+  position: relative;
+  justify-self: center;
+  align-self: center;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--bg);
 }
 
-.dots i {
-  width: 5px;
-  height: 5px;
+.ts-ic::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
   border-radius: 50%;
   background: var(--accent);
-  animation: dot-bounce 1.2s infinite ease-in-out;
+  animation: ts-beat 1.6s ease-in-out infinite;
 }
 
-.dots i:nth-child(2) {
-  animation-delay: 0.15s;
-}
-
-.dots i:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-@keyframes dot-bounce {
-  0%,
-  80%,
-  100% {
-    opacity: 0.28;
-    transform: translateY(0);
-  }
-  40% {
-    opacity: 1;
-    transform: translateY(-3px);
-  }
-}
-
-/* 静止画面看不出「在跑」：等待期间机器人头像轻微呼吸 */
-.msg-row.waiting .msg-avatar {
-  animation: avatar-pulse 1.8s ease-in-out infinite;
-}
-
-@keyframes avatar-pulse {
+@keyframes ts-beat {
   0%,
   100% {
     opacity: 1;
   }
   50% {
-    opacity: 0.6;
+    opacity: 0;
+  }
+}
+
+/* dsh `.turnStatus` 原式：品牌色底 + 中段高亮，250% 宽从 100% 扫到 0，1.8s linear */
+.ts-text {
+  grid-column: 2;
+  background: linear-gradient(
+    90deg,
+    var(--accent) 0%,
+    var(--accent) 40%,
+    color-mix(in srgb, var(--accent) 50%, var(--text)) 50%,
+    var(--accent) 60%,
+    var(--accent) 100%
+  );
+  background-position: 100% 0;
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ts-shimmer 1.8s linear infinite;
+}
+
+@keyframes ts-shimmer {
+  to {
+    background-position: 0 0;
+  }
+}
+
+.ts-clock {
+  grid-column: 3;
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * turn 尾部操作行（dsh MessageIconActions + data-actions-reveal）：
+ * 弱色图标，最新一轮常驻，历史轮 hover / 键盘聚焦才浮现。
+ */
+.turn-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: var(--sp-1);
+}
+
+/* dsh `.action`：28px 圆形、无边框无底色、label-tertiary 级弱色、15px 图标 */
+.ta-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--r-full);
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.ta-btn:hover:not(:disabled) {
+  color: var(--text-dim);
+  background: var(--bg-hover);
+}
+
+/* dsh `[data-unavailable]`：不可用是「灰掉的常驻按钮」，不是消失的按钮 */
+.ta-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/*
+ * 操作行末尾的时刻（dsh `MessageIconActions` 的 clock 位）：它是脚注级信息，
+ * 跟按钮同高但更弱、更窄，用 tabular-nums 让上下几轮的数字对得齐。
+ */
+.ta-clock {
+  margin-left: var(--sp-1);
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 浮现策略照搬 dsh：只在真能 hover 的设备上隐藏，触屏与键盘路径永远可见
+ * （`opacity:0` 在没有 hover 的设备上等于把按钮删掉）。
+ */
+@media (hover: hover) {
+  .turn-actions[data-actions-reveal='hover'] {
+    opacity: 0;
+    transition: opacity var(--dur-fast) var(--ease);
+  }
+
+  .turn-actions[data-actions-reveal='hover']:focus-within,
+  .msg-row:hover .turn-actions[data-actions-reveal='hover'] {
+    opacity: 1;
+  }
+}
+
+/* dsh 同款降级：不删渐变，只是把底色铺开、停掉位移（关动画后仍是实色品牌蓝）。 */
+@media (prefers-reduced-motion: reduce) {
+  .ts-text {
+    animation: none;
+    background-position: 0 0;
+    background-size: 100% 100%;
+  }
+
+  /* 心跳停掉后留一颗半实心点：静止画面也要读得出「这一轮还没完」。 */
+  .ts-ic::after {
+    opacity: 0.35;
+    animation: none;
   }
 }
 
@@ -464,23 +820,25 @@
   animation: blink 1s steps(2) infinite;
 }
 
-/* 单条 assistant 消息的真实 token 用量（内核 provider 上报） */
+/*
+ * 单条 assistant 消息的真实 token 用量（内核 provider 上报）。
+ * dsh 的用量入口（.Q51KRG_trigger）是无底色无描边的纯灰小字 + tabular-nums：
+ * 它是脚注，套 pill 底色会和正文抢层级。
+ */
+/* per-run receipt（ai-console.md §6）：quiet mono 小字，与轨迹面板 .ctx-line 同族。
+   D-15：脚注也是可读文本，下限 12px。 */
 .msg-usage {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-  padding: 2px 8px;
-  border-radius: var(--r-full);
-  background: var(--bg-elev);
+  margin-top: var(--sp-2);
   color: var(--text-faint);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
   font-variant-numeric: tabular-nums;
 }
 
-.msg-usage .app-icon {
-  color: var(--text-faint);
+/* 中断回执：与收据同位同形，只把语义染成 warn（dsh 落定态里被叫停的那一档）。 */
+.msg-stopped {
+  color: var(--warn);
 }
 
 @keyframes blink {
@@ -491,8 +849,8 @@
 .acstrip {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
 }
 
 .msg-row.user .acstrip {
@@ -503,26 +861,27 @@
 .msg-attach {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
+  gap: var(--sp-1);
+  margin-top: var(--sp-2);
 }
 
 .att-ref {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--sp-1);
   max-width: 240px;
-  padding: 4px 8px;
+  padding: var(--sp-1) var(--sp-2);
   border: 1px solid var(--border);
-  border-radius: var(--r);
+  border-radius: var(--r-sm);
   background: var(--bg-elev);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
 
+/* 图片引用不给强调色：它只是「带上了一个文件」，没有交互含义。 */
 .att-ref.image {
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-  color: var(--accent);
+  border-color: var(--border-strong);
+  color: var(--text);
 }
 
 .att-ref-name {
@@ -533,27 +892,28 @@
 
 /* ── G5 计划卡（Cursor Plan mode 式先审后做）── */
 .plan-card {
-  margin-top: 8px;
-  max-width: 640px;
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
-  border-radius: var(--r-md, 10px);
-  background: var(--bg-panel);
+  margin-top: var(--sp-2);
+  min-width: 0;
+  /* pending 是「等你决策」的关键动作态，这一处 accent 描边保留 */
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border-soft));
+  border-radius: var(--r-lg);
+  background: var(--bg-elev);
   overflow: hidden;
 }
 
 .plan-card.executing {
-  border-color: var(--border);
+  border-color: var(--border-soft);
 }
 
 .plan-head {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 12px;
-  font-size: 12px;
-  font-weight: 600;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
   color: var(--accent);
-  background: var(--bg-elev);
+  background: none;
   border-bottom: 1px solid var(--border-soft);
 }
 
@@ -563,26 +923,26 @@
 
 .plan-count {
   margin-left: auto;
-  font-weight: 400;
-  font-size: 11px;
+  font-weight: var(--fw-regular);
+  font-size: var(--fs-xs);
   color: var(--text-faint);
 }
 
 .plan-steps {
   margin: 0;
-  padding: 8px 12px;
+  padding: var(--sp-2) var(--sp-3);
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--sp-1);
 }
 
 .plan-steps li {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  font-size: 12.5px;
-  line-height: 1.5;
+  gap: var(--sp-2);
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
   color: var(--text);
 }
 
@@ -603,36 +963,39 @@
 
 .plan-actions {
   display: flex;
-  gap: 8px;
-  padding: 9px 12px;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
   border-top: 1px solid var(--border-soft);
 }
 
 .plan-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-3);
   border: 1px solid var(--border);
-  border-radius: var(--r-full);
+  border-radius: var(--r-sm);
   background: var(--bg-elev);
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-family: inherit;
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
 }
 
+/* 次要按钮 hover 只提一档对比，强调色留给「执行计划」这个关键动作。 */
 .plan-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  color: var(--text);
 }
 
 .plan-btn.primary {
   border-color: transparent;
   background: var(--accent);
   color: var(--accent-ink);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
 }
 
 .plan-btn.primary:hover {
@@ -643,9 +1006,9 @@
 .plan-running {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 9px 12px;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
   border-top: 1px solid var(--border-soft);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
 }
