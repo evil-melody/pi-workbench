@@ -8,26 +8,31 @@
 :root {
   color-scheme: dark;
 
-  /* 表面层级 */
-  --bg: #0b0c0f;
-  --bg-panel: #141519;
-  --bg-elev: #1b1d23;
-  --bg-hover: #25272e;
-  --bg-active: #2a2d35;
-  --border: #26282f;
-  --border-strong: #32343d;
-  --border-soft: #1d1e23;
+  /*
+   * 表面层级 —— 取自 WorkDSH `packages/ui/src/styles/tokens.ts` 的七个固定令牌：
+   * canvas #121212 / sidebar #202020 / card #242424 / selected #3a3a3a /
+   * border #343434 / text #e7e7e7 / secondary #a5a5a5。
+   * hover / border-strong 参考仓未定义，按同级明度插值（ponytail: 差一档，够用）。
+   */
+  --bg: #121212;
+  --bg-panel: #202020;
+  --bg-elev: #242424;
+  --bg-hover: #2c2c2c;
+  --bg-active: #3a3a3a;
+  --border: #343434;
+  --border-strong: #454545;
+  --border-soft: #2b2b2b;
 
   /* 文字 */
-  --text: #f0f1f5;
-  --text-dim: #9ba2ad;
-  --text-faint: #6b707a;
+  --text: #e7e7e7;
+  --text-dim: #a5a5a5;
+  --text-faint: #7d7d7d;
 
-  /* 强调与状态 */
-  --accent: #4f8cff;
+  /* 强调与状态（primary #2563eb 来自参考仓按钮规范） */
+  --accent: #2563eb;
   --accent-ink: #ffffff;
-  --accent-soft: rgba(79, 140, 255, 0.14);
-  --accent-dim: rgba(79, 140, 255, 0.08);
+  --accent-soft: rgba(37, 99, 235, 0.14);
+  --accent-dim: rgba(37, 99, 235, 0.08);
   --danger: #ff5f5f;
   --danger-soft: rgba(255, 95, 95, 0.14);
   --ok: #3dd96c;
@@ -35,12 +40,59 @@
   --warn: #ffb84d;
   --warn-soft: rgba(255, 184, 77, 0.16);
 
-  /* 圆角：卡片 12px，按钮 pill，输入框 8px */
+  /* 圆角体系（Shape Lock，只有这四档 + 圆形）：
+     细行/小按钮 --r-sm/--r，卡片容器 --r-lg，消息气泡 --r-bubble，大输入容器 --r-2xl。 */
   --r-sm: 6px;
   --r: 8px;
   --r-lg: 12px;
   --r-xl: 14px;
+  --r-bubble: 16px;
+  --r-2xl: 22px;
   --r-full: 999px;
+
+  /* 排版阶梯：正文以上只有 4 档，散乱字号一律归到这里 */
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-base: 13px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 18px;
+  --fs-2xl: 27px;
+
+  /* 字重层级：正文 400 / 次级标签 500 / 标题与工具名 600 */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+
+  /* 行高：正文松、代码密、标签紧 */
+  --lh-tight: 1.45;
+  --lh-body: 1.65;
+  --lh-code: 1.5;
+
+  /* 动效：一条缓动曲线 + 两档时长 */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 120ms;
+  --dur: 180ms;
+
+  /* 对话窄栏宽（Open WebUI 式居中列）：消息列、顶栏、步骤行、composer 共用一个值 */
+  --chat-col: 720px;
+
+  /*
+   * 中栏统一水平内衬（F2）：`.center` 里 header / 消息列 / 步骤行 / composer 四条线
+   * 全部取同一个公式，宽窗下锁 720 列、窄窗下退到 --sp-4，三线永远重合。
+   * 百分比在 padding-inline 上解析自 `.center` 的内容宽度，各子项一致。
+   */
+  --chat-pad: max(var(--sp-4), calc((100% - var(--chat-col)) / 2));
+
+  /* turn 统一栅格（F3）：26px icon rail + 内容列 + 右槽（时长/操作） */
+  --rail: 26px;
+  --turn-grid: var(--rail) minmax(0, 1fr) auto;
+
+  /*
+   * 右列常驻宽（F1，ai-console.md §8）：对话壳 grid 的第二轨。
+   * 窗宽 < 1180px 时右列转 overlay（ChatView.css / TraceDrawer.css 同一个断点）。
+   */
+  --chat-aside: clamp(320px, 26vw, 380px);
 
   /* 间距 */
   --sp-1: 4px;
@@ -54,6 +106,9 @@
   /* 阴影只给浮层 */
   --sh-1: 0 1px 2px rgba(0, 0, 0, 0.32);
   --sh-2: 0 12px 32px rgba(0, 0, 0, 0.42);
+  /* 大输入容器 / 吉祥物投影：组件里不再手写 rgba */
+  --sh-card: 0 6px 22px rgba(0, 0, 0, 0.3);
+  --sh-mascot: 0 14px 26px rgba(0, 0, 0, 0.38);
 
   /* 兼容别名：部分组件沿用了另一套设计令牌命名（--surface / --surface-2 / --fg /
      --fg-dim / --bg-soft），统一映射到本项目令牌。否则深色模式下这些 var()
@@ -73,18 +128,26 @@
 [data-theme='light'] {
   color-scheme: light;
 
-  --bg: #f6f7f9;
-  --bg-panel: #ffffff;
-  --bg-elev: #f2f4f7;
-  --bg-hover: #e9edf2;
-  --bg-active: #dfe4ea;
-  --border: #e2e6ec;
-  --border-strong: #cdd4dd;
-  --border-soft: #f0f2f5;
+  /*
+   * 浅色系明度阶：页面底 < 面板 < 浮层，逐级 *变亮*（与暗色阶方向一致）。
+   * 旧值把 --bg 设成近纯白（#f6f7f9）、把 --bg-elev 设成比页面更暗的灰，
+   * 于是「白页 + 灰气泡 + 白卡片」层级倒置、边界互相吃掉；这里冷灰打底、
+   * 浮层才用纯白，卡片/描边靠 rgba 冷灰蓝边界 + 阴影分层。
+   */
+  --bg: #eceff3;
+  --bg-panel: #f6f8fa;
+  --bg-elev: #ffffff;
+  --bg-hover: #e4e8ee;
+  --bg-active: #dae0e8;
+  --border: rgba(35, 39, 47, 0.1);
+  --border-strong: rgba(35, 39, 47, 0.18);
+  --border-soft: rgba(35, 39, 47, 0.06);
 
+  /* 中性色与暗色块同冷暖（低饱和、微冷），避免浅色下灰字偏蓝 */
   --text: #1a1d21;
-  --text-dim: #5f6875;
-  --text-faint: #8b94a1;
+  --text-dim: #5f6672;
+  /* 弱化墨也要读得清：#6b7280 对白底约 4.8:1，过 AA 小字门槛。 */
+  --text-faint: #6b7280;
 
   --accent: #2563eb;
   --accent-ink: #ffffff;
@@ -99,6 +162,8 @@
 
   --sh-1: 0 1px 2px rgba(16, 24, 40, 0.06);
   --sh-2: 0 12px 32px rgba(16, 24, 40, 0.12);
+  --sh-card: 0 6px 22px rgba(16, 24, 40, 0.07);
+  --sh-mascot: 0 14px 26px rgba(16, 24, 40, 0.12);
 }
 
 * {
@@ -116,11 +181,11 @@ body {
   font-family: var(--font);
   background: var(--bg);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-base);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.18s ease, color 0.18s ease;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 
 h1,
@@ -128,20 +193,21 @@ h2,
 h3,
 h4 {
   margin: 0;
-  font-weight: 650;
+  font-weight: var(--fw-semibold);
   letter-spacing: 0.2px;
 }
 
 button {
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--fs-base);
   cursor: pointer;
   color: var(--text);
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--r);
   padding: 6px 12px;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.08s ease;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 
 button:hover:not(:disabled) {
@@ -161,14 +227,14 @@ button:disabled {
 input,
 textarea {
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--fs-base);
   color: var(--text);
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--r);
   padding: 8px 10px;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
 input:focus,
@@ -216,6 +282,14 @@ pre {
 
 *::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* 三态之加载态：列表/数据页共用一份，避免每页各写一套内联样式。 */
+.load-state {
+  padding: var(--sp-6) var(--sp-4);
+  text-align: center;
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
 }
 
 @media (prefers-reduced-motion: reduce) {

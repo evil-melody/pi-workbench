@@ -52,15 +52,18 @@
 
 .wd-p-hero-copy h1 {
   margin: 0 0 10px;
-  font-size: 38px;
+  font-size: 26px;
+  line-height: 1.3;
+  font-weight: 650;
   color: var(--p-strong);
 }
 
 .wd-p-hero-copy p {
   max-width: 560px;
-  margin: 0 0 18px;
+  margin: 0 0 22px;
   color: var(--p-muted);
-  font-size: 17px;
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 .wd-p-hero-art {
@@ -292,10 +295,12 @@
   cursor: pointer;
 }
 
-.wd-p-card-archive {
+/* 卡片唯一动作（参考 .wd-p-card-menu：常显、12px、padding 6、右侧 8px 让位）。
+   卡片只留一个动作按钮是标题不再被挤成 17px 的直接原因（D-01）。 */
+.wd-p-card-menu {
   align-self: center;
-  margin: 0 14px 0 0;
-  padding: 4px 8px;
+  margin: 0 8px 0 0;
+  padding: 6px;
   flex-shrink: 0;
   border: 0;
   border-radius: 6px;
@@ -303,16 +308,10 @@
   color: var(--text-faint);
   font-size: 12px;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.wd-p-project-card:hover .wd-p-card-archive,
-.wd-p-project-card.active .wd-p-card-archive {
-  opacity: 1;
-}
-
-.wd-p-card-archive:hover {
+.wd-p-card-menu:hover {
   background: var(--p-hover);
   color: var(--text);
 }
@@ -535,49 +534,3 @@
   font-size: 12px;
 }
 
-.wd-p-card-chat,
-.wd-p-card-del {
-  align-self: center;
-  margin: 0 8px 0 0;
-  padding: 5px;
-  flex-shrink: 0;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-faint);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
-}
-
-.wd-p-project-card:hover .wd-p-card-chat,
-.wd-p-project-card.active .wd-p-card-chat,
-.wd-p-project-card:hover .wd-p-card-del,
-.wd-p-project-card.active .wd-p-card-del {
-  opacity: 1;
-}
-
-.wd-p-card-chat:hover {
-  background: var(--p-hover);
-  color: var(--text);
-}
-
-.wd-p-card-del:hover {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.wd-p-danger {
-  padding: 7px 14px;
-  border: 1px solid var(--danger);
-  border-radius: 8px;
-  background: var(--danger-soft);
-  color: var(--danger);
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.wd-p-danger:hover {
-  background: var(--danger);
-  color: var(--accent-ink);
-}
