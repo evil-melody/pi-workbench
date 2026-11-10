@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentScope, onScopeDispose, ref } from 'vue'
@@ -13,8 +14,8 @@ import { stripPlanInstruction } from '@/utils/planMode'
 export const IN_TAURI =
   typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
-const NO_KERNEL =
-  '当前是浏览器模式，Pi 内核未接入。请用 npm run app:dev 启动桌面 App 后再对话。'
+const noKernel = () =>
+  t('当前是浏览器模式，Pi 内核未接入。请用 npm run app:dev 启动桌面 App 后再对话。')
 
 export interface PiMsg {
   id: string
@@ -22,6 +23,12 @@ export interface PiMsg {
   text: string
   tool?: string
   streaming?: boolean
+  /**
+   * 消息产生时刻（Date.now）：dsh `MessageIconActions` 那颗时钟的数据源。
+   * journal 回放的消息没有本地时刻，可能缺失——消费方必须判空，缺就隐藏时钟，
+   * 不许拿 id 或落盘时间编一个假时间。
+   */
+  ts?: number
   /** 该条 assistant 消息的真实 token 用量（provider 上报，message_end 时挂载）。 */
   usage?: PiUsage
   /** 用户消息附带的图片/文件（已落盘到 app_config_dir/attachments）。 */
@@ -32,6 +39,23 @@ export interface PiMsg {
   turnSeq?: number
   /** G5：本条 assistant 消息是计划模式产出——分步计划卡，等用户确认后执行。 */
   plan?: PiPlan
+  /**
+   * dsh 对齐：工具 chip 的调用 id（`toolcall_start.toolCall.id`）。
+   * 名字回填会消费 callId→msgId 映射，参数/结果回填还要能定位到同一条 chip，
+   * 所以把 id 存在消息上，不依赖那份会被清掉的映射。
+   */
+  toolCallId?: string
+  /** 工具调用参数摘要（序列化后的文本，已截断）。 */
+  toolArgs?: string
+  /** 工具执行结果摘要（`tool_execution_end.result` 的文本/序列化，已截断）。 */
+  toolResult?: string
+  /** 工具执行失败（`tool_execution_end.isError`）。 */
+  toolError?: boolean
+  /**
+   * 思考（thinking）文本聚合：内核 message_update 内层 thinking_delta 逐段追加，
+   * 渲染成 turn 内的 Think 折叠行（对齐 dsh 的一轮 = Think → 正文 → 工具行）。
+   */
+  reasoning?: string
 }
 
 /** G5：计划卡状态。pending=待确认；executing=已批准、执行 prompt 已下发。 */
@@ -67,12 +91,18 @@ export interface PiAttachment {
  * Pi 用其文件工具按路径读取。保持 message 为字符串是硬约束，不可改成形如
  * `[{type:image_url}]` 的对象——那是内核侧的能力，工作端只能绕行。纯函数，可单测。
  */
+/**
+ * 附件块分隔标记：随 prompt 下发给内核，属于模型输入的一部分，
+ * 不参与界面本地化——否则切换语言后回放解析会对不上。
+ */
+const ATTACHMENT_MARKER = '[附件 / attachments]' // i18n-ignore: model prompt marker
+
 export function buildPrompt(text: string, attachments?: PiAttachment[]): string {
   if (!attachments || attachments.length === 0) return text
   const lines = attachments.map((a) =>
     a.kind === 'image' ? `- image: ${a.path}` : `- file: ${a.path}`,
   )
-  return `${text}\n\n[附件 / attachments]\n${lines.join('\n')}`
+  return `${text}\n\n${ATTACHMENT_MARKER}\n${lines.join('\n')}`
 }
 
 /** buildPrompt 的逆运算：从下发给内核的正文还原「用户原文 + 附件」。
@@ -80,7 +110,7 @@ export function buildPrompt(text: string, attachments?: PiAttachment[]): string 
  *  journal 回放时必须都剥掉，气泡里才显示用户原话而不是大段项目上下文。 */
 export function splitPromptBody(body: string): { text: string; attachments: PiAttachment[] } {
   const SEP = '\n\n---\n\n'
-  const ATT = '\n\n[附件 / attachments]\n'
+  const ATT = `\n\n${ATTACHMENT_MARKER}\n`
   const sepAt = body.indexOf(SEP)
   let rest = sepAt >= 0 ? body.slice(sepAt + SEP.length) : body
   // G5：plan 指令前缀拼在最外，无 preamble（无 SEP）时会残留在 rest 头部，剥掉。
@@ -140,7 +170,7 @@ export function usePi() {
   }
 
   function start(cwd?: string) {
-    if (!IN_TAURI) return Promise.reject(new Error(NO_KERNEL))
+    if (!IN_TAURI) return Promise.reject(new Error(noKernel()))
     return invoke('pi_start', { cwd: cwd ?? null })
   }
 
@@ -151,7 +181,7 @@ export function usePi() {
 
   /** 原地重启内核：改模型 / 改工具白名单后调用，新配置在新进程里生效。 */
   function restart() {
-    if (!IN_TAURI) return Promise.reject(new Error(NO_KERNEL))
+    if (!IN_TAURI) return Promise.reject(new Error(noKernel()))
     return invoke('pi_restart')
   }
 
@@ -165,7 +195,7 @@ export function usePi() {
     payload: Record<string, unknown> = {},
     timeoutMs?: number,
   ): Promise<T> {
-    if (!IN_TAURI) return Promise.reject(new Error(NO_KERNEL))
+    if (!IN_TAURI) return Promise.reject(new Error(noKernel()))
     return invoke<T>('pi_call', {
       json: JSON.stringify({ ...payload, type }),
       ...(timeoutMs ? { timeoutMs } : {}),
@@ -216,6 +246,7 @@ export function usePi() {
       id: `u${seq++}`,
       role: 'user',
       text,
+      ts: Date.now(),
       ...(attachments?.length ? { attachments } : {}),
     })
   }
@@ -226,7 +257,7 @@ export function usePi() {
   }
 
   function send(text: string, attachments?: PiAttachment[]) {
-    if (!IN_TAURI) return Promise.reject(new Error(NO_KERNEL))
+    if (!IN_TAURI) return Promise.reject(new Error(noKernel()))
     // message 必须是字符串（Pi 协议约束）；附件以路径引用块追加进文本。
     const cmd = {
       id: `c${Date.now()}`,
@@ -296,7 +327,7 @@ export function usePi() {
     // 模型不可用等）没有接收方，由后端回推进事件流。不在这里落地，用户看到的
     // 就是「消息发出去了，然后什么都没有」——连 streaming 都不会结束。
     if (rec?.type === 'response' && rec.success === false) {
-      pushSystem(`内核返回失败：${rec.error ?? '未知错误'}`)
+      pushSystem(t('内核返回失败：{0}', [rec.error ?? t('未知错误')]))
       streaming.value = false
       return
     }
@@ -307,7 +338,7 @@ export function usePi() {
       if (rec?.type === 'process_exit') {
         const sinceStop = Date.now() - lastKernelStoppedAt
         if (sinceStop > 5_000) {
-          pushSystem('Pi 内核进程已退出，本条消息可能没有送达。请重开会话页或重启 App 重新拉起内核。')
+          pushSystem(t('Pi 内核进程已退出，本条消息可能没有送达。请重开会话页或重启 App 重新拉起内核。'))
         }
       }
       applyNow(rec)
@@ -339,6 +370,9 @@ export function usePi() {
       await rpc('abort')
     } finally {
       streaming.value = false
+      // dsh 中断时给 running 的 root 合成落定：abort 后内核不再发 message_end，
+      // 流式消息会永远停在 streaming=true——UI 挂着流式光标、不出收据和操作行。
+      for (const m of messages.value) if (m.streaming) m.streaming = false
     }
   }
 

@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { invoke } from '@tauri-apps/api/core'
 import { ref } from 'vue'
 import { IN_TAURI, type PiMsg, splitPromptBody } from '@/composables/usePi'
@@ -71,7 +72,7 @@ export async function loadReplay(
   sessionIndex?: number,
 ): Promise<ReplayResult> {
   if (!IN_TAURI) {
-    return { messages: [], eventCount: 0, error: '浏览器模式：journal 不可用' }
+    return { messages: [], eventCount: 0, error: t('浏览器模式：journal 不可用') }
   }
   let events: any[]
   try {
@@ -182,10 +183,27 @@ export async function listRunHistory(cwd?: string, includeArchived = false): Pro
     // 零任务的段（内核自动启停、只留启动标记）不是「运行记录」：
     // 列出来只会是一排「（该会话没有用户消息）」噪音。
     .filter((s) => Number.isInteger(s.index) && s.prompts > 0)
-    .reverse()
-    // 置顶稳定置前：后端合并已按置顶分组，reverse（新→旧）之后仍要保证
-    // pinned 在列表头部。Array.prototype.sort 稳定，同组相对顺序不变。
-    .sort((a, b) => Number(b.pinned ?? false) - Number(a.pinned ?? false))
+    // 最新在顶部：后端 `pi_journal_sessions` 已按 pinned desc + 段号 desc 排好，
+    // 但段号 ≠ 结束时间（长会话跨段、归档/置顶不改段号），且前端此前多一次
+    // `.reverse()` 把顺序整体翻回「旧→新」。这里显式重排、不再 reverse：
+    // 置顶优先 → 组内按结束时间倒序（缺结束时间退回开始时间，都缺则按段号）。
+    // 排序留在水源层，组件模板只 slice 分页、不再 sort 副本。
+    .sort((a, b) => {
+      const pin = Number(b.pinned === true) - Number(a.pinned === true)
+      if (pin !== 0) return pin
+      const key = orderKey(b) - orderKey(a)
+      // 键相等只在「双方都没有时间戳」时发生（journal 老数据），退回段号倒序。
+      return key !== 0 ? key : b.index - a.index
+    })
+}
+
+/**
+ * 倒序排序键：结束时间 → 开始时间 → -1（都没有，交给段号兜底）。
+ * 缺时间戳统一返回 -1 而不是段号，是为了不让「段号这种小整数」和
+ * 「毫秒时间戳」放进同一个数值比较里得出无意义的先后。
+ */
+function orderKey(r: RunRecord): number {
+  return r.endedAtMs ?? r.startedAtMs ?? -1
 }
 
 /**

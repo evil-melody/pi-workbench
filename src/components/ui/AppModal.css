@@ -65,6 +65,15 @@
   overflow: auto;
 }
 
+/* bare：无 header 的浮层（命令面板），主体自己管内衬与滚动。 */
+.modal-panel.bare .modal-body {
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .modal-footer {
   display: flex;
   align-items: center;

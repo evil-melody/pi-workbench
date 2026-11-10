@@ -4,7 +4,7 @@
       :model-value="currentId"
       :options="options"
       :disabled="applying"
-      placeholder="选择专家角色"
+      :placeholder="t('选择专家角色')"
       :width="width ?? '180px'"
       @update:model-value="onPick"
     />
@@ -12,6 +12,7 @@
 </template>
 
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoles, type Role } from '@/composables/useRoles'
 import AppSelect, { type SelectOption } from '@/components/ui/AppSelect.vue'

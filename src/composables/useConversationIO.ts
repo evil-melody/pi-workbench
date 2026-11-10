@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -70,13 +71,13 @@ export function serializeConversation(messages: ConvMessage[]): ConversationFile
 
 /** 解析会话文件并做严格校验；任一字段非法都抛错，不让坏文件静默加载。纯函数，可单测。 */
 export function deserializeConversation(raw: unknown): ConvMessage[] {
-  if (!raw || typeof raw !== 'object') throw new Error('不是合法的会话文件')
+  if (!raw || typeof raw !== 'object') throw new Error(t('不是合法的会话文件'))
   const f = raw as Partial<ConversationFile>
-  if (f.format !== FORMAT) throw new Error('文件格式不匹配（非 pi-workbench 会话）')
-  if (!Array.isArray(f.messages)) throw new Error('会话文件缺少 messages 数组')
+  if (f.format !== FORMAT) throw new Error(t('文件格式不匹配（非 pi-workbench 会话）'))
+  if (!Array.isArray(f.messages)) throw new Error(t('会话文件缺少 messages 数组'))
   return f.messages.map((m, i) => {
     if (!m || typeof m.text !== 'string' || !['user', 'assistant', 'system'].includes(m.role)) {
-      throw new Error(`第 ${i + 1} 条消息格式非法`)
+      throw new Error(t('第 {0} 条消息格式非法', [i + 1]))
     }
     const attachments = Array.isArray(m.attachments)
       ? m.attachments
@@ -90,7 +91,7 @@ export function deserializeConversation(raw: unknown): ConvMessage[] {
             ) {
               return { id: a.id, name: a.name, kind: a.kind, path: a.path }
             }
-            throw new Error(`第 ${i + 1} 条消息的附件 ${j + 1} 字段非法`)
+            throw new Error(t('第 {0} 条消息的附件 {1} 字段非法', [i + 1, j + 1]))
           })
           // 空数组不写进结果，保持与发送侧一致。
           .filter(Boolean)
@@ -123,7 +124,7 @@ export async function exportConversation(
   }
   const path = await save({
     defaultPath: `${fallbackName}.json`,
-    filters: [{ name: '会话', extensions: ['json'] }],
+    filters: [{ name: t('会话'), extensions: ['json'] }],
   })
   if (typeof path !== 'string') return 'cancelled'
   await invoke('conversation_export', { path, content: data })
@@ -132,10 +133,10 @@ export async function exportConversation(
 
 /** 导入会话：打开对话框 → 后端读文件 → 反序列化校验。取消时抛 'cancelled'。 */
 export async function importConversation(): Promise<ConvMessage[]> {
-  if (!('__TAURI_INTERNALS__' in window)) throw new Error('浏览器模式不支持导入')
+  if (!('__TAURI_INTERNALS__' in window)) throw new Error(t('浏览器模式不支持导入'))
   const selected = await open({
     multiple: false,
-    filters: [{ name: '会话', extensions: ['json'] }],
+    filters: [{ name: t('会话'), extensions: ['json'] }],
   })
   if (typeof selected !== 'string') throw new Error('cancelled')
   const raw = await invoke<string>('conversation_import', { path: selected })

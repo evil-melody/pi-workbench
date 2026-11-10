@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { classifyEvent } from '@/utils/piEventKind'
+import { classifyEvent, eventDisplayLabel } from '@/utils/piEventKind'
 
 describe('classifyEvent', () => {
   it('识别点分与下划线的事件名写法', () => {
@@ -102,5 +102,109 @@ describe('classifyEvent', () => {
     const before = Date.now()
     const row = classifyEvent({ type: 'agent_settled' })
     expect(row?.at).toBeGreaterThanOrEqual(before)
+  })
+
+  it('折叠态主文是「工具 + 对象」，类别词不再当主文', () => {
+    const row = classifyEvent({
+      type: 'tool_call',
+      toolName: 'read',
+      toolArgs: { path: 'src/utils/piEventKind.ts' },
+    })
+    expect(row?.label).toBe('读取 piEventKind.ts')
+  })
+
+  it('bash 命令原样进主文（它本身就是人话）', () => {
+    const row = classifyEvent({
+      type: 'tool_call',
+      toolName: 'bash',
+      args: { command: 'pnpm test 2>&1 | head -100' },
+    })
+    expect(row?.label).toContain('bash')
+    expect(row?.label).toContain('pnpm test')
+  })
+
+  it('多行输出折算成「· N 行」的量词', () => {
+    const row = classifyEvent({
+      type: 'tool_result',
+      toolName: 'read',
+      toolArgs: { path: 'README.md' },
+      output: 'a\nb\nc\nd',
+    })
+    expect(row?.label).toBe('读取 README.md · 4 行')
+  })
+
+  it('未识别事件折叠态只给事件名与字段数，不塞 payload', () => {
+    const row = classifyEvent({ type: 'some_future_event', payload: 1, extra: true })
+    expect(row?.label).toBe('未识别事件 some_future_event · 3 字段')
+    expect(row?.label).not.toContain('{')
+    expect(row?.fieldsCount).toBe(3)
+  })
+
+  it('结果次行只收纯文本首行；对象输出留空给展开体', () => {
+    const text = classifyEvent({ type: 'tool_result', toolName: 'grep', output: '2 hits\nsrc/a.ts:1' })
+    expect(text?.result).toBe('2 hits')
+
+    const obj = classifyEvent({ type: 'tool_result', toolName: 'read', output: { lines: ['a'] } })
+    expect(obj?.result).toBe('')
+  })
+
+  it('展开体的 payload 是可解析的原始记录', () => {
+    const rec = { type: 'tool_call', toolName: 'read', toolArgs: { path: 'a.ts' } }
+    const row = classifyEvent(rec)
+    expect(JSON.parse(row?.payload ?? '')).toMatchObject(rec)
+  })
+
+  it('新增视图字段不改动原有四件套的语义', () => {
+    const row = classifyEvent({ tool: 'read_file', args: { path: 'a.ts' }, output: 'ok' })
+    expect(row?.kind).toBe('tool_result')
+    expect(row?.title).toContain('read_file')
+    expect(row?.detail).toContain('a.ts')
+    expect(row?.detail).toContain('ok')
+    expect((row?.detail.length ?? 0)).toBeLessThan(200)
+  })
+
+  it('内核生命周期事件归入 lifecycle（不再刷「未识别事件」）', () => {
+    for (const type of [
+      'message_start',
+      'message_end',
+      'agent_start',
+      'agent_end',
+      'entry_appended',
+      'auto_retry_start',
+      'auto_retry_end',
+    ]) {
+      expect(classifyEvent({ type })?.kind).toBe('lifecycle')
+    }
+    // 驼峰与连字符写法同源
+    expect(classifyEvent({ type: 'message-start' })?.kind).toBe('lifecycle')
+    expect(classifyEvent({ type: 'entryAppended' })?.kind).toBe('lifecycle')
+  })
+
+  it('lifecycle 不吞掉既有类别：真正的未知事件仍归 other', () => {
+    expect(classifyEvent({ type: 'some_future_event', payload: 1 })?.kind).toBe('other')
+    expect(classifyEvent({ type: 'tool_call', toolName: 'read' })?.kind).toBe('tool_call')
+    expect(classifyEvent({ type: 'turn_start' })?.kind).toBe('turn_start')
+    expect(classifyEvent({ type: 'agent_settled' })?.kind).toBe('settled')
+  })
+
+  it('eventDisplayLabel：主文给中文语义，事件名不再是「未识别事件」长串', () => {
+    const lc = classifyEvent({ type: 'message_start' })
+    expect(lc).not.toBeNull()
+    expect(eventDisplayLabel(lc!)).toBe('消息开始')
+
+    const other = classifyEvent({ type: 'some_future_event', payload: 1 })
+    expect(eventDisplayLabel(other!)).toBe('some_future_event')
+
+    const call = classifyEvent({ type: 'tool_call', toolName: 'read', toolArgs: { path: 'a.ts' } })
+    expect(eventDisplayLabel(call!)).toBe('读取 a.ts')
+  })
+
+  it('eventDisplayLabel 覆盖写法变体：归一后仍取到中文语义', () => {
+    const row = classifyEvent({ type: 'session_open' })
+    expect(row?.kind).toBe('lifecycle')
+    expect(eventDisplayLabel(row!)).toBe('打开会话')
+
+    const named = classifyEvent({ type: 'message-start', pi_ts: 1 })
+    expect(eventDisplayLabel(named!)).toBe('消息开始')
   })
 })

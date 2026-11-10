@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, ref, watch } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import { parseTodoList } from '@/utils/todoList'
 import type { ActivityState } from '@/composables/useActivity'
 import type { PiMsg } from '@/composables/usePi'
@@ -55,37 +57,32 @@ function isDone(text: string) {
   <div class="workflow-panel">
     <div class="panel-head">
       <AppIcon name="list" :size="14" />
-      <span>工作流</span>
+      <span>{{ t('工作流') }}</span>
       <span v-if="tasks.length" class="count">{{ doneCount }}/{{ tasks.length }}</span>
-      <button v-if="dirtyTasks.size" class="reset" title="还原 Pi 的勾选结果" @click="reset">
+      <AppButton v-if="dirtyTasks.size" variant="icon" class="reset" :title="t('还原 Pi 的勾选结果')" @click="reset">
         <AppIcon name="refresh" :size="12" />
-      </button>
+      </AppButton>
     </div>
 
     <ul v-if="tasks.length" class="todo-list">
       <li
-        v-for="t in tasks"
-        :key="t.id"
+        v-for="task in tasks"
+        :key="task.id"
         class="todo"
-        :class="{ done: isDone(t.text), active: props.running && !isDone(t.text) }"
-        @click="toggle(t)"
+        :class="{ done: isDone(task.text), active: props.running && !isDone(task.text) }"
+        @click="toggle(task)"
       >
         <span class="check">
-          <AppIcon v-if="isDone(t.text)" name="check" :size="12" />
+          <AppIcon v-if="isDone(task.text)" name="check" :size="12" />
         </span>
-        <span class="text">{{ t.text }}</span>
-        <span v-if="t.done" class="from-pi" title="Pi 原始勾选结果">内核</span>
+        <span class="text">{{ task.text }}</span>
+        <span v-if="task.done" class="from-pi" :title="t('Pi 原始勾选结果')">{{ t('内核') }}</span>
       </li>
     </ul>
 
-    <p v-else class="note">
-      本轮回复里还没有任务清单。Pi 一旦在回答中写出
-      <code>- [ ] 待办</code> 形式的清单，条目会自动出现在这里。
-    </p>
+    <p v-else class="note">{{ t('本轮回复里还没有任务清单。Pi 一旦在回答中写出') }}<code>{{ t('- [ ] 待办') }}</code>{{ t('形式的清单，条目会自动出现在这里。') }}</p>
 
-    <p class="note">
-      勾选只作用于当前视图，不会回写内核；真实任务状态以 Pi 的输出为准。
-    </p>
+    <p class="note">{{ t('勾选只作用于当前视图，不会回写内核；真实任务状态以 Pi 的输出为准。') }}</p>
   </div>
 </template>
 

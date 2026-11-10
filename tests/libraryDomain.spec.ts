@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  CONVERT_TEXT,
-  KIND_TEXT,
-  ORIGIN_TEXT,
+  convertStatusText,
+  kindText,
+  originText,
   describeLibraryError,
   formatBytes,
   formatTime,
@@ -45,20 +45,24 @@ describe('错误码到人话', () => {
 describe('文案表覆盖后端会发出的取值', () => {
   it('来源文案覆盖 AssetOrigin.kind 的五种取值', () => {
     // Rust 侧 AssetOrigin::kind ∈ created / imported / written / draft-published / rollback
-    expect(Object.keys(ORIGIN_TEXT).sort()).toEqual(
-      ['created', 'draft-published', 'imported', 'rollback', 'written'].sort(),
-    )
+    for (const kind of ['created', 'imported', 'written', 'draft-published', 'rollback']) {
+      expect(originText(kind)).not.toBe(kind)
+    }
+    expect(originText('unknown')).toBe('unknown')
   })
 
   it('类型文案覆盖 AssetKind 的七种取值', () => {
-    expect(Object.keys(KIND_TEXT).sort()).toEqual(
-      ['docx', 'html', 'markdown', 'other', 'pdf', 'pptx', 'text'].sort(),
-    )
+    for (const kind of ['docx', 'html', 'markdown', 'other', 'pdf', 'pptx', 'text']) {
+      expect(kindText(kind)).toBeTruthy()
+    }
+    expect(kindText('unknown')).toBe('unknown')
   })
 
   it('转换状态文案覆盖 library_search 的三种取值', () => {
     // Rust 侧 convert_status ∈ ready / failed / skipped
-    expect(Object.keys(CONVERT_TEXT).sort()).toEqual(['failed', 'ready', 'skipped'])
+    for (const status of ['ready', 'failed', 'skipped']) {
+      expect(convertStatusText(status)).not.toBe(status)
+    }
   })
 })
 

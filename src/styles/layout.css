@@ -8,3 +8,66 @@
   min-width: 0;
   overflow: hidden;
 }
+
+/*
+ * 移动断点（≤900px）：侧栏由 Sidebar.vue 自动切成图标轨道（68px），
+ * 项目快捷列表收起，入口保留在「项目」导航页；主内容吃掉剩余宽度。
+ * ≤640px 时主内容不再留左右留白，头部允许换行（见 ChatView.css）。
+ */
+@media (max-width: 640px) {
+  .app-main {
+    overflow: auto;
+  }
+}
+
+/* 首次关窗询问：只做一次性说明 + 两个动作，不引入额外表单。 */
+.cc-desc {
+  margin: 0 0 var(--sp-3);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+}
+
+.cc-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.cc-list li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+}
+
+.cc-list strong {
+  font-size: var(--fs-sm);
+}
+
+.cc-list span {
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+}
+
+.cc-btn {
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-panel);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.cc-btn.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 /**
  * 插件市场 —— 发现社区插件与本地安装入口。
  *
@@ -9,7 +10,9 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { onTablistKeydown } from '@/composables/useTablist'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import { toolsActivate } from '@/composables/useTools'
@@ -43,13 +46,13 @@ interface Row {
   path: string
 }
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'discover', label: '发现' },
-  { key: 'themes', label: '主题' },
-  { key: 'favorites', label: '收藏' },
-  { key: 'installed', label: '已安装' },
-  { key: 'advanced', label: '高级' },
-]
+const TABS = computed<{ key: Tab; label: string }[]>(() => [
+  { key: 'discover', label: t('发现') },
+  { key: 'themes', label: t('主题') },
+  { key: 'favorites', label: t('收藏') },
+  { key: 'installed', label: t('已安装') },
+  { key: 'advanced', label: t('高级') },
+])
 
 const keyword = ref('')
 const tab = ref<Tab>('discover')
@@ -67,7 +70,7 @@ const allToolNames = computed(() => [
 
 /** 标签取自真实数据的 kind，不再写死一套永远匹配不到的社区分类。 */
 const TAGS = computed<{ key: string; label: string }[]>(() => [
-  { key: 'all', label: '全部' },
+  { key: 'all', label: t('全部') },
   ...[...new Set(installed.value.map((i) => i.kind || 'unknown'))].map((k) => ({
     key: k,
     label: k,
@@ -80,9 +83,9 @@ const allRows = computed<Row[]>(() =>
     name: i.name,
     // AUDIT-013：后端清单没有作者/版本字段，不再拿 App 版本冒充扩展版本、
     // 不再统一写成 'local'——没有就是没有，显示「未知」。
-    author: '未知',
-    version: '未知',
-    description: i.description || '未读取到说明',
+    author: t('未知'),
+    version: t('未知'),
+    description: i.description || t('未读取到说明'),
     tags: [i.kind || 'unknown'],
     hasTools: i.tools.length > 0,
     enabled: i.enabled,
@@ -107,7 +110,7 @@ async function setExtensionEnabled(tools: string[], enabled: boolean, label: str
   if (!tools.length) return
   try {
     await toolsActivate(tools, enabled)
-    marketNote.value = `「${label}」已${enabled ? '启用' : '禁用'}`
+    marketNote.value = t('「{0}」已{1}', [label, enabled ? t('启用') : t('禁用')])
   } catch (e: any) {
     error.value = String(e?.message ?? e)
     marketNote.value = ''
@@ -119,7 +122,7 @@ async function enableAll() {
   if (!allToolNames.value.length) return
   try {
     await toolsActivate(allToolNames.value, true)
-    marketNote.value = `已启用 ${allToolNames.value.length} 个工具`
+    marketNote.value = t('已启用 {0} 个工具', [allToolNames.value.length])
   } catch (e: any) {
     error.value = String(e?.message ?? e)
   }
@@ -138,7 +141,7 @@ async function copyDiagnostics() {
   try {
     await navigator.clipboard.writeText(lines.join('\n'))
   } catch {
-    error.value = '浏览器拒绝了剪贴板访问，请手动复制'
+    error.value = t('浏览器拒绝了剪贴板访问，请手动复制')
   }
 }
 
@@ -157,7 +160,7 @@ async function load() {
   try {
     installed.value = await invoke<ExtensionInfo[]>('extensions_list')
   } catch (e) {
-    error.value = e instanceof Error ? e.message : '插件清单不可用'
+    error.value = e instanceof Error ? e.message : t('插件清单不可用')
     installed.value = []
   } finally {
     busy.value = false
@@ -184,7 +187,7 @@ async function installExtension() {
   installNote.value = ''
   try {
     const res = await invoke<ExtensionInfo>('extensions_install_from_url', { url })
-    installNote.value = `「${res.name}」已写入 ${res.path}，重启内核后加载`
+    installNote.value = t('「{0}」已写入 {1}，重启内核后加载', [res.name, res.path])
     installUrl.value = ''
     await load()
   } catch (e: any) {
@@ -199,21 +202,18 @@ onMounted(load)
 <template>
   <section class="wd-community">
     <header class="community-head">
-      <button class="back-link" @click="tab = 'discover'">
+      <AppButton variant="text" class="back-link" @click="tab = 'discover'">
         <AppIcon name="arrow-left" :size="14" />
-        <span>插件列表</span>
-      </button>
+        <span>{{ t('插件列表') }}</span>
+      </AppButton>
     </header>
 
     <div class="community-hero">
       <span class="hero-icon"><AppIcon name="puzzle" :size="28" /></span>
       <div>
-        <h1>发现社区插件</h1>
-        <p>
-          已装 {{ installedCount }} 个扩展
-          <button class="hero-link" @click="showInstallModal = true">
-            从链接安装扩展 <AppIcon name="arrow-right" :size="12" />
-          </button>
+        <h1>{{ t('发现社区插件') }}</h1>
+        <p>{{ t('已装 {0} 个扩展', [installedCount]) }}<AppButton variant="text" class="hero-link" @click="showInstallModal = true">{{ t('从链接安装扩展') }}<AppIcon name="arrow-right" :size="12" />
+          </AppButton>
         </p>
       </div>
     </div>
@@ -222,84 +222,85 @@ onMounted(load)
       <div class="market-section-head">
         <div class="market-section-title">
           <AppIcon name="grid" :size="16" />
-          <strong>插件市场</strong>
-          <button
+          <strong>{{ t('插件市场') }}</strong>
+          <AppButton
+            variant="text"
             class="text-btn"
             :disabled="!disabledCount"
-            :title="disabledCount ? '把所有扩展的工具重新写进 defaultTools' : '已全部启用'"
+            :title="disabledCount ? t('把所有扩展的工具重新写进 defaultTools') : t('已全部启用')"
             @click="enableAll"
-          >
-            全部启用 ({{ disabledCount }})
-          </button>
+          >{{ t('全部启用 ({0})', [disabledCount]) }}</AppButton>
         </div>
-        <button class="tool-btn" title="复制内核与扩展诊断信息" @click="copyDiagnostics">
+        <AppButton variant="secondary" class="tool-btn" :title="t('复制内核与扩展诊断信息')" @click="copyDiagnostics">
           <AppIcon name="copy" :size="13" />
-          <span>诊断信息</span>
-        </button>
+          <span>{{ t('诊断信息') }}</span>
+        </AppButton>
       </div>
-      <p class="market-section-desc">
-        远端社区市场没有服务端，列表只展示本机已声明的扩展；需要新扩展请从直链安装。
-      </p>
+      <p class="market-section-desc">{{ t('远端社区市场没有服务端，列表只展示本机已声明的扩展；需要新扩展请从直链安装。') }}</p>
 
-      <nav class="market-tabs">
-        <button
+      <nav class="market-tabs" role="tablist" :aria-label="t('插件视图')" @keydown="onTablistKeydown">
+        <AppButton
           v-for="t in TABS"
           :key="t.key"
+          variant="tab"
+          role="tab"
+          :aria-selected="tab === t.key"
+          :tabindex="tab === t.key ? 0 : -1"
           class="market-tab"
           :class="{ active: tab === t.key }"
           @click="tab = t.key"
         >
           {{ t.label }}
           <span v-if="t.key === 'installed'" class="tab-badge">{{ installedCount }}</span>
-        </button>
+        </AppButton>
       </nav>
 
       <div class="market-tags">
-        <button
+        <AppButton
           v-for="t in TAGS"
           :key="t.key"
+          variant="chip"
           class="market-tag"
           :class="{ active: tag === t.key }"
+          :aria-pressed="tag === t.key"
           @click="tag = t.key"
         >
           {{ t.label }}{{ t.key === 'all' ? ` (${tagCount(t.key)})` : '' }}
-        </button>
+        </AppButton>
       </div>
 
       <div class="market-search">
         <AppIcon name="search" :size="14" />
-        <AppInput v-model="keyword" placeholder="搜索插件，例如：通知、终端、记忆" />
+        <AppInput v-model="keyword" :placeholder="t('搜索插件，例如：通知、终端、记忆')" />
       </div>
 
       <p v-if="marketNote" class="market-note" role="status">{{ marketNote }}</p>
       <p v-if="error" class="market-note" role="alert">{{ error }}</p>
-      <div v-if="busy" class="market-note" role="status">正在读取插件清单…</div>
+      <div v-if="busy" class="market-note" role="status">{{ t('正在读取插件清单…') }}</div>
 
       <div v-else-if="tab === 'themes'" class="market-empty">
-        <strong>主题</strong>
-        <span class="muted">外观主题由应用侧管理，即时切换，无需重启。</span>
-        <button class="tool-btn theme-pick" @click="pickTheme">
+        <strong>{{ t('主题') }}</strong>
+        <span class="muted">{{ t('外观主题由应用侧管理，即时切换，无需重启。') }}</span>
+        <AppButton variant="secondary" class="tool-btn theme-pick" @click="pickTheme">
           <AppIcon :name="themeNow === 'dark' ? 'moon' : 'sun'" :size="14" />
-          {{ themeNow === 'dark' ? '切到浅色' : '切到深色' }}
-        </button>
+          {{ themeNow === 'dark' ? t('切到浅色') : t('切到深色') }}
+        </AppButton>
       </div>
 
       <div v-else-if="tab === 'favorites'" class="market-empty">
-        <strong>还没有收藏</strong>
-        <span class="muted">收藏需要账号体系，当前版本尚未接入登录。</span>
+        <strong>{{ t('还没有收藏') }}</strong>
+        <span class="muted">{{ t('收藏需要账号体系，当前版本尚未接入登录。') }}</span>
       </div>
 
       <div v-else-if="tab === 'advanced'" class="market-empty">
-        <strong>高级设置</strong>
-        <span class="muted">
-          pi {{ PI_VERSION }} · 扩展 {{ installed.length }} 个 · 扩展目录
-          {{ installed[0]?.path.split('/').slice(0, -1).join('/') || '未知' }}
+        <strong>{{ t('高级设置') }}</strong>
+        <span class="muted">{{ t('pi {0} · 扩展 {1} 个 · 扩展目录 {2}', [PI_VERSION, installed.length, installed[0]?.path.split('/').slice(0, -1).join('/') || t('未知')]) }}
         </span>
       </div>
 
       <div v-else-if="!rows.length" class="market-empty">
-        <strong>{{ keyword ? '没有匹配的插件' : '暂无插件' }}</strong>
-        <span class="muted">{{ keyword ? '保留搜索词，可清除后重试。' : '切换标签或稍后再试。' }}</span>
+        <strong>{{ keyword ? t('没有匹配的插件') : t('暂无插件') }}</strong>
+        <span class="muted">{{ keyword ? t('保留搜索词，可清除后重试。') : t('切换标签或稍后再试。') }}</span>
       </div>
 
       <div v-else class="market-list">
@@ -311,44 +312,41 @@ onMounted(load)
               <span class="row-meta">
                 <i>@{{ p.author }}</i>
                 <i>{{ p.version }}</i>
-                <i v-if="p.enabled" class="row-flag">已载入</i>
+                <i v-if="p.enabled" class="row-flag">{{ t('已载入') }}</i>
               </span>
             </div>
             <p class="row-desc">{{ p.description }}</p>
             <div class="row-tags">
               <span v-for="(t, idx) in p.tags" :key="idx" class="row-tag">{{ t }}</span>
             </div>
-            <p v-if="p.hasTools" class="row-tools">
-              工具：{{ p.tools.join('、') }}
+            <p v-if="p.hasTools" class="row-tools">{{ t('工具：{0}', [p.tools.join('、')]) }}
             </p>
           </div>
           <div class="row-actions">
-            <button
+            <AppButton
+              variant="secondary"
               class="row-install"
               :class="{ installed: p.enabled }"
               :disabled="!p.hasTools"
               :title="
                 p.hasTools
                   ? p.enabled
-                    ? '从内核默认工具里移除'
-                    : '把工具写进内核默认工具'
-                  : '该扩展不提供工具'
+                    ? t('从内核默认工具里移除')
+                    : t('把工具写进内核默认工具')
+                  : t('该扩展不提供工具')
               "
               @click="setExtensionEnabled(p.tools, !p.enabled, p.name)"
             >
-              {{ p.hasTools ? (p.enabled ? '已启用' : '启用') : '无工具' }}
-            </button>
+              {{ p.hasTools ? (p.enabled ? t('已启用') : t('启用')) : t('无工具') }}
+            </AppButton>
           </div>
         </article>
       </div>
     </div>
 
     <!-- AUDIT-013：手搓 modal-mask/modal-card → UI Kit AppModal -->
-    <AppModal :open="showInstallModal" title="从链接安装扩展" size="md" @close="showInstallModal = false">
-      <p class="modal-desc">
-        粘贴一个 <code>.ts</code> 扩展直链。后端只放行 http/https，下载后按文件名白名单落盘到
-        <code>extensions/</code>，重启内核后由 Pi 加载。
-      </p>
+    <AppModal :open="showInstallModal" :title="t('从链接安装扩展')" size="md" @close="showInstallModal = false">
+      <p class="modal-desc">{{ t('粘贴一个') }}<code>.ts</code>{{ t('扩展直链。后端只放行 http/https，下载后按文件名白名单落盘到') }}<code>extensions/</code>{{ t('，重启内核后由 Pi 加载。') }}</p>
       <AppInput
         v-model="installUrl"
         placeholder="https://example.com/my-ext.ts"
@@ -357,13 +355,14 @@ onMounted(load)
       <p v-if="installError" class="market-note" role="alert">{{ installError }}</p>
       <p v-if="installNote" class="market-note" role="status">{{ installNote }}</p>
       <template #footer>
-        <button
-          class="tool-btn"
+        <AppButton
+          variant="primary"
+          class="tool-btn primary"
           :disabled="!installUrl.trim() || installing"
           @click="installExtension"
         >
-          {{ installing ? '安装中…' : '安装' }}
-        </button>
+          {{ installing ? t('安装中…') : t('安装') }}
+        </AppButton>
       </template>
     </AppModal>
   </section>

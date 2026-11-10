@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { invoke } from '@tauri-apps/api/core'
 import { isTauriRuntime } from '@/composables/useRuntime'
 
@@ -13,8 +14,8 @@ import { isTauriRuntime } from '@/composables/useRuntime'
  *   · 读：返回空值，让页面走空态，解释交给顶部的 RuntimeNote 横幅；
  *   · 写：抛一条可读的中文错误，因为写操作确实没有发生，不能假装成功。
  */
-const NEED_TAURI =
-  '需在桌面 App（pnpm tauri dev）中运行：浏览器预览没有 Tauri 通道，该操作不会落盘。'
+const needTauri = () =>
+  t('需在桌面 App（pnpm tauri dev）中运行：浏览器预览没有 Tauri 通道，该操作不会落盘。')
 
 function read<T>(cmd: string, fallback: T): Promise<T> {
   if (!isTauriRuntime()) return Promise.resolve(fallback)
@@ -22,7 +23,7 @@ function read<T>(cmd: string, fallback: T): Promise<T> {
 }
 
 function write<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
-  if (!isTauriRuntime()) return Promise.reject(new Error(NEED_TAURI))
+  if (!isTauriRuntime()) return Promise.reject(new Error(needTauri()))
   return invoke<T>(cmd, args)
 }
 
@@ -36,9 +37,34 @@ export interface TeamEntry {
 }
 
 export interface MemoryEntry {
+  id: string
   ts: number
   text: string
   tags: string[]
+  source?: string
+  jobId?: string
+}
+
+/** 待撤销条目：删除后 24 小时内可恢复，到期由调度 tick 硬失效。 */
+export interface MemoryTrashEntry extends MemoryEntry {
+  deletedAt: number
+  purgeAt: number
+}
+
+/** 画像字段：由记忆保留标签折叠，只读视图。 */
+export interface ProfileField {
+  value: string
+  evidence: string[]
+  updatedAt: number
+}
+
+export interface MemoryProfile {
+  preference?: ProfileField
+  taboo?: ProfileField
+  goal?: ProfileField
+  workflow?: ProfileField
+  generatedAt: number
+  sourceMtime: number
 }
 
 export interface SkillPoolEntry {
@@ -78,6 +104,7 @@ export interface BrowserStatus {
 // 查询（读）：非 Tauri 时返回空值，页面走空态。
 export const agentTeamsList = () => read<TeamEntry[]>('agent_teams_list', [])
 export const agentMemoryList = () => read<MemoryEntry[]>('agent_memory_list', [])
+export const agentMemoryTrash = () => read<MemoryTrashEntry[]>('agent_memory_trash', [])
 export const agentSkillPoolList = () => read<SkillPoolEntry[]>('agent_skillpool_list', [])
 export const agentBrowserStatus = () => read<BrowserStatus>('agent_browser_status', { active: false })
 
@@ -86,6 +113,21 @@ export const agentTeamCreate = (name: string, members: string[], strategy?: stri
   write<TeamEntry>('agent_team_create', { name, members, strategy: strategy ?? null })
 export const agentMemoryStore = (text: string, tags: string[]) =>
   write<MemoryEntry>('agent_memory_store', { text, tags })
+/** 删除记忆：进入 24 小时待撤销态，召回立即不可见。返回删除后的有效列表。 */
+export const agentMemoryForget = (id: string) =>
+  write<MemoryEntry[]>('agent_memory_forget', { id })
+/** 撤销删除：恢复为有效记忆。返回恢复后的有效列表。 */
+export const agentMemoryRestore = (id: string) =>
+  write<MemoryEntry[]>('agent_memory_restore', { id })
+/** 立即永久删除：跳过 24 小时窗口，写审计后不可恢复。 */
+export const agentMemoryPurge = (id: string) =>
+  write<MemoryEntry[]>('agent_memory_purge', { id })
+/** 更正记忆：追加 update 事件，原行保留作审计。 */
+export const agentMemoryUpdate = (id: string, text: string, tags: string[]) =>
+  write<MemoryEntry[]>('agent_memory_update', { id, text, tags })
+/** 用户画像：由记忆保留标签折叠出的只读视图。 */
+export const agentProfileGet = () =>
+  read<MemoryProfile>('agent_profile_get', { generatedAt: 0, sourceMtime: 0 })
 export const agentSkillPublish = (name: string, description: string, body: string) =>
   write<SkillPoolEntry>('agent_skill_publish', { name, description, body })
 

@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 /**
  * 专家域前端封装 —— 草稿 / 校验 / 发布确认链路。
  *
@@ -145,18 +146,20 @@ export async function expertPublish(
   })
 }
 
-const ERROR_TEXT: Array<[string, string]> = [
-  ['experts/confirmation-required', '还需要你确认一次发布授权'],
-  ['experts/confirmation-stale', '授权已过期或内容已变更，请重新确认'],
-  ['experts/revision-conflict', '这份草稿已被改过，请刷新后重试'],
-  ['experts/invalid-definition', '定义尚未通过校验，不能发布'],
-  ['experts/draft-not-found', '草稿不存在，请先保存再发布'],
-  ['experts/draft-unreadable', '草稿读取失败，可能被外部改坏了'],
-]
+function expertErrorTable(): Array<[string, string]> {
+  return [
+  ['experts/confirmation-required', t('还需要你确认一次发布授权')],
+  ['experts/confirmation-stale', t('授权已过期或内容已变更，请重新确认')],
+  ['experts/revision-conflict', t('这份草稿已被改过，请刷新后重试')],
+  ['experts/invalid-definition', t('定义尚未通过校验，不能发布')],
+  ['experts/draft-not-found', t('草稿不存在，请先保存再发布')],
+  ['experts/draft-unreadable', t('草稿读取失败，可能被外部改坏了')],
+  ]
+}
 
-export function describeExpertError(err: unknown, fallback = '操作失败'): string {
+export function describeExpertError(err: unknown, fallback = t('操作失败')): string {
   const raw = String((err as { message?: string })?.message ?? err)
-  for (const [code, text] of ERROR_TEXT) {
+  for (const [code, text] of expertErrorTable()) {
     if (raw.includes(code)) return text
   }
   return fallback

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, onMounted, ref, watch } from 'vue'
 import { marked } from 'marked'
 import {
@@ -12,6 +13,7 @@ import { officeToHtml } from '@/composables/useOfficePreview'
 import { IN_TAURI } from '@/composables/usePi'
 import { sanitizeHtml } from '@/utils/sanitizeHtml'
 import AppModal from '@/components/ui/AppModal.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 
 const props = defineProps<{ artifact: Artifact; root: string }>()
 const emit = defineEmits<{ close: [] }>()
@@ -87,31 +89,30 @@ watch(() => props.artifact.path, load)
   <AppModal :open="true" :title="artifact.name" size="xl" @close="emit('close')">
     <div class="ap-bar">
       <span class="path" :title="artifact.path">{{ artifact.path }}</span>
-      <button
+      <AppButton
+        variant="secondary"
         class="ext"
         :disabled="opening || !IN_TAURI"
-        :title="IN_TAURI ? '用系统默认应用打开' : '仅桌面 App 可调用系统应用'"
+        :title="IN_TAURI ? t('用系统默认应用打开') : t('仅桌面 App 可调用系统应用')"
         @click="onOpenExternal"
       >
-        {{ opening ? '打开中…' : '用外部应用打开' }}
-      </button>
+        {{ opening ? t('打开中…') : t('用外部应用打开') }}
+      </AppButton>
     </div>
 
-    <div v-if="content && isOfficeKind(content.kind)" class="caveat">
-      只读预览：还原阅读版式，<b>不承诺与 Office 逐项保真</b>。复杂排版请用「用外部应用打开」。
-    </div>
+    <div v-if="content && isOfficeKind(content.kind)" class="caveat">{{ t('只读预览：还原阅读版式，') }}<b>{{ t('不承诺与 Office 逐项保真') }}</b>{{ t('。复杂排版请用「用外部应用打开」。') }}</div>
 
     <div class="stage">
-      <div v-if="loading" class="state">读取中…</div>
+      <div v-if="loading" class="state">{{ t('读取中…') }}</div>
       <div v-else-if="error" class="state err">{{ error }}</div>
-      <div v-else-if="!content" class="state">没有可预览的内容</div>
+      <div v-else-if="!content" class="state">{{ t('没有可预览的内容') }}</div>
 
       <iframe
         v-else-if="content.kind === 'html' || content.kind === 'svg'"
         class="frame"
         :srcdoc="content.content"
         sandbox=""
-        title="预览"
+        :title="t('预览')"
       ></iframe>
 
       <img
@@ -126,9 +127,7 @@ watch(() => props.artifact.path, load)
       <div v-else-if="content.kind === 'markdown'" class="md" v-html="rendered"></div>
       <div v-else class="md" v-html="rendered"></div>
 
-      <p v-if="content?.truncated" class="trunc">
-        内容超过 512 KB，已截断显示。完整文件请用上方「用外部应用打开」查看。
-      </p>
+      <p v-if="content?.truncated" class="trunc">{{ t('内容超过 512 KB，已截断显示。完整文件请用上方「用外部应用打开」查看。') }}</p>
     </div>
   </AppModal>
 </template>

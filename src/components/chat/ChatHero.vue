@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, ref } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
 import RoleSwitcher from '@/components/layout/RoleSwitcher.vue'
 import ModeSwitcher from '@/components/chat/ModeSwitcher.vue'
+// 档位是全局偏好：落地页直接读同一份状态，不再维护本地影子值。
+import { thinkingLevel, setThinkingMode } from '@/composables/useThinkingMode'
 import ModelSwitcher from '@/components/chat/ModelSwitcher.vue'
 import WorkspacePicker from '@/components/chat/WorkspacePicker.vue'
 // 走打包器而不是 public/：模板里的静态 `/xxx.png` 会被当项目根路径解析，
@@ -37,18 +41,15 @@ const emit = defineEmits<{
 
 type Category = 'office' | 'code' | 'design'
 
-type QuickMode = '快速' | '标准' | '深度'
-
 const category = ref<Category>('office')
 const draft = ref('')
-const quickMode = ref<QuickMode>('标准')
 
 /** 父级正在选目录时，发送要等一下——否则会把「选完再补发」的顺序打乱。 */
 const busy = computed(() => Boolean(props.busy))
 
-/** 模式不是装饰：选中即上报，由父级翻译成内核的 thinking level。 */
+/** 模式不是装饰：先落全局档位，再由父级翻译成内核的 thinking level。 */
 function pickMode(mode: string) {
-  quickMode.value = mode as QuickMode
+  setThinkingMode(mode)
   emit('pick-mode', mode)
 }
 
@@ -58,46 +59,46 @@ function pickMode(mode: string) {
  * 图标只借用少量色相做区分，选中态一律走全局强调色 ——
  * 首页出现第二套主色（绿/橙）会和侧栏、按钮的强调色打架，看起来像两个产品。
  */
-const categories: { id: Category; label: string; icon: string }[] = [
-  { id: 'office', label: '日常办公', icon: 'doc' },
-  { id: 'code', label: '代码开发', icon: 'code' },
-  { id: 'design', label: '设计创意', icon: 'image' },
-]
+const categories = computed<{ id: Category; label: string; icon: string }[]>(() => [
+  { id: 'office', label: t('日常办公'), icon: 'doc' },
+  { id: 'code', label: t('代码开发'), icon: 'code' },
+  { id: 'design', label: t('设计创意'), icon: 'image' },
+])
 
-const skillMap: Record<Category, { text: string; icon: string }[]> = {
+const skillMap = computed<Record<Category, { text: string; icon: string }[]>>(() => ({
   office: [
-    { text: '文档处理', icon: 'doc' },
-    { text: '会议纪要', icon: 'chat' },
-    { text: '邮件撰写', icon: 'send' },
-    { text: '数据分析', icon: 'chart' },
-    { text: 'PPT 生成', icon: 'slide' },
-    { text: '表格处理', icon: 'table' },
-    { text: '周报总结', icon: 'list' },
-    { text: '知识整理', icon: 'book' },
+    { text: t('文档处理'), icon: 'doc' },
+    { text: t('会议纪要'), icon: 'chat' },
+    { text: t('邮件撰写'), icon: 'send' },
+    { text: t('数据分析'), icon: 'chart' },
+    { text: t('PPT 生成'), icon: 'slide' },
+    { text: t('表格处理'), icon: 'table' },
+    { text: t('周报总结'), icon: 'list' },
+    { text: t('知识整理'), icon: 'book' },
   ],
   code: [
-    { text: '代码生成', icon: 'zap' },
-    { text: '代码审查', icon: 'eye' },
-    { text: 'Bug 修复', icon: 'refresh' },
-    { text: '重构', icon: 'layers' },
-    { text: '写测试', icon: 'check' },
-    { text: '生成文档', icon: 'doc' },
-    { text: '解释代码', icon: 'terminal' },
-    { text: '技术调研', icon: 'search' },
+    { text: t('代码生成'), icon: 'zap' },
+    { text: t('代码审查'), icon: 'eye' },
+    { text: t('Bug 修复'), icon: 'refresh' },
+    { text: t('重构'), icon: 'layers' },
+    { text: t('写测试'), icon: 'check' },
+    { text: t('生成文档'), icon: 'doc' },
+    { text: t('解释代码'), icon: 'terminal' },
+    { text: t('技术调研'), icon: 'search' },
   ],
   design: [
-    { text: 'UI 设计', icon: 'monitor' },
-    { text: '图标生成', icon: 'sparkles' },
-    { text: '图片处理', icon: 'image' },
-    { text: '配色方案', icon: 'sun' },
-    { text: '设计规范', icon: 'grid' },
-    { text: '原型生成', icon: 'box' },
-    { text: '海报设计', icon: 'layout-sidebar' },
-    { text: '插画建议', icon: 'heart' },
+    { text: t('UI 设计'), icon: 'monitor' },
+    { text: t('图标生成'), icon: 'sparkles' },
+    { text: t('图片处理'), icon: 'image' },
+    { text: t('配色方案'), icon: 'sun' },
+    { text: t('设计规范'), icon: 'grid' },
+    { text: t('原型生成'), icon: 'box' },
+    { text: t('海报设计'), icon: 'layout-sidebar' },
+    { text: t('插画建议'), icon: 'heart' },
   ],
-}
+}))
 
-const skills = computed(() => skillMap[category.value])
+const skills = computed(() => skillMap.value[category.value])
 
 /**
  * 发送。
@@ -140,10 +141,10 @@ function onKeydown(e: KeyboardEvent) {
     <div class="hero-card">
       <div class="hero-brand">
         <div class="hero-art">
-          <img class="hero-mascot" :src="mascotUrl" alt="Pi Workbench 吉祥物" />
+          <img class="hero-mascot" :src="mascotUrl" :alt="t('Pi Workbench 吉祥物')" />
         </div>
         <h1 class="hero-title">Pi Workbench</h1>
-        <p class="hero-sub">选一个工作目录，用一句话把任务交给 Pi</p>
+        <p class="hero-sub">{{ t('选一个工作目录，用一句话把任务交给 Pi') }}</p>
       </div>
 
       <!--
@@ -157,8 +158,8 @@ function onKeydown(e: KeyboardEvent) {
             class="hero-input"
             :placeholder="
               cwd
-                ? '今天帮你做些什么？'
-                : '直接描述你的任务 —— 发送时会先让你选一个工作目录'
+                ? t('今天帮你做些什么？')
+                : t('直接描述你的任务 —— 发送时会先让你选一个工作目录')
             "
             :rows="2"
             @keydown="onKeydown"
@@ -179,7 +180,7 @@ function onKeydown(e: KeyboardEvent) {
               <span class="bar-sep" aria-hidden="true" />
 
               <!-- 模型：内核只在启动时读模型，所以切换会重启内核 -->
-              <div class="bar-chip" title="本轮对话使用的模型（切换会重启内核）">
+              <div class="bar-chip" :title="t('本轮对话使用的模型（切换会重启内核）')">
                 <AppIcon name="cpu" :size="13" />
                 <ModelSwitcher width="124px" />
               </div>
@@ -187,29 +188,30 @@ function onKeydown(e: KeyboardEvent) {
               <span class="bar-sep" aria-hidden="true" />
 
               <!-- 角色是项目级配置：选了项目才能切；没项目时说明白为什么点不动。 -->
-              <div class="bar-chip" :title="cwd ? '默认权限' : '选择项目后可切换权限'">
+              <div class="bar-chip" :title="cwd ? t('默认权限') : t('选择项目后可切换权限')">
                 <AppIcon name="user" :size="13" />
                 <RoleSwitcher v-if="cwd" :root="cwd" width="100px" />
-                <span v-else class="bar-muted">默认权限</span>
+                <span v-else class="bar-muted">{{ t('默认权限') }}</span>
               </div>
             </div>
 
             <div class="bar-right">
-              <ModeSwitcher :model-value="quickMode" @update:model-value="pickMode" />
-              <button
-                type="button"
+              <ModeSwitcher :model-value="thinkingLevel" @update:model-value="pickMode" />
+              <AppButton
+                variant="icon"
                 class="hero-send"
+                :title="t('发送')"
+                :aria-label="t('发送')"
                 :disabled="!draft.trim() || busy"
                 @click="submit"
               >
                 <AppIcon name="send" :size="16" />
-              </button>
+              </AppButton>
             </div>
           </div>
         </div>
         <p class="hero-hint">
-          <AppIcon name="corner-down-left" :size="11" /> Enter 发送 · Shift+Enter 换行
-        </p>
+          <AppIcon name="corner-down-left" :size="11" />{{ t('Enter 发送 · Shift+Enter 换行') }}</p>
       </div>
 
       <!--
@@ -218,28 +220,30 @@ function onKeydown(e: KeyboardEvent) {
       -->
       <div class="hero-suggest">
         <div class="cat-track">
-          <button
+          <AppButton
             v-for="c in categories"
             :key="c.id"
+            variant="secondary"
             class="cat-pill"
             :class="{ on: category === c.id }"
             @click="category = c.id"
           >
             <span class="cat-icon"><AppIcon :name="c.icon" :size="13" /></span>
             <span>{{ c.label }}</span>
-          </button>
+          </AppButton>
         </div>
 
         <div class="hero-skills">
-          <button
+          <AppButton
             v-for="s in skills"
             :key="s.text"
+            variant="secondary"
             class="skill-chip"
             @click="pickSkill(s.text)"
           >
             <AppIcon :name="s.icon" :size="12" />
             <span>{{ s.text }}</span>
-          </button>
+          </AppButton>
         </div>
       </div>
     </div>

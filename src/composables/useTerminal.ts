@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentScope, onScopeDispose, ref } from 'vue'
 
-export function useTerminal(getCwd: () => string) {
+export function useTerminal(getCwd: () => string, getRoot: () => string) {
   const lines = ref<{ stream: string; line: string }[]>([])
   const running = ref(false)
   let unOut: UnlistenFn | null = null
@@ -25,7 +25,13 @@ export function useTerminal(getCwd: () => string) {
     activeId = `t${Date.now()}`
     lines.value.push({ stream: 'cmd', line: `$ ${cmd}` })
     running.value = true
-    await invoke('term_exec', { id: activeId, cwd: getCwd(), cmd })
+    try {
+      // 根目录约束在后端执行（fs::resolve）；越界时 invoke 直接 reject。
+      await invoke('term_exec', { id: activeId, cwd: getCwd(), cmd, root: getRoot() })
+    } catch (e) {
+      lines.value.push({ stream: 'err', line: String(e) })
+      running.value = false
+    }
   }
 
   function clear() {

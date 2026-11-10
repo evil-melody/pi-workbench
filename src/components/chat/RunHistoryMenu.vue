@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { t } from '@/i18n'
+import { computed, nextTick, ref } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import { useCtxMenu } from '@/composables/useCtxMenu'
+import { focusFirstMenuItem, onMenuKeydown } from '@/composables/useMenuKeys'
 import type { RunRecord } from '@/composables/useReplay'
 
 /**
@@ -25,6 +28,7 @@ const emit = defineEmits<{
 }>()
 
 const target = ref<RunRecord | null>(null)
+const menuEl = ref<HTMLElement | null>(null)
 const { open: menuOpen, style: menuStyle, openAt, close } = useCtxMenu(188)
 
 /** 当前菜单对应的记录（打开期间非空；模板先过 menuOpen 闸再用 item）。 */
@@ -34,6 +38,8 @@ const item = computed(() => target.value)
 function open(r: RunRecord, anchor: HTMLElement) {
   target.value = r
   openAt(anchor)
+  // 打开即聚焦首项：方向键与 Enter/Space 立刻可用，不必先 Tab。
+  void nextTick(() => focusFirstMenuItem(menuEl.value))
 }
 
 /** 记录类菜单项（payload 均为 RunRecord）的统一出口：发意图 → 关菜单。 */
@@ -61,90 +67,90 @@ defineExpose({ open, close })
 
 <template>
   <Teleport to="body">
-    <div v-if="menuOpen && item" class="ctx-menu" :style="menuStyle" role="menu">
-      <button
-        type="button"
+    <div v-if="menuOpen && item" ref="menuEl" class="ctx-menu" :style="menuStyle" role="menu" @keydown="onMenuKeydown">
+      <AppButton
+        variant="menu-item"
         class="ctx-menu-item"
         role="menuitem"
         @click="pick('open')"
       >
         <AppIcon name="history" :size="15" />
-        <span>打开这条记录</span>
-      </button>
-      <button
-        type="button"
+        <span>{{ t('打开这条记录') }}</span>
+      </AppButton>
+      <AppButton
+        variant="menu-item"
         class="ctx-menu-item"
         role="menuitem"
         @click="pick('pin')"
       >
         <AppIcon name="star" :size="15" />
-        <span>{{ item!.pinned ? '取消置顶' : '置顶' }}</span>
-      </button>
-      <button
-        type="button"
+        <span>{{ item!.pinned ? t('取消置顶') : t('置顶') }}</span>
+      </AppButton>
+      <AppButton
+        variant="menu-item"
         class="ctx-menu-item"
         role="menuitem"
         @click="pick('rename')"
       >
         <AppIcon name="edit" :size="15" />
-        <span>重命名</span>
-      </button>
-      <button
-        type="button"
+        <span>{{ t('重命名') }}</span>
+      </AppButton>
+      <AppButton
+        variant="menu-item"
         class="ctx-menu-item"
         role="menuitem"
         @click="pick('share')"
       >
         <AppIcon name="copy" :size="15" />
-        <span>分享任务</span>
-      </button>
+        <span>{{ t('分享任务') }}</span>
+      </AppButton>
       <div class="ctx-menu-sep" role="separator"></div>
-      <button
-        type="button"
+      <AppButton
+        variant="menu-item"
         class="ctx-menu-item"
         role="menuitem"
         @click="pick('window')"
       >
         <AppIcon name="external" :size="15" />
-        <span>在独立窗口中打开</span>
-      </button>
-      <button
-        type="button"
+        <span>{{ t('在独立窗口中打开') }}</span>
+      </AppButton>
+      <AppButton
+        variant="menu-item"
         class="ctx-menu-item"
         role="menuitem"
         @click="pick('folder')"
       >
         <AppIcon name="folder-open" :size="15" />
-        <span>打开文件夹</span>
-      </button>
-      <button
-        type="button"
+        <span>{{ t('打开文件夹') }}</span>
+      </AppButton>
+      <AppButton
+        variant="menu-item"
         class="ctx-menu-item"
         role="menuitem"
         @click="emit('bulk'); close()"
       >
         <AppIcon name="list" :size="15" />
-        <span>批量操作</span>
-      </button>
+        <span>{{ t('批量操作') }}</span>
+      </AppButton>
       <div class="ctx-menu-sep" role="separator"></div>
-      <button
-        type="button"
+      <AppButton
+        variant="menu-item"
         class="ctx-menu-item"
         role="menuitem"
         @click="pick('archive')"
       >
         <AppIcon name="box" :size="15" />
-        <span>{{ item!.archived ? '取消归档' : '归档' }}</span>
-      </button>
-      <button
-        type="button"
+        <span>{{ item!.archived ? t('取消归档') : t('归档') }}</span>
+      </AppButton>
+      <AppButton
+        variant="menu-item"
         class="ctx-menu-item danger"
         role="menuitem"
         @click="pick('delete')"
       >
         <AppIcon name="trash" :size="15" />
-        <span>删除任务</span>
-      </button>
+        <span>{{ t('删除任务') }}</span>
+      </AppButton>
     </div>
   </Teleport>
 </template>

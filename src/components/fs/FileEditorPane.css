@@ -101,3 +101,39 @@
   font-size: 12px;
   color: var(--text-faint);
 }
+
+.office-preview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.office-caveat {
+  margin: 0;
+  padding: 4px var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-dim);
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.office {
+  padding: var(--sp-3);
+}
+
+.office :deep(table) {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.office :deep(td),
+.office :deep(th) {
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+}
+
+.office :deep(.sname) {
+  margin: var(--sp-3) 0 var(--sp-2);
+  font-size: 13px;
+  color: var(--text);
+}

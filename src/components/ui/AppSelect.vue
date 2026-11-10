@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import AppButton from './AppButton.vue'
 
 export interface SelectOption {
   value: string
@@ -23,7 +25,7 @@ const items = computed(() => props.options ?? [])
 
 const shown = computed(() => {
   const hit = items.value.find((o) => o.value === props.modelValue)
-  return hit?.label ?? props.placeholder ?? '请选择'
+  return hit?.label ?? props.placeholder ?? t('请选择')
 })
 
 function pick(o: SelectOption) {
@@ -53,8 +55,8 @@ onBeforeUnmount(() => {
   <!-- AUDIT-019：宽度经 CSS 自定义属性传入（功能性动态值，豁免纯样式抽离铁律），
        不再裸写 { width } 内联样式。 -->
   <div ref="root" class="app-select" :style="width ? { '--select-w': width } : undefined">
-    <button
-      type="button"
+    <AppButton
+      variant="secondary"
       class="trigger"
       :class="{ open }"
       :disabled="disabled"
@@ -63,7 +65,7 @@ onBeforeUnmount(() => {
     >
       <span class="label">{{ shown }}</span>
       <span class="caret" aria-hidden="true">▾</span>
-    </button>
+    </AppButton>
 
     <ul v-if="open" class="menu" role="listbox">
       <li
@@ -78,7 +80,7 @@ onBeforeUnmount(() => {
         <span class="opt-label">{{ o.label }}</span>
         <span v-if="o.hint" class="opt-hint">{{ o.hint }}</span>
       </li>
-      <li v-if="!items.length" class="opt-empty">暂无可选项</li>
+      <li v-if="!items.length" class="opt-empty">{{ t('暂无可选项') }}</li>
     </ul>
   </div>
 </template>

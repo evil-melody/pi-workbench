@@ -12,9 +12,12 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 export function useCtxMenu(width = 180) {
   const open = ref(false)
   const style = ref<Record<string, string>>({})
+  /** Esc 关闭后焦点回到打开菜单的元素，键盘用户不丢位置。 */
+  let returnFocus: HTMLElement | null = null
 
   /** 在锚点元素下方打开菜单（锚点取整行高亮的行容器/列表项）。 */
   function openAt(anchor: HTMLElement) {
+    returnFocus = (document.activeElement as HTMLElement | null) ?? anchor
     const r = anchor.getBoundingClientRect()
     const left = Math.min(Math.max(8, r.right - width), window.innerWidth - width - 8)
     style.value = {
@@ -25,8 +28,10 @@ export function useCtxMenu(width = 180) {
     open.value = true
   }
 
-  function close() {
+  function close(restoreFocus = false) {
     open.value = false
+    if (restoreFocus) returnFocus?.focus()
+    returnFocus = null
   }
 
   function onDocClick(e: MouseEvent) {
@@ -34,7 +39,7 @@ export function useCtxMenu(width = 180) {
   }
 
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') close()
+    if (e.key === 'Escape') close(true)
   }
 
   onMounted(() => {

@@ -1,17 +1,15 @@
 <template>
   <div class="sess">
     <div class="bar">
-      <button :disabled="loading" @click="refresh">
+      <AppButton variant="secondary" :disabled="loading" @click="refresh">
         <AppIcon name="refresh" :size="12" />
-        <span>刷新</span>
-      </button>
-      <button :disabled="!forkable || loading" @click="forkEnd" title="重新打开最后一条用户消息，从这里续跑新分支">
-        分叉末端
-      </button>
-      <span class="count">{{ nodes.length }} 条</span>
+        <span>{{ t('刷新') }}</span>
+      </AppButton>
+      <AppButton variant="secondary" :disabled="!forkable || loading" @click="forkEnd" :title="t('重新打开最后一条用户消息，从这里续跑新分支')">{{ t('分叉末端') }}</AppButton>
+      <span class="count">{{ t('{0} 条', [nodes.length]) }}</span>
     </div>
 
-    <div v-if="empty" class="empty">暂无会话条目。发起一次对话后，这里会长出分支树。</div>
+    <div v-if="empty" class="empty">{{ t('暂无会话条目。发起一次对话后，这里会长出分支树。') }}</div>
 
     <ul v-else class="rows">
       <li
@@ -27,14 +25,15 @@
         <span class="body" :title="row.text">{{ short(row.text) }}</span>
         <span class="meta">
           <span v-if="row.time" class="time">{{ row.time }}</span>
-          <button
+          <AppButton
+            variant="icon"
             class="fork"
             :disabled="!canFork(row) || loading"
-            :title="canFork(row) ? '从此条目分叉：后续对话在该点 reopen' : 'Pi 内核只允许从用户消息分叉'"
+            :title="canFork(row) ? t('从此条目分叉：后续对话在该点 reopen') : t('Pi 内核只允许从用户消息分叉')"
             @click.stop="fork(row.id)"
           >
             <AppIcon name="branch" :size="11" />
-          </button>
+          </AppButton>
         </span>
       </li>
     </ul>
@@ -44,8 +43,10 @@
 </template>
 
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import { usePi } from '@/composables/usePi'
 import { canFork, forkTargetId, iconOf, visibleNodes } from '@/composables/useSessionTree'
 import type { FlatNode } from '@/composables/useSessionTree'
@@ -116,7 +117,7 @@ function forkEnd() {
 function select(row: FlatNode) {
   if (row.isLeaf) return
   if (!canFork(row)) {
-    error.value = '只能从用户消息分叉（Pi 内核约束）。'
+    error.value = t('只能从用户消息分叉（Pi 内核约束）。')
     return
   }
   fork(row.id)

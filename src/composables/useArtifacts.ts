@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { invoke } from '@tauri-apps/api/core'
 import { ref, watch, type Ref } from 'vue'
 import { IN_TAURI, type PiMsg } from './usePi'
@@ -105,7 +106,7 @@ export function readArtifact(
   artifact: Artifact,
 ): Promise<ArtifactContent> {
   if (!IN_TAURI) {
-    return Promise.reject(new Error('当前是浏览器模式，无法读取文件'))
+    return Promise.reject(new Error(t('当前是浏览器模式，无法读取文件')))
   }
   return invoke<ArtifactContent>('artifacts_read', { root, path: artifact.path })
 }
@@ -117,7 +118,7 @@ export function isOfficeKind(kind: ArtifactKind): boolean {
 
 /** 调系统默认应用打开。浏览器模式下没有系统，直接给可读原因。 */
 export async function openExternal(path: string): Promise<void> {
-  if (!IN_TAURI) throw new Error('当前是浏览器模式，无法调用系统应用')
+  if (!IN_TAURI) throw new Error(t('当前是浏览器模式，无法调用系统应用'))
   await invoke('artifacts_open', { path })
 }
 

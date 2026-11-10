@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 /**
  * 404 兜底页（AUDIT-006）。
  *
@@ -6,6 +7,7 @@
  * vue-router 静默不匹配，页面整片空白——用户得到的是「白屏」而不是「路走错了」。
  */
 import { useRouter } from 'vue-router'
+import AppButton from '@/components/ui/AppButton.vue'
 
 const router = useRouter()
 
@@ -18,9 +20,9 @@ function backHome() {
   <section class="not-found">
     <div class="nf-card">
       <span class="nf-code">404</span>
-      <h1 class="nf-title">页面不存在</h1>
-      <p class="nf-desc">这个路径没有对应的功能页。可能是链接已失效，或地址拼写有误。</p>
-      <button type="button" class="nf-btn" @click="backHome">返回对话</button>
+      <h1 class="nf-title">{{ t('页面不存在') }}</h1>
+      <p class="nf-desc">{{ t('这个路径没有对应的功能页。可能是链接已失效，或地址拼写有误。') }}</p>
+      <AppButton variant="primary" class="nf-btn" @click="backHome">{{ t('返回对话') }}</AppButton>
     </div>
   </section>
 </template>

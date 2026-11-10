@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { open } from '@tauri-apps/plugin-dialog'
 
 /**
@@ -26,7 +27,8 @@ export const PICK_TIMEOUT_MS = 120_000
  * 超时提示文案：三处入口（工作目录选择器、首页发送、侧栏切项目）共用一句，
  * 否则同一个故障在不同界面上会被描述成三件不同的事。
  */
-export const PICK_TIMEOUT_NOTE = '系统目录选择器没有返回，已复位 —— 可以再点一次。'
+export const PICK_TIMEOUT_NOTE = () =>
+  t('系统目录选择器没有返回，已复位 —— 可以再点一次。')
 
 export interface GuardedPick {
   /** 选中的目录；未选 / 超时 / 已取消时为 null。 */

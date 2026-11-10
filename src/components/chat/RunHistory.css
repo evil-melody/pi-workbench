@@ -14,47 +14,62 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sp-1);
 }
 
 .rh-item {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
   width: 100%;
-  padding: 7px 8px;
+  min-height: 30px;
+  padding: var(--sp-1) var(--sp-2);
   border: 1px solid transparent;
-  border-radius: var(--r-sm);
-  font-size: 12.5px;
+  border-radius: var(--r);
+  font-size: var(--fs-base);
+  line-height: var(--lh-tight);
   color: var(--text);
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
+/* hover 只提一层底色 + 最弱描边：边框用 --border-soft 而非 --border，
+   避免整行在 hover 瞬间出现明显硬边（列表密集时像抖动）。 */
 .rh-item:hover,
 .rh-item:focus-visible {
   background: var(--bg-hover);
-  border-color: var(--border);
+  border-color: var(--border-soft);
   outline: none;
 }
 
-/* 批量多选态：勾中的行高亮（accent-dim 底 + accent 边），与 hover 态区分 */
+.rh-item:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* 批量多选态：勾中的行 two-tone —— 弱底 + 左边轨 2px（与侧栏项目行同一语言）。 */
 .rh-item.checked {
   background: var(--accent-dim);
   border-color: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* 选中 + 键盘焦点两条 box-shadow 会互相吃掉，这里显式合并。 */
+.rh-item.checked:focus-visible {
+  box-shadow: inset 2px 0 0 var(--accent), 0 0 0 2px var(--accent-soft);
 }
 
 /* 归档记录：整行置灰，但仍可点开 / 取消归档（不是删除） */
 .rh-item.archived {
-  opacity: 0.55;
+  opacity: 0.6;
 }
 
-/* 置顶标记：行首星标（后端合并置顶，这里只做视觉确认） */
+/* 置顶标记：行首星标（后端合并置顶，这里只做视觉确认）。
+   置顶是排序提示，没有成败语义，用中性弱色，占用的注意力让给状态色。 */
 .rh-pin {
   flex-shrink: 0;
-  color: var(--warn);
+  color: var(--text-faint);
 }
 
 /* 多选态行首 checkbox（公共 AppCheckbox，禁原生控件） */
@@ -64,7 +79,7 @@
 
 /* 多选态下「···」让位给勾选，行高回落一点保持整齐 */
 .rh-item:has(.rh-check) {
-  padding-left: 6px;
+  padding-left: var(--sp-1);
 }
 
 .rh-title {
@@ -78,10 +93,29 @@
 .rh-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-1);
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-faint);
+}
+
+/* 「N 轮」徽标弱化成一颗低对比小计数点：只作次级线索，不与标题抢注意力。 */
+.rh-prompts {
+  padding: 1px 5px;
+  border-radius: var(--r-full);
+  background: var(--bg-elev);
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-tight);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 时间右对齐 + 等宽数字：多行列表里时间列不会左摇右摆。 */
+.rh-time {
+  min-width: 42px;
+  text-align: right;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
 }
 
 /* hover 才显「···」（对齐 WorkBuddy：常态不占空间，鼠标滑上去才露操作入口） */
@@ -96,7 +130,8 @@
   background: transparent;
   color: var(--text-faint);
   opacity: 0;
-  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition: opacity var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
 .rh-item:hover .rh-more-btn,
@@ -119,12 +154,12 @@
   transform: translateX(-50%);
   z-index: 60;
   margin: 0;
-  padding: 7px 14px;
+  padding: var(--sp-1) var(--sp-3);
   border: 1px solid var(--border);
   border-radius: var(--r-full);
   background: var(--bg-elev);
   box-shadow: var(--sh-2);
-  font-size: 12.5px;
+  font-size: var(--fs-base);
   color: var(--text);
   pointer-events: none;
 }
@@ -133,22 +168,22 @@
 .rh-dialog-row {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 12.5px;
+  gap: var(--sp-1);
+  font-size: var(--fs-base);
   color: var(--text-dim);
 }
 
 .rh-dialog-text {
   margin: 0;
-  font-size: 12.5px;
-  line-height: 1.7;
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
   color: var(--text-dim);
 }
 
 .rh-btn {
-  padding: 6px 14px;
+  padding: var(--sp-1) var(--sp-3);
   border-radius: var(--r-sm);
-  font-size: 12.5px;
+  font-size: var(--fs-base);
 }
 
 .rh-btn.primary {
@@ -177,14 +212,14 @@
 .rh-share-pre {
   max-height: 220px;
   overflow: auto;
-  margin: 10px 0 0;
-  padding: 10px;
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-2);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   background: var(--bg);
   font-family: var(--mono);
-  font-size: 11.5px;
-  line-height: 1.6;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-code);
   color: var(--text-dim);
   white-space: pre-wrap;
   word-break: break-all;
@@ -193,11 +228,11 @@
 
 .rh-more {
   align-self: flex-start;
-  padding: 4px 10px;
+  padding: var(--sp-1) var(--sp-2);
   border-radius: var(--r-sm);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 .rh-more:hover {

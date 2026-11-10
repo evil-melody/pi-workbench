@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import { useApproval } from '@/composables/useApproval'
 
 /**
@@ -46,29 +48,25 @@ const waitText = computed(() => {
     <div v-if="current" class="approval" role="alertdialog" aria-live="assertive">
       <AppIcon name="lock" :size="15" class="approval-icon" />
       <div class="approval-body">
-        <p class="approval-title">{{ current.title || '工具调用需要批准' }}</p>
+        <p class="approval-title">{{ current.title || t('工具调用需要批准') }}</p>
         <p v-if="current.message" class="approval-msg">{{ current.message }}</p>
-        <p class="approval-meta">
-          等待批准 {{ waitText }}<span v-if="queued"> · 还有 {{ queued }} 条排队</span>
+        <p class="approval-meta">{{ t('等待批准 {0}', [waitText]) }}<span v-if="queued">{{ t('· 还有 {0} 条排队', [queued]) }}</span>
         </p>
       </div>
       <div class="approval-actions">
-        <button type="button" class="approval-btn approve" @click="respond(current.id, true)">
-          <AppIcon name="check" :size="13" />
-          批准
-        </button>
-        <button type="button" class="approval-btn reject" @click="respond(current.id, false)">
-          <AppIcon name="close" :size="13" />
-          拒绝
-        </button>
-        <button
-          type="button"
+        <AppButton variant="primary" class="approval-btn approve" @click="respond(current.id, true)">
+          <AppIcon name="check" :size="13" />{{ t('批准') }}</AppButton>
+        <AppButton variant="danger" class="approval-btn reject" @click="respond(current.id, false)">
+          <AppIcon name="close" :size="13" />{{ t('拒绝') }}</AppButton>
+        <AppButton
+          variant="icon"
           class="approval-btn dismiss"
-          title="忽略（内核超时后自动拒绝）"
+          :title="t('忽略（内核超时后自动拒绝）')"
+          :aria-label="t('忽略审批')"
           @click="dismiss(current.id)"
         >
           <AppIcon name="close" :size="13" />
-        </button>
+        </AppButton>
       </div>
     </div>
   </transition>

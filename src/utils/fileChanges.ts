@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 /**
  * G2 文件改动提取：把 Pi 内核的 edit/write 工具调用参数折算成结构化记录。
  *
@@ -96,9 +97,9 @@ export function summarizeChange(c: PiFileChange): string {
   if (c.tool === 'write') {
     // 空内容算 0 行（`''.split('\n')` 会给出 1，不符合直觉）。
     const lines = c.content === '' ? 0 : (c.content ?? '').split('\n').length
-    return `${lines} 行`
+    return t('{0} 行', [lines])
   }
-  return `${c.edits.length} 处替换`
+  return t('{0} 处替换', [c.edits.length])
 }
 
 /** diff 显示行：add=新增、del=删除。 */
@@ -124,4 +125,31 @@ export function diffLines(c: PiFileChange): DiffLine[] {
     for (const t of e.newText.split('\n')) out.push({ kind: 'add', text: t })
   }
   return out
+}
+
+/**
+ * 一次改动的增删行数（chip 上的 `+x −y`）。
+ *
+ * `diffLines` 已把 edit 的片段摊平成行，这里只数数，不再算第二种口径，
+ * 保证 chip 的合计和展开的 diff 行永远一致。
+ */
+export function changeDelta(c: PiFileChange): { added: number; deleted: number } {
+  let added = 0
+  let deleted = 0
+  for (const l of diffLines(c)) {
+    if (l.kind === 'add') added++
+    else deleted++
+  }
+  return { added, deleted }
+}
+
+/**
+ * chip 上显示的文件名（去掉目录）。
+ *
+ * dsh 的文件入口是一条可点的路径链接，摘要只留末端名字，完整路径放在
+ * title / 预览里——整条绝对路径会把 chip 撑成一坨。`split` 同时认 `/` 与 `\`。
+ */
+export function fileName(path: string): string {
+  const parts = path.split(/[/\\]+/).filter(Boolean)
+  return parts.length ? parts[parts.length - 1] : path
 }

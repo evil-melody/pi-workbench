@@ -3,17 +3,15 @@
     <div class="term-head">
       <span class="cwd" :title="props.cwd">{{ props.cwd }}</span>
       <span v-if="running" class="state running">
-        <AppIcon name="spinner" :size="11" class="spin" />
-        执行中
-      </span>
-      <button class="term-btn" title="清空输出" @click="clear">
+        <AppIcon name="spinner" :size="11" class="spin" />{{ t('执行中') }}</span>
+      <AppButton variant="icon" class="term-btn" :title="t('清空输出')" :aria-label="t('清空终端输出')" @click="clear">
         <AppIcon name="trash" :size="12" />
-      </button>
+      </AppButton>
     </div>
 
     <div ref="out" class="out">
       <div v-for="(l, i) in lines" :key="i" :class="['ln', l.stream]">{{ l.line }}</div>
-      <p v-if="!lines.length && !running" class="out-empty">在项目目录执行 shell 命令，输出会实时回显。</p>
+      <p v-if="!lines.length && !running" class="out-empty">{{ t('在项目目录执行 shell 命令，输出会实时回显。') }}</p>
     </div>
 
     <form class="cin" @submit.prevent="run">
@@ -21,7 +19,7 @@
       <AppInput
         v-model="cmd"
         class="tinput"
-        :placeholder="running ? '执行中…' : '在项目目录执行 shell 命令'"
+        :placeholder="running ? t('执行中…') : t('在项目目录执行 shell 命令')"
         @keydown.up.prevent="recall(-1)"
         @keydown.down.prevent="recall(1)"
       />
@@ -30,13 +28,15 @@
 </template>
 
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { nextTick, onMounted, ref } from 'vue'
 import { useTerminal } from '@/composables/useTerminal'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 
-const props = defineProps<{ cwd: string }>()
-const { lines, running, ensure, exec, clear } = useTerminal(() => props.cwd)
+const props = defineProps<{ cwd: string; root: string }>()
+const { lines, running, ensure, exec, clear } = useTerminal(() => props.cwd, () => props.root)
 const cmd = ref('')
 const out = ref<HTMLElement | null>(null)
 

@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import type { PiMsg } from './usePi'
 import { splitPromptBody } from './usePi'
 import { extractFileChange, type PiFileChange } from '@/utils/fileChanges'
@@ -17,6 +18,54 @@ function extractText(msg: unknown): string {
       .join('')
   }
   return ''
+}
+
+/** 参数/结果摘要的长度上限：渲染层只显示首行，整段只在展开时给出，留够可读长度即可。 */
+const PAYLOAD_MAX = 2000
+
+/**
+ * 从最终消息的 content 块里取 thinking 文本。
+ * 实证：provider 转换器把 thinking_start/delta/end 落成 `{type:'thinking',thinking}`
+ * 内容块（pi-coding-agent dist/bundle/chunks/pi-messages-*.js），
+ * 多块就按顺序拼接。流式内层事件丢了些片段时这里能兜回来。
+ */
+function extractThinking(msg: unknown): string {
+  const c = (msg as { content?: unknown }).content
+  if (!Array.isArray(c)) return ''
+  return c
+    .map((b) =>
+      b && typeof b === 'object' && (b as { type?: unknown }).type === 'thinking'
+        ? String((b as { thinking?: unknown }).thinking ?? '')
+        : '',
+    )
+    .join('')
+}
+
+/**
+ * 工具载荷（参数 / 结果）转可读文本并截断。
+ *
+ * 内核的 `args` 可能是字符串（bash 命令）或对象（edit 的 path/old/new），
+ * `result` 常见形状是 `{content:[{type:'text',text}]}`——先取文本块，
+ * 取不到再整体 JSON 序列化。纯函数，可单测。
+ */
+export function toolPayloadText(value: unknown, max = PAYLOAD_MAX): string {
+  if (typeof value === 'string') return clip(value.trim(), max)
+  if (value && typeof value === 'object') {
+    const text = extractText({ content: (value as { content?: unknown }).content })
+    if (text.trim()) return clip(text.trim(), max)
+    try {
+      const s = JSON.stringify(value)
+      // 空参数对象不显示：`edit · {}` 这种尾巴只会让工具行看起来坏了。
+      return s === '{}' || s === '[]' ? '' : clip(s, max)
+    } catch {
+      return clip(String(value), max)
+    }
+  }
+  return ''
+}
+
+function clip(s: string, max: number): string {
+  return s.length > max ? `${s.slice(0, max)}…` : s
 }
 
 /**
@@ -64,7 +113,7 @@ export interface EventCtx {
  * 不用事件类型字面量冒充工具名（用户看到 `toolcall_start` 只会困惑），
  * 用一句中性描述说明「正在调用工具」，真名到达后原位回填。
  */
-export const TOOL_PENDING = '调用工具'
+export const TOOL_PENDING = t('调用工具')
 
 /** Pi 内核上报的单条用量（provider 原始数据透传，不做估算）。 */
 export interface PiUsage {
@@ -135,7 +184,7 @@ export function extractUsage(value: unknown): PiUsage | null {
  * 纯函数，可单测。
  */
 export function humanizeProviderError(raw: unknown): string {
-  if (typeof raw !== 'string' || !raw.trim()) return '未知错误'
+  if (typeof raw !== 'string' || !raw.trim()) return t('未知错误')
   const i = raw.indexOf('{')
   if (i >= 0) {
     try {
@@ -189,8 +238,8 @@ function changeAlreadyRecorded(messages: PiMsg[], id: string): boolean {
  *
  * 归组规则：同一轮（未遇 agent_settled / 新 assistant 消息）的连续文件改动
  * 挂到同一条 assistant 消息下——一轮里的多次编辑是「一次工作」，逐条刷屏
- * 只会复刻用户抱怨过的「这么多 icon」。文本到来会自然关闭文件组
- * （text_delta 要求上一条是 streaming 才续写，文件组消息不是）。
+ * 只会复刻用户抱怨过的「这么多 icon」。文本到来会把文件组切到正文消息上
+ * （text_delta 续写 streaming 正文并重设 fileGroupId，文件组消息不是续写目标）。
  */
 function attachFileChange(
   ctx: EventCtx,
@@ -213,6 +262,7 @@ function attachFileChange(
     id: ctx.nextId(),
     role: 'assistant',
     text: '',
+    ts: Date.now(),
     fileChanges: [change],
   }
   messages.push(msg)
@@ -247,30 +297,113 @@ function backfillToolName(ctx: EventCtx, id: unknown, name: unknown): void {
   }
 }
 
+/**
+ * 按调用 id 定位工具 chip 消息（从后往前，同 id 只属于一次调用）。
+ *
+ * 名字回填用的是 callId→msgId 映射，命中后即删除；参数与结果分属不同事件
+ * （start / end 谁先到不确定），因此改用消息上的 toolCallId 定位，不依赖那份映射。
+ */
+function findToolChip(messages: PiMsg[], id: unknown): PiMsg | undefined {
+  if (typeof id !== 'string' || !id) return undefined
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].toolCallId === id) return messages[i]
+  }
+  return undefined
+}
+
+/**
+ * 把工具入参摘要回填进对应 chip。
+ *
+ * 定位顺序：callId 精确命中；否则就近找**仍是占位名**的 chip。
+ * 兜底只认 TOOL_PENDING——已被回填真名的 chip 说明它那次调用的参数已处理过，
+ * 再把这次的参数挂上去就是张冠李戴（双通道 + 并发调用时最容易踩）。
+ * 找不到就静默跳过：参数只是摘要，缺它不影响这行本身。
+ */
+function backfillToolArgs(ctx: EventCtx, id: unknown, args: unknown): void {
+  const summary = toolPayloadText(args)
+  if (!summary) return
+  const messages = ctx.messages
+  const chip =
+    findToolChip(messages, id) ??
+    messages.filter((m) => m.tool === TOOL_PENDING && !m.toolArgs).pop()
+  if (!chip || chip.toolArgs) return
+  chip.toolArgs = summary
+}
+
+/**
+ * 从末尾往前找第一条仍在流式（`streaming === true`）的 assistant 消息。
+ *
+ * 正文聚合的锚点：一轮 LLM 响应在流式期间只对应这一条消息，工具 chip 与
+ * 文件改动消息都没有 streaming 标记，因此会被自然跳过。
+ */
+function findStreamingAssistant(messages: PiMsg[]): PiMsg | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.role === 'assistant' && m.streaming) return m
+  }
+  return undefined
+}
+
+/** 新开一条流式 assistant 正文消息并挂到末尾。 */
+function createStreamingAssistant(ctx: EventCtx, messages: PiMsg[]): PiMsg {
+  const msg: PiMsg = { id: ctx.nextId(), role: 'assistant', text: '', ts: Date.now(), streaming: true }
+  messages.push(msg)
+  return msg
+}
+
+/**
+ * usage / plan 的落点：优先本轮的正文消息（streaming 中或有非空文本），
+ * 回落到最后一条 assistant——纯工具轮没有正文时仍按老行为挂，不丢数据。
+ */
+function findUsageTarget(messages: PiMsg[]): PiMsg | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]
+    if (m.role !== 'assistant') continue
+    if (m.streaming || (typeof m.text === 'string' && m.text.trim())) return m
+  }
+  return [...messages].reverse().find((x) => x.role === 'assistant')
+}
+
 export function applyEvent(ctx: EventCtx, rec: unknown): void {
   if (!rec || typeof rec !== 'object') return
   const messages = ctx.messages
-  const t = (rec as { type?: unknown }).type
+  const eventType = (rec as { type?: unknown }).type
 
-  if (t === 'message_update') {
+  if (eventType === 'message_update') {
     // 会话累计用量：内核每条流式事件都带最新累计，镜像即可（重启内核后自动归零）。
     const cumulative = extractUsage((rec as { usage?: unknown }).usage)
     if (cumulative) ctx.usage.last = cumulative
 
     const ev = (rec as { assistantMessageEvent?: unknown }).assistantMessageEvent
     if (!ev || typeof ev !== 'object') return
-    const e = ev as { type?: unknown; delta?: unknown; toolCall?: unknown }
+    const e = ev as { type?: unknown; delta?: unknown; toolCall?: unknown; content?: unknown }
     if (e.type === 'text_delta') {
-      const last = messages[messages.length - 1]
-      // 只有「同一条 assistant 消息还在流式」时才续写；换人或换轮都要新开一条。
-      if (!last || last.role !== 'assistant' || !last.streaming) {
-        messages.push({ id: ctx.nextId(), role: 'assistant', text: '', streaming: true })
-      }
-      const cur = messages[messages.length - 1]
+      // 续写目标：从末尾往前找**第一条仍在流式的 assistant 消息**。
+      // 工具 chip（toolcall_start 落的空文本消息）没有 streaming 标记，天然被跳过——
+      // 一轮里「文本→工具→文本」因此聚合成一条正文，而不是每段各成一个气泡
+      // （旧逻辑只看末尾一条，工具一插后续文本就另起新消息，markdown 被拦腰截断）。
+      // 找不到说明上一轮已落定或换人了，才新建。
+      const cur = findStreamingAssistant(messages) ?? createStreamingAssistant(ctx, messages)
       cur.text += typeof e.delta === 'string' ? e.delta : ''
       // G2：这条文本消息就是当前 assistant 消息（本轮 LLM 响应）的代表，
       // 后续同一响应内的工具改动挂到它下面，不另起一条。
       ctx.fileGroupId = cur.id
+    } else if (e.type === 'thinking_delta') {
+      // 思考流（实证：内核 provider 转换器把 thinking_start/delta/end 原样透传进
+      // assistantMessageEvent，见 pi-coding-agent dist/bundle/chunks/pi-messages-*.js：
+      // `case"thinking_delta":partial.content[i].thinking+=event.delta`）。
+      // 与正文同一个锚点消息：一轮的 Think 与回答本就是一体的，拆两条会多一个头像。
+      const cur = findStreamingAssistant(messages) ?? createStreamingAssistant(ctx, messages)
+      cur.reasoning = (cur.reasoning ?? '') + (typeof e.delta === 'string' ? e.delta : '')
+      ctx.fileGroupId = cur.id
+    } else if (e.type === 'thinking_end') {
+      // 兜底：个别 provider 只在结束时给全文（delta 被省略/改写）。
+      // 已经有聚合文本就不覆盖，避免同一段思考显示两遍。
+      const cur = findStreamingAssistant(messages)
+      const full = typeof e.content === 'string' ? e.content.trim() : ''
+      if (full && cur && !cur.reasoning) cur.reasoning = full
+    } else if (e.type === 'thinking_start') {
+      // 思考块开始：无信息量，锚点消息由后续 delta 到达时再建。
     } else if (e.type === 'toolcall_end') {
       // G2：流式协议终点带完整入参（toolCall.arguments）——文件改动的第二数据源，
       // 与 tool_execution_start 按调用 id 去重，谁先到用谁。
@@ -278,37 +411,67 @@ export function applyEvent(ctx: EventCtx, rec: unknown): void {
       if (tc) {
         // start 占座的 chip 在这里拿到真实工具名（end 的 payload 带 name）。
         backfillToolName(ctx, tc.id, tc.name)
+        // dsh 的工具行是「工具名 · 参数摘要」，参数在这一刻才是完整的。
+        backfillToolArgs(ctx, tc.id, tc.arguments)
         attachFileChange(ctx, tc.name, tc.arguments, tc.id)
       }
     } else if (e.type === 'toolcall_start') {
       // 只在 start 记一个名字 chip：start/delta/end 三态都记就是同一调用三行噪音。
-      // start 的 payload 普遍不带 name（实测 0.87.x）——先以 TOOL_PENDING 占座，
-      // end / tool_execution_start 到达时按 callId 回填真名；不写死事件类型
-      // 字面量冒充工具名（用户看到 toolcall_start 只会困惑）。
+      // 名字/调用 id 有两种到达形状（实证 0.87.1 `dist/modes/json-event.js` 把
+      // toolcall_start 改写为顶层 `{id, toolName}`；更早版本两者都不带）：
+      // 取不到名字就先以 TOOL_PENDING 占座，由 end / tool_execution_start 回填；
+      // 但**调用 id 一律记进消息**——参数与结果回填靠它定位，
+      // 只有占位名可等、id 丢了就再也对不上这次调用。
       const tc = e.toolCall as { id?: unknown; name?: unknown } | undefined
-      const name = typeof tc?.name === 'string' && tc.name ? tc.name : null
-      const msg: PiMsg = { id: ctx.nextId(), role: 'assistant', text: '', tool: name ?? TOOL_PENDING }
+      const ev = e as { id?: unknown; toolName?: unknown }
+      const callId = typeof tc?.id === 'string' && tc.id ? tc.id : typeof ev.id === 'string' && ev.id ? ev.id : ''
+      const rawName = tc?.name ?? ev.toolName
+      const name = typeof rawName === 'string' && rawName.trim() ? rawName.trim() : null
+      const msg: PiMsg = {
+        id: ctx.nextId(),
+        role: 'assistant',
+        text: '',
+        ts: Date.now(),
+        tool: name ?? TOOL_PENDING,
+        ...(callId ? { toolCallId: callId } : {}),
+      }
       messages.push(msg)
-      if (!name && typeof tc?.id === 'string' && tc.id) {
-        ;(ctx.toolStartMap ??= new Map()).set(tc.id, msg.id)
+      if (!name && callId) {
+        ;(ctx.toolStartMap ??= new Map()).set(callId, msg.id)
       }
     } else if (e.type === 'toolcall_delta') {
       // 参数增量流：无信息量，不进消息流（轨迹面板另有 tool_call 行）。
     } else if (typeof e.type === 'string' && e.type.startsWith('tool')) {
       // 旧版内核的工具事件名（tool_use 等）：不认识形状也插 chip，不丢兼容。
-      messages.push({ id: ctx.nextId(), role: 'assistant', text: '', tool: e.type })
+      messages.push({ id: ctx.nextId(), role: 'assistant', text: '', ts: Date.now(), tool: e.type })
     }
-  } else if (t === 'tool_execution_start') {
+  } else if (eventType === 'tool_execution_start') {
     // G2：agent 工具执行起点事件（agent-session 转发给 RPC 客户端），args 是完整入参。
     const r = rec as { toolName?: unknown; args?: unknown; toolCallId?: unknown }
     // 该事件带 toolName：start 占座的 chip 在这里即可回填，不必等 toolcall_end。
     backfillToolName(ctx, r.toolCallId, r.toolName)
+    backfillToolArgs(ctx, r.toolCallId, r.args)
     attachFileChange(ctx, r.toolName, r.args, r.toolCallId)
-  } else if (t === 'message_start') {
+  } else if (eventType === 'tool_execution_end') {
+    // 实证 0.87.1 `core/extensions/types.d.ts`：ToolExecutionEndEvent 带
+    // `{toolCallId, toolName, result, isError}`，且 rpc-mode 原样透传所有事件。
+    // 只回填给已存在的 chip：结果属于那次调用，chip 不在（历史回放/被合并）就丢掉，
+    // 不为一次结果凭空造一行。
+    const r = rec as { toolCallId?: unknown; toolName?: unknown; result?: unknown; isError?: unknown }
+    const chip = findToolChip(messages, r.toolCallId)
+    if (!chip) return
+    // 名字只在仍是占位时补，且只认这次调用的 chip（不走就近兜底，避免错挂到别的调用）。
+    if (chip.tool === TOOL_PENDING && typeof r.toolName === 'string' && r.toolName.trim()) {
+      chip.tool = r.toolName.trim()
+    }
+    const summary = toolPayloadText(r.result)
+    if (summary && !chip.toolResult) chip.toolResult = summary
+    if (r.isError === true) chip.toolError = true
+  } else if (eventType === 'message_start') {
     // 新 assistant 消息开始：文件组到此关闭，后续改动归入下一组。
     const role = (rec as { message?: { role?: unknown } }).message?.role
     if (role === 'assistant') ctx.fileGroupId = null
-  } else if (t === 'message_end') {
+  } else if (eventType === 'message_end') {
     // 最终消息：挂 usage；模型报错时 content 为空且带 errorMessage——
     // 必须落成可见消息，否则对话区一片空白（右侧轨迹有错、左边没动静）。
     const msg = (rec as { message?: unknown }).message
@@ -333,9 +496,16 @@ export function applyEvent(ctx: EventCtx, rec: unknown): void {
     }
     if (m.role !== 'assistant') return
     if (typeof m.errorMessage === 'string' && m.errorMessage.trim()) {
-      reportError(messages, '模型请求失败：', m.errorMessage, ctx.nextId)
+      reportError(messages, t('模型请求失败：'), m.errorMessage, ctx.nextId)
     }
-    const last = [...messages].reverse().find((x) => x.role === 'assistant')
+    const last = findUsageTarget(messages)
+    // 思考兜底：内层 thinking_delta 若因节流合并丢段，用最终消息的 thinking 块补齐。
+    // 只有聚合为空时才覆盖——半截 delta 拼出来的文本比最终块短，但有内容总比没有好，
+    // 而真正完整的流式聚合不该被这里的"看起来更全"的块反向污染。
+    if (last && !last.reasoning) {
+      const think = extractThinking(msg).trim()
+      if (think) last.reasoning = think
+    }
     // G5：plan 轮落定——把该条 assistant 回复解析成分步计划卡。先于 usage 处理：
     // 个别 provider 的 message_end 可能不带 usage，不能因此丢掉计划卡。
     if (ctx.planPending) {
@@ -349,39 +519,40 @@ export function applyEvent(ctx: EventCtx, rec: unknown): void {
         messages.push({
           id: ctx.nextId(),
           role: 'system',
-          text: '计划模式：未解析到分步计划，已按普通回复处理。',
+          text: t('计划模式：未解析到分步计划，已按普通回复处理。'),
         })
       }
     }
     const usage = extractUsage(m.usage)
     if (!usage) return
     if (last) last.usage = usage
-  } else if (t === 'auto_retry_start') {
+  } else if (eventType === 'auto_retry_start') {
     // 内核自动重试：报一声进度（attempt 从 1 起），错误详情已由 message_end 报过，不重复。
     // 同一轮的多次重试原地更新同一行——一次对话最多一行「自动重试中」，不逐次刷屏。
     const r = rec as { attempt?: unknown; delayMs?: unknown }
     if (typeof r.attempt !== 'number') return
     const s = typeof r.delayMs === 'number' ? Math.max(1, Math.round(r.delayMs / 1000)) : null
-    const text = `模型请求失败，自动重试中（第 ${r.attempt} 次${s ? `，${s}s 后` : ''}）…`
+    const text = t('模型请求失败，自动重试中（第 {0} 次{1}）…', [r.attempt, s ? t('，{0}s 后', [s]) : ''])
     const last = messages[messages.length - 1]
-    if (last && last.role === 'system' && last.text.startsWith('模型请求失败，自动重试中')) {
+    if (last && last.role === 'system' && last.text.startsWith(t('模型请求失败，自动重试中'))) {
       last.text = text
     } else {
       messages.push({ id: ctx.nextId(), role: 'system', text })
     }
-  } else if (t === 'auto_retry_end') {
+  } else if (eventType === 'auto_retry_end') {
     // 重试耗尽：最终失败必须亮出来（同轮已报过相同错误则去重）。
     const r = rec as { finalError?: unknown }
     if (typeof r.finalError === 'string' && r.finalError.trim()) {
-      reportError(messages, '模型请求最终失败：', r.finalError, ctx.nextId)
+      reportError(messages, t('模型请求最终失败：'), r.finalError, ctx.nextId)
     }
-  } else if (t === 'agent_settled') {
+  } else if (eventType === 'agent_settled') {
     // 只有 agent_settled 表示「这一轮落定」；process_exit 只翻 usePi 的 streaming 开关，
     // 与内核侧保持一致的语义，不在这里顺手改消息状态。
-    // G6：收尾目标是**最后一条 assistant**，不是 messages 末尾——流式中排队/插话
-    // 会往末尾插 user 气泡，按末尾收会把 assistant 的 streaming 光标永久留下。
-    const lastAssistant = [...messages].reverse().find((x) => x.role === 'assistant')
-    if (lastAssistant) lastAssistant.streaming = false
+    // G6：收尾目标不能假设是 messages 末尾——流式中排队/插话会往末尾插 user 气泡。
+    // 正文聚合后一轮只有一条 streaming 消息（工具 chip 无 streaming 标记），
+    // 从末尾往前找第一条 streaming 的 assistant 即是它；找不到（已是落定态）不动。
+    const streamingAssistant = findStreamingAssistant(messages)
+    if (streamingAssistant) streamingAssistant.streaming = false
     // G2：轮次落定，文件组关闭——下一轮的编辑从新消息开始，不并进上一轮。
     ctx.fileGroupId = null
   }
@@ -427,4 +598,39 @@ export function fmtCost(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return '$0'
   if (n < 0.01) return `$${n.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}`
   return `$${n.toFixed(2)}`
+}
+
+/**
+ * dsh 式统计行：把「这次会话干了什么、花了多少」压成一行小字。
+ *
+ * 段文案照抄 dsh 的 i18n 原文（`{turns} 轮 · {steps} 步` / `输入 … tok · 输出 … tok`
+ * / `缓存命中 …%`），段间 ` | ` 分隔，**缺数据的段整段不渲染**——
+ * dsh 的 `LLM 耗时` / `首 token 平均` / `tok/s` 要的是逐轮时间戳，
+ * 内核 usage 里没有，就不硬凑一个假数字（见 docs 对齐记录的缺口清单）。
+ * 纯函数，可单测。
+ */
+export function statsSegments(
+  counts: { turns: number; steps: number },
+  usage: PiUsage | null,
+): string[] {
+  const out: string[] = []
+  if (counts.turns > 0 || counts.steps > 0) out.push(t('{0} 轮 · {1} 步', [counts.turns, counts.steps]))
+  if (!usage) return out
+  const inTok = usage.input + usage.cacheRead + usage.cacheWrite
+  out.push(t('输入 {0} tok · 输出 {1} tok', [fmtTokens(inTok), fmtTokens(usage.output)]))
+  const hit = cacheHitPercent(usage)
+  if (hit !== null) out.push(t('缓存命中 {0}%', [hit]))
+  if (usage.cost.total > 0) out.push(t('费用 {0}', [fmtCost(usage.cost.total)]))
+  return out
+}
+
+/**
+ * 提示缓存命中率：`cacheRead / (input + cacheRead + cacheWrite)`。
+ * 分母为 0（还没发过请求）返回 null——显示「缓存命中 0%」会把「没数据」
+ * 说成「缓存很差」，是两种完全不同的信息。
+ */
+export function cacheHitPercent(usage: PiUsage): number | null {
+  const inTok = usage.input + usage.cacheRead + usage.cacheWrite
+  if (!inTok) return null
+  return Math.round((usage.cacheRead / inTok) * 100)
 }

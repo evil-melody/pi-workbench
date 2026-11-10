@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 /**
  * 连接器管理面板 —— 列表 / 详情 / 启停 / 删除链路。
  *
@@ -8,6 +9,7 @@
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppCheckbox from '@/components/ui/AppCheckbox.vue'
 import ConnectorEditorDialog from './ConnectorEditorDialog.vue'
@@ -22,8 +24,8 @@ import {
   connectorsApplyScope,
   connectorsSetEnabled,
   describeConnectorError,
-  STATE_TEXT,
-  TRANSPORT_TEXT,
+  stateText,
+  transportText,
   type ConnectorState,
   type ConnectorSummary,
 } from '@/composables/useConnectors'
@@ -88,7 +90,7 @@ async function reload() {
     await loadSession()
     emit('count', list.value.length)
   } catch (e) {
-    error.value = describeConnectorError(e, '读取连接器失败')
+    error.value = describeConnectorError(e, t('读取连接器失败'))
   } finally {
     loading.value = false
   }
@@ -158,9 +160,9 @@ async function toggleEnabled(c: ConnectorSummary) {
     if (!next.enabled) {
       selection.value = selection.value.filter((id) => id !== c.id)
     }
-    emit('notice', `「${next.title}」已${next.enabled ? '启用' : '停用'}`)
+    emit('notice', t('「{0}」已{1}', [next.title, next.enabled ? t('启用') : t('停用')]))
   } catch (e) {
-    emit('error', describeConnectorError(e, '启停失败'))
+    emit('error', describeConnectorError(e, t('启停失败')))
   }
 }
 
@@ -170,10 +172,10 @@ async function removeConnector(c: ConnectorSummary) {
   try {
     await connectorsRemove(c.id)
     if (activeId.value === c.id) activeId.value = list.value.find((x) => x.id !== c.id)?.id ?? null
-    emit('notice', `已删除「${c.title}」，相关会话选择已同步移除`)
+    emit('notice', t('已删除「{0}」，相关会话选择已同步移除', [c.title]))
     await reload()
   } catch (e) {
-    emit('error', describeConnectorError(e, '删除失败'))
+    emit('error', describeConnectorError(e, t('删除失败')))
   } finally {
     deleting.value = false
   }
@@ -186,7 +188,7 @@ async function toggleSelection(c: ConnectorSummary) {
   try {
     selection.value = await connectorsSetSelection(props.sessionId, next)
   } catch (e) {
-    emit('error', describeConnectorError(e, '选择失败'))
+    emit('error', describeConnectorError(e, t('选择失败')))
   }
 }
 
@@ -194,9 +196,9 @@ async function applyScope() {
   applying.value = true
   try {
     scope.value = await connectorsApplyScope(props.sessionId)
-    emit('notice', `已把 ${scope.value.length} 个工具注入内核白名单`)
+    emit('notice', t('已把 {0} 个工具注入内核白名单', [scope.value.length]))
   } catch (e) {
-    emit('error', describeConnectorError(e, '应用作用域失败'))
+    emit('error', describeConnectorError(e, t('应用作用域失败')))
   } finally {
     applying.value = false
   }
@@ -208,7 +210,7 @@ async function toggleOrphan(fqn: string, enabled: boolean) {
     activeTools.value = ts.active
     await loadSession()
   } catch (e) {
-    emit('error', describeConnectorError(e, '修改白名单失败'))
+    emit('error', describeConnectorError(e, t('修改白名单失败')))
   }
 }
 
@@ -223,21 +225,20 @@ onMounted(reload)
 <template>
   <div class="cp">
     <div class="cp-toolbar">
-      <AppInput v-model="keyword" placeholder="搜索连接器（名称 / 服务标识）" />
-      <span class="cp-stat">
-        共 {{ list.length }} 个，启用 {{ list.filter((c) => c.enabled).length }}
+      <AppInput v-model="keyword" :placeholder="t('搜索连接器（名称 / 服务标识）')" />
+      <span class="cp-stat">{{ t('共 {0} 个，启用 {1}', [list.length, list.filter((c) => c.enabled).length]) }}
       </span>
-      <button class="cp-btn" :disabled="loading" @click="reload">刷新</button>
-      <button class="cp-btn primary" @click="openCreate">+ 新建连接器</button>
+      <AppButton variant="secondary" class="cp-btn" :disabled="loading" @click="reload">{{ t('刷新') }}</AppButton>
+      <AppButton variant="primary" class="cp-btn primary" @click="openCreate">{{ t('+ 新建连接器') }}</AppButton>
     </div>
 
     <p v-if="error" class="cp-error">{{ error }}</p>
 
     <div class="cp-body">
       <aside class="cp-list">
-        <p v-if="loading && !list.length" class="cp-hint">正在读取连接器…</p>
+        <p v-if="loading && !list.length" class="cp-hint">{{ t('正在读取连接器…') }}</p>
         <p v-else-if="!filtered.length" class="cp-hint">
-          {{ keyword ? '没有匹配的连接器' : '还没有连接器，点右上「新建连接器」添加一个' }}
+          {{ keyword ? t('没有匹配的连接器') : t('还没有连接器，点右上「新建连接器」添加一个') }}
         </p>
         <div
           v-for="c in filtered"
@@ -248,36 +249,39 @@ onMounted(reload)
         >
           <div class="cp-item-top">
             <strong>{{ c.title }}</strong>
-            <span class="cp-badge" :data-state="c.state">{{ STATE_TEXT[c.state] }}</span>
+            <span class="cp-badge" :data-state="c.state">{{ stateText(c.state) }}</span>
           </div>
           <span class="cp-item-sub">
-            <code>{{ c.server_name }}</code> · {{ TRANSPORT_TEXT[c.transport] }} ·
-            {{ c.tool_count }} 个工具
-          </span>
+            <code>{{ c.server_name }}</code>{{ t('· {0} · {1} 个工具', [transportText(c.transport), c.tool_count]) }}</span>
           <div class="cp-item-actions" @click.stop>
-            <button
+            <AppButton
+              variant="text"
+              size="sm"
               class="cp-mini"
-              :title="c.enabled ? '停用' : '启用'"
+              :title="c.enabled ? t('停用') : t('启用')"
               @click="toggleEnabled(c)"
             >
-              {{ c.enabled ? '停用' : '启用' }}
-            </button>
-            <button
+              {{ c.enabled ? t('停用') : t('启用') }}
+            </AppButton>
+            <AppButton
               v-if="pendingDelete === c.id"
+              variant="danger"
+              size="sm"
               class="cp-mini danger"
               :disabled="deleting"
               @click="removeConnector(c)"
-            >
-              确认删除
-            </button>
-            <button
+            >{{ t('确认删除') }}</AppButton>
+            <AppButton
               v-else
+              variant="icon"
+              size="sm"
               class="cp-mini danger"
-              title="删除连接器"
+              :title="t('删除连接器')"
+              :aria-label="t('删除连接器')"
               @click="pendingDelete = c.id"
             >
               <AppIcon name="trash" :size="13" />
-            </button>
+            </AppButton>
           </div>
         </div>
       </aside>
@@ -287,81 +291,79 @@ onMounted(reload)
           <header class="cp-detail-head">
             <div>
               <h4>{{ activeItem.title }}</h4>
-              <span class="cp-muted">{{ activeItem.description || '（暂无描述）' }}</span>
+              <span class="cp-muted">{{ activeItem.description || t('（暂无描述）') }}</span>
             </div>
             <div class="cp-detail-actions">
-              <button class="cp-btn" @click="openEdit(activeItem.id)">编辑</button>
+              <AppButton variant="secondary" class="cp-btn" @click="openEdit(activeItem.id)">{{ t('编辑') }}</AppButton>
             </div>
           </header>
 
           <dl class="cp-facts">
-            <div><dt>服务标识</dt><dd><code>{{ activeItem.server_name }}</code></dd></div>
-            <div><dt>传输</dt><dd>{{ TRANSPORT_TEXT[activeItem.transport] }}</dd></div>
+            <div><dt>{{ t('服务标识') }}</dt><dd><code>{{ activeItem.server_name }}</code></dd></div>
+            <div><dt>{{ t('传输') }}</dt><dd>{{ transportText(activeItem.transport) }}</dd></div>
             <div>
-              <dt>状态</dt>
+              <dt>{{ t('状态') }}</dt>
               <dd>
                 <span class="cp-badge" :data-state="activeItem.state">
-                  {{ STATE_TEXT[activeItem.state] }}
+                  {{ stateText(activeItem.state) }}
                 </span>
               </dd>
             </div>
             <div>
-              <dt>本会话</dt>
-              <dd>{{ selection.includes(activeItem.id) ? '已选中' : '未选中' }}</dd>
+              <dt>{{ t('本会话') }}</dt>
+              <dd>{{ selection.includes(activeItem.id) ? t('已选中') : t('未选中') }}</dd>
             </div>
           </dl>
 
-          <p v-if="activeItem.diagnostic" class="cp-diag">诊断：{{ activeItem.diagnostic }}</p>
+          <p v-if="activeItem.diagnostic" class="cp-diag">{{ t('诊断：{0}', [activeItem.diagnostic]) }}</p>
 
           <div v-if="activeItem.tool_names.length" class="cp-tools">
-            <p class="cp-tools-head">已发现的工具（{{ activeItem.tool_names.length }}）</p>
+            <p class="cp-tools-head">{{ t('已发现的工具（{0}）', [activeItem.tool_names.length]) }}</p>
             <ul>
               <li v-for="t in activeItem.tool_names" :key="t"><code>{{ t }}</code></li>
             </ul>
           </div>
-          <p v-else class="cp-hint">这个连接器还没有暴露任何工具。</p>
+          <p v-else class="cp-hint">{{ t('这个连接器还没有暴露任何工具。') }}</p>
         </template>
-        <p v-else class="cp-hint">在左侧选择一个连接器查看详情。</p>
+        <p v-else class="cp-hint">{{ t('在左侧选择一个连接器查看详情。') }}</p>
       </section>
     </div>
 
     <div v-if="showSession" class="cp-session">
       <div class="cp-session-head">
-        <strong>本会话使用</strong>
-        <span class="cp-muted">
-          选中哪些连接器由这个会话决定；点「应用到内核白名单」后才会真的注入。
-        </span>
-        <button class="cp-btn primary" :disabled="applying" @click="applyScope">
-          {{ applying ? '应用中…' : '应用到内核白名单' }}
-        </button>
+        <strong>{{ t('本会话使用') }}</strong>
+        <span class="cp-muted">{{ t('选中哪些连接器由这个会话决定；点「应用到内核白名单」后才会真的注入。') }}</span>
+        <AppButton variant="primary" class="cp-btn primary" :disabled="applying" @click="applyScope">
+          {{ applying ? t('应用中…') : t('应用到内核白名单') }}
+        </AppButton>
       </div>
 
       <div v-if="!!list.length" class="cp-session-pick">
-        <button
+        <AppButton
           v-for="c in list"
           :key="c.id"
+          variant="chip"
           class="cp-chip"
           :class="{ on: selection.includes(c.id), off: !c.enabled }"
+          :aria-pressed="selection.includes(c.id)"
           :disabled="!c.enabled"
-          :title="c.enabled ? '' : '已停用的连接器不能被会话选中'"
+          :title="c.enabled ? '' : t('已停用的连接器不能被会话选中')"
           @click="toggleSelection(c)"
         >
           {{ c.title }}
-        </button>
+        </AppButton>
       </div>
-      <p v-else class="cp-hint">还没有连接器可选。</p>
+      <p v-else class="cp-hint">{{ t('还没有连接器可选。') }}</p>
 
       <div v-if="scope.length" class="cp-scope">
-        <p class="cp-tools-head">注入白名单（{{ scope.length }}）</p>
+        <p class="cp-tools-head">{{ t('注入白名单（{0}）', [scope.length]) }}</p>
         <div class="cp-scope-list">
           <code v-for="t in scope" :key="t">{{ t }}</code>
         </div>
       </div>
 
       <div v-if="orphans.length" class="cp-orphans">
-        <p class="cp-tools-head">
-          其他 MCP 工具（不属于任何连接器，勾选后直接写内核白名单）
-        </p>
+        <p class="cp-tools-head">{{ t('其他 MCP 工具（不属于任何连接器，勾选后直接写内核白名单）') }}</p>
         <label v-for="t in orphans" :key="t.key" class="cp-orphan">
           <AppCheckbox
             :model-value="isOrphanChecked(t)"

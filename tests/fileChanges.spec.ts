@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  changeDelta,
   diffLines,
   extractFileChange,
+  fileName,
   summarizeChange,
   type PiFileChange,
 } from '@/utils/fileChanges'
@@ -179,5 +181,32 @@ describe("diffLines", () => {
   it("空 write 给出一行空新增", () => {
     const c = extractFileChange("write", { path: "a", content: "" })!
     expect(diffLines(c)).toEqual([{ kind: "add", text: "" }])
+  })
+})
+
+describe('changeDelta', () => {
+  it('edit：增删行与摊平的 diff 行同一口径（chip 的 +x−y 不会和展开的对不上）', () => {
+    const c = extractFileChange('edit', {
+      path: 'a',
+      edits: [{ oldText: 'l1\nl2', newText: 'm1' }],
+    })!
+    expect(changeDelta(c)).toEqual({ added: 1, deleted: 2 })
+  })
+
+  it('write：整文件都算新增', () => {
+    const c = extractFileChange('write', { path: 'a', content: 'x\ny\nz' })!
+    expect(changeDelta(c)).toEqual({ added: 3, deleted: 0 })
+  })
+})
+
+describe('fileName', () => {
+  it('只留末端名字，同时认 / 与 \\', () => {
+    expect(fileName('/a/b/src/App.vue')).toBe('App.vue')
+    expect(fileName('C:\\repo\\src\\App.tsx')).toBe('App.tsx')
+  })
+
+  it('裸文件名原样返回；纯分隔符不产出空串', () => {
+    expect(fileName('App.vue')).toBe('App.vue')
+    expect(fileName('///')).toBe('///')
   })
 })

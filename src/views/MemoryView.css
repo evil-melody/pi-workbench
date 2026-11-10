@@ -176,3 +176,194 @@
   color: var(--text-faint);
   white-space: nowrap;
 }
+
+/* 24 小时撤销窗口 */
+.mem-del {
+  margin-left: auto;
+}
+
+.trash-panel {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  background: var(--bg-elev);
+}
+
+.trash-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.trash-head .app-icon {
+  color: var(--text-faint);
+}
+
+.trash-sub {
+  font-weight: 400;
+  font-size: 11.5px;
+}
+
+.trash-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.trash-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-panel);
+}
+
+.trash-card .mem-text {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
+
+.trash-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.trash-tip {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.del-note {
+  margin: 0 0 var(--sp-3);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.del-preview {
+  margin: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+  max-height: 120px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 检索 / 纠正 / 永久删除 */
+.mem-search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 160px;
+  max-width: 320px;
+  color: var(--text-faint);
+}
+
+.mem-edit,
+.mem-purge {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.mem-edit:hover,
+.mem-purge:hover {
+  color: var(--text);
+}
+
+.mem-purge:hover,
+.mem-now {
+  color: var(--danger);
+}
+
+/* 画像：只读视图，改 = 写一条带保留标签的记忆 */
+.prof-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  background: var(--bg-elev);
+}
+
+.prof-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.prof-head .app-icon {
+  color: var(--accent);
+}
+
+.prof-sub {
+  font-weight: 400;
+  font-size: 11.5px;
+}
+
+.prof-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.prof-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  font-size: 13px;
+}
+
+.prof-label {
+  width: 76px;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.prof-value {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.prof-value.faint {
+  color: var(--text-faint);
+}
+
+.prof-edit {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.prof-edit:hover {
+  color: var(--text);
+}

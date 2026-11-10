@@ -1,3 +1,6 @@
+import { t } from '@/i18n'
+import { ipcErrorText } from '@/i18n/errors'
+
 /**
  * 运行环境探测。
  *
@@ -17,17 +20,59 @@ export function useRuntime(): { isTauri: boolean } {
   return { isTauri: isTauriRuntime() }
 }
 
+interface IpcErrorPayload {
+  code: string
+  params?: Record<string, unknown>
+  detail?: string
+}
+
+/** 后端错误码约定：`domain/kebab-case`，可选 `: detail` 尾巴。 */
+const IPC_CODE = /^([a-z][a-z0-9-]*\/[a-z0-9-]+)(?::\s?([\s\S]*))?$/
+
+function fromString(raw: string): IpcErrorPayload | null {
+  const match = raw.match(IPC_CODE)
+  if (!match) return null
+  return { code: match[1], detail: match[2] || undefined }
+}
+
+function asIpcError(value: unknown): IpcErrorPayload | null {
+  if (typeof value === 'string') return fromString(value)
+  if (!value || typeof value !== 'object') return null
+  const code = (value as { code?: unknown }).code
+  if (typeof code !== 'string' || !code) return null
+  const source = value as { params?: unknown; detail?: unknown }
+  return {
+    code,
+    params:
+      source.params && typeof source.params === 'object'
+        ? (source.params as Record<string, unknown>)
+        : undefined,
+    detail: typeof source.detail === 'string' ? source.detail : undefined,
+  }
+}
+
 /**
  * 把底层 IPC 错误转成用户能读懂的文案。
  *
- * 纯浏览器下 `invoke` 抛的是 `Cannot read properties of undefined (reading 'invoke')`
- * 这类 TypeError，直接显示在界面上等于没解释。这里统一转成「怎么做才能用」。
- * 各页的错误处理都走这一个口径，避免同一类错误在每页各写一遍文案。
+ * 后端错误有两层：结构化 `{ code, params, detail }`（新命令），或约定形状的
+ * 字符串 `code` / `code: detail`（存量命令）。两种都先查错误码词条，
+ * 查不到才退回 `detail` 原文，任何阶段都不把 raw key 显示给用户。
+ * 纯浏览器下 `invoke` 抛的是 TypeError，这里统一说明「需要在桌面 App 运行」。
  */
 export function describeIpcError(e: unknown, action: string): string {
-  const raw = e instanceof Error ? e.message : String(e)
+  const actionText = t(action)
   if (!isTauriRuntime()) {
-    return `${action}需要在桌面 App（pnpm tauri dev）中运行：浏览器预览没有 Tauri 通道。`
+    return t('{action}需要在桌面 App（pnpm tauri dev）中运行：浏览器预览没有 Tauri 通道。', {
+      action: actionText,
+    })
   }
-  return `${action}失败：${raw}`
+  const structured = asIpcError(e)
+  if (structured) {
+    return t('{action}失败：{detail}', {
+      action: actionText,
+      detail: ipcErrorText(structured.code, structured.params, structured.detail),
+    })
+  }
+  const raw = e instanceof Error ? e.message : String(e)
+  return t('{action}失败：{detail}', { action: actionText, detail: raw })
 }

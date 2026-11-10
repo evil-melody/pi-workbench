@@ -76,6 +76,26 @@ describe('applyEvent · plan 计划卡挂载（G5）', () => {
     planTurn(c, '1. 历史步骤')
     expect(c.messages[0].plan).toBeUndefined()
   })
+
+  it('plan 正文被工具调用切碎时，仍聚合后解析出完整计划（不落 system 提示）', () => {
+    const c = ctx([], { task: '分步执行' })
+    applyEvent(c, { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: '计划如下：\n1. 读代码' } })
+    applyEvent(c, {
+      type: 'message_update',
+      assistantMessageEvent: { type: 'toolcall_start', toolCall: { id: 'c1', name: 'read' } },
+    })
+    applyEvent(c, { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: '\n2. 改死锁' } })
+    applyEvent(c, { type: 'message_end', message: { role: 'assistant', content: [], usage: usage() } })
+    applyEvent(c, { type: 'agent_settled' })
+
+    const body = c.messages.find((m) => !m.tool)!
+    const chip = c.messages.find((m) => m.tool)!
+    expect(body.text).toBe('计划如下：\n1. 读代码\n2. 改死锁')
+    expect(body.plan?.steps).toEqual(['读代码', '改死锁'])
+    expect(body.usage).toBeTruthy()
+    expect(chip.plan).toBeUndefined()
+    expect(c.messages.filter((m) => m.role === 'system')).toHaveLength(0)
+  })
 })
 
 /**

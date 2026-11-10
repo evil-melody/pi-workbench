@@ -1,0 +1,345 @@
+/*
+ * 单行折叠条（Think 行 / 工具行共用）。
+ *
+ * 取值对标 dsh ToolRow 编译产物（.o3BgMG_*）：行高 24px、摘要常规字体单行省略、
+ * 分隔符是 2×2px 圆点元素（.o3BgMG_sep）、
+ * 展开体为 label/内容两列 grid（.o3BgMG_ioSection）+ 260px 限高滚动（.o3BgMG_bodyScroll）。
+ * 过程行只为「一眼看到这步做了什么」存在，弱色、无底色、hover 才提亮。
+ */
+.crow {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  min-width: 0;
+}
+
+/*
+ * 一行 24px：不加交替底色，「灰底交替」的观感来自行高过大 + hover 残影。
+ *
+ * F3：head 走 turn 的同一栅格（--turn-grid + 同一 column-gap），所以 caret/图标
+ * 落在 26px rail 列正中，正好压住 MessageList 画在 12.5px 的竖线上。
+ * padding-inline 归零是这条对齐的前提——留 4px 内衬图标就偏出竖线。
+ */
+.crow-head {
+  display: grid;
+  grid-template-columns: var(--turn-grid);
+  column-gap: var(--sp-2);
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: var(--fs-base);
+  line-height: 24px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+.crow-head:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/*
+ * rail 节点（caret + 状态图标）。position:relative + 实底色是为了**盖住** turn 的竖线：
+ * 定位元素画在非定位伪元素之上，不加背景线就从图标中间穿过去。
+ * hover 态必须成对覆盖，否则图标周围会出现一块不跟随 hover 底色的亮斑。
+ */
+.crow-ic {
+  grid-column: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 24px;
+  background: var(--bg);
+}
+
+.crow-head:hover .crow-ic {
+  background: var(--bg-hover);
+}
+
+/* 文本列：标题 · 摘要共用一个可收缩轨道。 */
+.crow-main {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: var(--sp-1);
+}
+
+.crow-caret {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  transition: transform var(--dur) var(--ease);
+}
+
+.crow.open .crow-caret {
+  transform: rotate(90deg);
+}
+
+/* 图标不参与抢注意力：默认压到最弱一档，hover / 展开才回一档。 */
+.crow-icon {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.crow-head:hover .crow-icon,
+.crow.open .crow-icon {
+  color: var(--text-dim);
+}
+
+/*
+ * 工具名可收缩 + 省略号。原来 flex-shrink:0，长名（codebase_architecture）会把摘要挤出容器。
+ * 工具名是标识符：等宽 + 500，与摘要（正文 400）拉开一档。
+ */
+.crow-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+}
+
+/* 分隔点是画出来的 2×2px 圆点（文字「·」在 13px 细行里过重）。 */
+.crow-sep {
+  flex: none;
+  width: 2px;
+  height: 2px;
+  margin: 0 2px;
+  border-radius: var(--r-sm);
+  background: var(--text-faint);
+}
+
+/* 摘要是一行「人话」，用正文字体；参数原文只在展开体里以等宽呈现。 */
+.crow-summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-faint);
+}
+
+.crow.is-error .crow-icon,
+.crow.is-error .crow-title,
+.crow.is-error .crow-summary {
+  color: var(--danger);
+}
+
+.crow.is-error .crow-sep {
+  background: var(--danger);
+}
+
+/*
+ * dsh `StateDot`：失败行不用图标说话，换成一颗状态点（尺寸与图标位同宽，
+ * 行不跳动）。Pi 内核没有 interrupted/error.code 事件，因此只有 error 一档。
+ */
+.crow-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+/*
+ * 运行中 = 行内扫光（dsh `.o3BgMG_row:after` + `dsh-tool-row-sweep`）：
+ * 一道 300px 渐变从行左缘扫到右缘，2.6s 一轮，图标本身不动。
+ * spinner 会把注意力从「这步在做什么」抢走，扫光只是「还活着」。
+ */
+.crow[data-state='running'] .crow-head {
+  position: relative;
+  overflow: hidden;
+}
+
+.crow[data-state='running'] .crow-head::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -300px;
+  width: 300px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--bg-hover) 80%, transparent) 55%,
+    transparent 100%
+  );
+  animation: crow-sweep 2.6s ease-out infinite;
+}
+
+@keyframes crow-sweep {
+  0% {
+    left: -300px;
+  }
+  90%,
+  100% {
+    left: 100%;
+  }
+}
+
+/* 读屏器状态文案（dsh `.visuallyHidden`）：扫光是纯视觉信号，视障用户拿不到进度。 */
+.crow-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/*
+ * 展开体：dsh 式两列 grid——第一列放「命令 / 路径 / 内容 / 结果」标签（固定宽度，
+ * 多条 label 的左边缘因此对齐成一条线），第二列 minmax(0,1fr) 保证长内容只在列内
+ * 断行，撑不破 --chat-col 消息列。
+ *
+ * 左缩进一个 rail + 列间距，展开体就跟文本列对齐、把竖线留在自己身上而不是外头。
+ */
+.crow-body {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: baseline;
+  column-gap: var(--sp-3);
+  row-gap: var(--sp-2);
+  min-width: 0;
+  max-height: 260px;
+  margin-top: var(--sp-1);
+  margin-left: calc(var(--rail) + var(--sp-2));
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  background: var(--bg-elev);
+  overflow: auto;
+}
+
+/*
+ * F20：展开体槽位样式收回本文件。这些节点由调用方通过 slot 传入，scoped 编译后
+ * 是 `.crow[data-v-collapsible] .crow-label`——后代不要求带属性，因此 :deep() 可达，
+ * 不必再在 MessageList.css 里维护第二份 .crow-* 拷贝。
+ */
+.crow-body :deep(.crow-label) {
+  grid-column: 1;
+  align-self: start;
+  position: sticky;
+  top: 0;
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+}
+
+.crow-body :deep(.crow-pre) {
+  grid-column: 2;
+  min-width: 0;
+  margin: 0;
+  overflow-x: auto;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  color: var(--text-dim);
+}
+
+/* 代码 / 内容块才等宽；单行元信息（路径）用正文字体，别把「src/a.ts」装成代码。 */
+.crow-body :deep(.crow-pre.crow-code) {
+  font-family: var(--mono);
+  line-height: var(--lh-code);
+}
+
+/* Think 展开体只有正文没有标签：占满两列，右侧不留空沟。 */
+.crow-body :deep(.crow-pre:first-child) {
+  grid-column: 1 / -1;
+}
+
+/*
+ * 结果区（dsh TerminalBlock 的 ioLabel / bodyScroll 两列布局）。
+ * position:relative 是复制按钮的定位基准（块右上角，hover 才浮现）。
+ */
+.crow-body :deep(.crow-out) {
+  grid-column: 2;
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+}
+
+/* 失败输出：左侧 2px danger 边条，一眼定位「这一段是报错」，不靠整块底色。 */
+.crow-body :deep(.crow-out.crow-err) {
+  padding-left: var(--sp-2);
+  border-left: 2px solid var(--danger);
+}
+
+/* 退出码行：终端输出里唯一回答「跑没跑成」的一行，等宽、不跟正文抢字号。 */
+.crow-body :deep(.crow-exit) {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
+}
+
+.crow-body :deep(.crow-out.crow-err .crow-exit) {
+  color: var(--danger);
+}
+
+.crow-body :deep(.crow-btn) {
+  padding: 2px var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+.crow-body :deep(.crow-btn:hover) {
+  color: var(--text-dim);
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+/*
+ * 复制按钮（dsh TerminalBlock 的 copy）：常驻在块右上角会把正文首行压掉半行，
+ * 所以贴右上角、只在 hover / 聚焦时浮现。指针设备才收起——触屏没有 hover，
+ * 收起就等于删掉这个功能。visibility 一起过渡，收起时不可点（不会误触）。
+ */
+.crow-body :deep(.crow-copy) {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+@media (hover: hover) {
+  .crow-body :deep(.crow-copy) {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--dur-fast) var(--ease), visibility var(--dur-fast) var(--ease),
+      color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+      background-color var(--dur-fast) var(--ease);
+  }
+
+  .crow-body :deep(.crow-out:hover .crow-copy),
+  .crow-body :deep(.crow-copy:focus-visible) {
+    opacity: 1;
+    visibility: visible;
+  }
+}

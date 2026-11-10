@@ -1,11 +1,13 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import { IN_TAURI } from '@/composables/usePi'
 import { usePiEventsInjected } from '@/composables/usePiEvents'
-import { EVENT_KIND_ICON, EVENT_KIND_LABEL, type PiEventRow } from '@/utils/piEventKind'
+import { EVENT_KIND_ICON, eventKindLabel, type PiEventRow } from '@/utils/piEventKind'
 
 const props = defineProps<{ streaming?: boolean }>()
 
@@ -45,29 +47,29 @@ async function submitAddress(e: Event) {
   if (!raw) return
   address.value = ''
   if (!IN_TAURI) {
-    note('目标地址（浏览器模式，未打开）', raw)
+    note(t('目标地址（浏览器模式，未打开）'), raw)
     return
   }
   try {
     const opened = await invoke<string>('browser_open', { url: raw })
     history.value = [...history.value.filter((h) => h !== opened), opened]
-    note('目标地址', opened)
+    note(t('目标地址'), opened)
   } catch (err) {
-    note('目标地址被拒绝', String(err))
+    note(t('目标地址被拒绝'), String(err))
   }
 }
 
 function back() {
   if (!canBack.value) return
   history.value = history.value.slice(0, -1)
-  note('返回上一个地址', currentUrl.value)
+  note(t('返回上一个地址'), currentUrl.value)
 }
 
 function submitText(e: Event) {
   e.preventDefault()
-  const t = text.value.trim()
-  if (!t) return
-  note('页面输入', t)
+  const body = text.value.trim()
+  if (!body) return
+  note(t('页面输入'), body)
   text.value = ''
 }
 
@@ -77,29 +79,29 @@ function refresh() {
 </script>
 
 <template>
-  <section class="agent-browser" aria-label="智能体浏览器">
+  <section class="agent-browser" :aria-label="t('智能体浏览器')">
     <header class="browser-head">
       <div class="browser-title">
         <span class="live-dot" :class="{ on: props.streaming }" />
-        <strong>智能体浏览器</strong>
-        <span class="live-meta">{{ stats.calls }} 次调用 · {{ stats.turns }} 轮</span>
+        <strong>{{ t('智能体浏览器') }}</strong>
+        <span class="live-meta">{{ t('{0} 次调用 · {1} 轮', [stats.calls, stats.turns]) }}</span>
       </div>
       <div class="browser-actions">
-        <button type="button" title="返回上一个地址" :disabled="!canBack" @click="back">
+        <AppButton variant="icon" :title="t('返回上一个地址')" :disabled="!canBack" @click="back">
           <AppIcon name="chevron-left" :size="14" />
-        </button>
-        <button type="button" title="清空事件流" @click="refresh">
+        </AppButton>
+        <AppButton variant="icon" :title="t('清空事件流')" @click="refresh">
           <AppIcon name="refresh" :size="14" />
-        </button>
-        <button type="button" @click="compact = !compact" title="切换紧凑显示">
-          {{ compact ? '标准行距' : '紧凑行距' }}
-        </button>
+        </AppButton>
+        <AppButton variant="secondary" @click="compact = !compact" :title="t('切换紧凑显示')">
+          {{ compact ? t('标准行距') : t('紧凑行距') }}
+        </AppButton>
       </div>
     </header>
 
     <form class="browser-toolbar" @submit="submitAddress">
       <AppInput v-model="address" placeholder="https://" mono class="address-input" />
-      <button type="submit" class="toolbar-btn" :disabled="!address.trim()">前往</button>
+      <AppButton type="submit" variant="primary" class="toolbar-btn" :disabled="!address.trim()">{{ t('前往') }}</AppButton>
     </form>
 
     <div ref="scroller" class="browser-viewport" :class="{ compact }">
@@ -109,13 +111,13 @@ function refresh() {
 
       <p v-if="!rows.length && !props.streaming" class="browser-placeholder">
         <AppIcon name="monitor" :size="36" />
-        <span class="hint">等待智能体动作…</span>
-        <span class="sub">内核启动后，工具调用与轮次变化会实时出现在这里。</span>
+        <span class="hint">{{ t('等待智能体动作…') }}</span>
+        <span class="sub">{{ t('内核启动后，工具调用与轮次变化会实时出现在这里。') }}</span>
       </p>
 
       <p v-else-if="!rows.length" class="browser-placeholder">
         <AppIcon name="spinner" :size="24" class="spin" />
-        <span class="hint">智能体正在执行…</span>
+        <span class="hint">{{ t('智能体正在执行…') }}</span>
       </p>
 
       <ol v-else class="event-log">
@@ -125,7 +127,7 @@ function refresh() {
           </span>
           <div class="ev-body">
             <div class="ev-line">
-              <span class="ev-kind">{{ EVENT_KIND_LABEL[row.kind] }}</span>
+              <span class="ev-kind">{{ eventKindLabel(row.kind) }}</span>
               <span class="ev-title">{{ row.title }}</span>
             </div>
             <p v-if="row.detail" class="ev-detail">{{ row.detail }}</p>
@@ -135,20 +137,15 @@ function refresh() {
       </ol>
 
       <div v-if="props.streaming" class="streaming-bar">
-        <AppIcon name="spinner" :size="12" class="spin" />
-        执行中…
-      </div>
+        <AppIcon name="spinner" :size="12" class="spin" />{{ t('执行中…') }}</div>
     </div>
 
     <form class="browser-input" @submit="submitText">
-      <AppInput v-model="text" placeholder="点击网页输入框后，在此输入文本" class="text-input" />
-      <button type="submit" class="toolbar-btn" :disabled="!text.trim()">输入</button>
+      <AppInput v-model="text" :placeholder="t('点击网页输入框后，在此输入文本')" class="text-input" />
+      <AppButton type="submit" variant="primary" class="toolbar-btn" :disabled="!text.trim()">{{ t('输入') }}</AppButton>
     </form>
 
-    <p class="browser-hint">
-      画面没有内嵌 WebView：<strong>前往</strong> 会用系统默认浏览器打开，返回仅回退本面板的访问记录；
-      实时部分来自 <code>pi://event</code>。等内核具备 browser session 能力后再换成内嵌页面。
-    </p>
+    <p class="browser-hint">{{ t('画面没有内嵌 WebView：') }}<strong>{{ t('前往') }}</strong>{{ t('会用系统默认浏览器打开，返回仅回退本面板的访问记录； 实时部分来自') }}<code>pi://event</code>{{ t('。等内核具备 browser session 能力后再换成内嵌页面。') }}</p>
   </section>
 </template>
 

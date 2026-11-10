@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import AppCheckbox from '@/components/ui/AppCheckbox.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import RunBulkBar from './RunBulkBar.vue'
@@ -108,7 +110,17 @@ async function toggleArchived() {
 
 /** 标题兜底：极少数段没有任何用户消息（只起了内核没说话）。 */
 function titleOf(r: RunRecord): string {
-  return r.title || '（该会话没有用户消息）'
+  return r.title || t('（该会话没有用户消息）')
+}
+
+/**
+ * 行尾相对时间取「最后活动时间」（结束时间优先）。
+ * 列表按同一口径倒序排（见 listRunHistory），若这里仍显示开始时间，
+ * 一个「13 天前开、1 小时前收尾」的长会话会顶着「13天前」插在最新行里，
+ * 看起来像排序坏了。
+ */
+function timeOf(r: RunRecord): string {
+  return timeAgo(r.endedAtMs || r.startedAtMs)
 }
 
 /* ── 单条元数据操作 ─────────────────────────────────────────── */
@@ -120,19 +132,19 @@ async function patchOne(r: RunRecord, patch: RunMetaPatch): Promise<boolean> {
     await refresh()
     return true
   } catch (e) {
-    flash(`操作失败：${errText(e)}`)
+    flash(t('操作失败：{0}', [errText(e)]))
     return false
   }
 }
 
 async function togglePin(r: RunRecord) {
   const was = r.pinned === true
-  if (await patchOne(r, { pinned: !was })) flash(was ? '已取消置顶' : '已置顶')
+  if (await patchOne(r, { pinned: !was })) flash(was ? t('已取消置顶') : t('已置顶'))
 }
 
 async function toggleArchive(r: RunRecord) {
   const was = r.archived === true
-  if (await patchOne(r, { archived: !was })) flash(was ? '已取消归档' : '已归档')
+  if (await patchOne(r, { archived: !was })) flash(was ? t('已取消归档') : t('已归档'))
 }
 
 /* ── 重命名（AppModal + AppInput，写 title）──────────────────── */
@@ -151,7 +163,7 @@ async function submitRename() {
   const name = renameText.value.trim()
   renameOpen.value = false
   if (!r || !name || name === r.title) return
-  if (await patchOne(r, { title: name })) flash('已重命名')
+  if (await patchOne(r, { title: name })) flash(t('已重命名'))
 }
 
 /* ── 删除（AppModal 确认，软删除）───────────────────────────── */
@@ -167,7 +179,7 @@ async function confirmDelete() {
   const r = deleteTarget.value
   deleteOpen.value = false
   if (!r) return
-  if (await patchOne(r, { deleted: true })) flash('已删除 1 条记录')
+  if (await patchOne(r, { deleted: true })) flash(t('已删除 1 条记录'))
 }
 
 /* ── 分享任务（markdown 摘要进剪贴板，失败降级手动复制）──────── */
@@ -183,7 +195,7 @@ async function shareRun(r: RunRecord) {
   })
   try {
     await navigator.clipboard.writeText(text)
-    flash('已复制任务摘要')
+    flash(t('已复制任务摘要'))
   } catch {
     // 剪贴板被拒（未聚焦窗口 / 权限禁用）：不假装成功，弹出来让人手动复制。
     shareFallback.value = text
@@ -195,7 +207,7 @@ async function openInWindow(r: RunRecord) {
   try {
     await invoke('open_replay_window', { cwd: r.cwd, index: r.index })
   } catch (e) {
-    flash(`打开独立窗口失败：${errText(e)}`)
+    flash(t('打开独立窗口失败：{0}', [errText(e)]))
   }
 }
 
@@ -203,7 +215,7 @@ async function openFolder(r: RunRecord) {
   try {
     await invoke('reveal_path', { path: r.cwd })
   } catch (e) {
-    flash(`打开文件夹失败：${errText(e)}`)
+    flash(t('打开文件夹失败：{0}', [errText(e)]))
   }
 }
 
@@ -252,7 +264,7 @@ async function runBulk(patch: RunMetaPatch, doneText: string) {
     flash(doneText)
   } catch (e) {
     await refresh()
-    flash(`批量操作失败：${errText(e)}`)
+    flash(t('批量操作失败：{0}', [errText(e)]))
   } finally {
     bulkRunning.value = false
   }
@@ -260,15 +272,15 @@ async function runBulk(patch: RunMetaPatch, doneText: string) {
 
 function onBulkPin() {
   const n = selectedRecords.value.length
-  void runBulk({ pinned: true }, `已置顶 ${n} 条记录`)
+  void runBulk({ pinned: true }, t('已置顶 {0} 条记录', [n]))
 }
 function onBulkArchive() {
   const n = selectedRecords.value.length
-  void runBulk({ archived: true }, `已归档 ${n} 条记录`)
+  void runBulk({ archived: true }, t('已归档 {0} 条记录', [n]))
 }
 function onBulkDelete() {
   const n = selectedRecords.value.length
-  void runBulk({ deleted: true }, `已删除 ${n} 条记录`)
+  void runBulk({ deleted: true }, t('已删除 {0} 条记录', [n]))
 }
 
 /* ── 行点击 / 「···」菜单 ───────────────────────────────────── */
@@ -315,18 +327,19 @@ function openMenu(r: RunRecord, el: Event) {
           <AppIcon v-if="r.pinned" class="rh-pin" name="star" :size="12" />
           <span class="rh-title">{{ titleOf(r) }}</span>
           <span class="rh-meta">
-            <span v-if="r.prompts" class="rh-prompts">{{ r.prompts }} 轮</span>
-            <span class="rh-time">{{ timeAgo(r.startedAtMs) }}</span>
+            <span v-if="r.prompts" class="rh-prompts">{{ t('{0} 轮', [r.prompts]) }}</span>
+            <span class="rh-time">{{ timeOf(r) }}</span>
           </span>
-          <button
+          <AppButton
             v-if="!bulkMode"
-            type="button"
+            variant="icon"
             class="rh-more-btn"
-            title="更多操作"
+            :title="t('更多操作')"
+            aria-haspopup="menu"
             @click.stop="openMenu(r, $event)"
           >
             <AppIcon name="more-horizontal" :size="14" />
-          </button>
+          </AppButton>
         </div>
       </li>
     </ol>
@@ -344,18 +357,16 @@ function openMenu(r: RunRecord, el: Event) {
       @cancel="exitBulk"
     />
 
-    <button v-if="hasMore" type="button" class="rh-more" @click="loadMore">
-      加载更多（还有 {{ records.length - visible }} 条）
-    </button>
+    <AppButton v-if="hasMore" variant="text" class="rh-more" @click="loadMore">{{ t('加载更多（还有 {0} 条）', [records.length - visible]) }}</AppButton>
 
-    <button
+    <AppButton
       v-if="archivedCount > 0 || showArchived"
-      type="button"
+      variant="text"
       class="rh-more"
       @click="toggleArchived"
     >
-      {{ showArchived ? '收起归档' : `查看归档 ${archivedCount} 条` }}
-    </button>
+      {{ showArchived ? t('收起归档') : t('查看归档 {0} 条', [archivedCount]) }}
+    </AppButton>
 
     <!-- 「···」全量菜单：Teleport 到 body，公共 ctx-menu 样式 -->
     <RunHistoryMenu
@@ -372,46 +383,41 @@ function openMenu(r: RunRecord, el: Event) {
     />
 
     <!-- 重命名 -->
-    <AppModal :open="renameOpen" title="重命名记录" size="sm" @close="renameOpen = false">
+    <AppModal :open="renameOpen" :title="t('重命名记录')" size="sm" @close="renameOpen = false">
       <label class="rh-dialog-row">
-        <span>新标题</span>
+        <span>{{ t('新标题') }}</span>
         <AppInput
           v-model="renameText"
-          placeholder="给这条运行记录起个名字"
+          :placeholder="t('给这条运行记录起个名字')"
           @keydown.enter="submitRename"
         />
       </label>
       <template #footer>
-        <button class="rh-btn" @click="renameOpen = false">取消</button>
-        <button class="rh-btn primary" @click="submitRename">保存</button>
+        <AppButton variant="secondary" class="rh-btn" @click="renameOpen = false">{{ t('取消') }}</AppButton>
+        <AppButton variant="primary" class="rh-btn primary" @click="submitRename">{{ t('保存') }}</AppButton>
       </template>
     </AppModal>
 
     <!-- 删除（软删除确认） -->
-    <AppModal :open="deleteOpen" title="删除这条记录？" size="sm" @close="deleteOpen = false">
-      <p class="rh-dialog-text">
-        将删除「{{ deleteTarget ? titleOf(deleteTarget) : '' }}」。记录文件仍会保留，
-        但它不再出现在运行记录里。
-      </p>
+    <AppModal :open="deleteOpen" :title="t('删除这条记录？')" size="sm" @close="deleteOpen = false">
+      <p class="rh-dialog-text">{{ t('将删除「{0}」。记录文件仍会保留， 但它不再出现在运行记录里。', [deleteTarget ? titleOf(deleteTarget) : '']) }}</p>
       <template #footer>
-        <button class="rh-btn" @click="deleteOpen = false">取消</button>
-        <button class="rh-btn danger" @click="confirmDelete">删除</button>
+        <AppButton variant="secondary" class="rh-btn" @click="deleteOpen = false">{{ t('取消') }}</AppButton>
+        <AppButton variant="danger" class="rh-btn danger" @click="confirmDelete">{{ t('删除') }}</AppButton>
       </template>
     </AppModal>
 
     <!-- 分享降级：剪贴板不可用时的手动复制兜底 -->
     <AppModal
       :open="shareFallback !== null"
-      title="复制失败，请手动复制"
+      :title="t('复制失败，请手动复制')"
       size="sm"
       @close="shareFallback = null"
     >
-      <p class="rh-dialog-text">
-        浏览器拒绝了剪贴板写入（常见于窗口未聚焦或权限被禁）。请全选下面内容手动复制：
-      </p>
+      <p class="rh-dialog-text">{{ t('浏览器拒绝了剪贴板写入（常见于窗口未聚焦或权限被禁）。请全选下面内容手动复制：') }}</p>
       <pre class="rh-share-pre">{{ shareFallback }}</pre>
       <template #footer>
-        <button class="rh-btn primary" @click="shareFallback = null">知道了</button>
+        <AppButton variant="primary" class="rh-btn primary" @click="shareFallback = null">{{ t('知道了') }}</AppButton>
       </template>
     </AppModal>
   </section>

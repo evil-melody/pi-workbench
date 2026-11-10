@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 /**
  * 专家草稿编辑器 —— ExpertDefinition 表单。
  *
@@ -11,6 +12,7 @@
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
 import AppModal from '@/components/ui/AppModal.vue'
@@ -72,12 +74,12 @@ const createError = ref('')
 const challenge = ref<ConfirmationRequest | null>(null)
 const showConfirm = ref(false)
 
-const PROSE_FIELDS = [
-  { key: 'role', label: '角色定位', hint: '你是谁、擅长什么、以什么口吻说话。' },
-  { key: 'methodology', label: '工作方法', hint: '按什么顺序推进任务、遇到不确定时怎么处理。' },
-  { key: 'boundaries', label: '行为边界', hint: '绝对不能做的事，越界时必须明说。' },
-  { key: 'deliverables', label: '交付物', hint: '最终以什么形式交付，格式与颗粒度要求。' },
-] as const
+const PROSE_FIELDS = computed(() => [
+  { key: 'role', label: t('角色定位'), hint: t('你是谁、擅长什么、以什么口吻说话。') },
+  { key: 'methodology', label: t('工作方法'), hint: t('按什么顺序推进任务、遇到不确定时怎么处理。') },
+  { key: 'boundaries', label: t('行为边界'), hint: t('绝对不能做的事，越界时必须明说。') },
+  { key: 'deliverables', label: t('交付物'), hint: t('最终以什么形式交付，格式与颗粒度要求。') },
+] as const)
 
 const tagText = computed({
   get: () => definition.value.tags.join('、'),
@@ -91,11 +93,11 @@ const tagText = computed({
 
 const personaText = computed(() => {
   const d = definition.value
-  const parts = [`你是「${d.name}」。`, '', '## 角色定位', d.role.trim()]
-  if (d.methodology.trim()) parts.push('', '## 工作方法', d.methodology.trim())
-  if (d.boundaries.trim()) parts.push('', '## 行为边界', d.boundaries.trim())
-  if (d.deliverables.trim()) parts.push('', '## 交付物', d.deliverables.trim())
-  if (d.tags.length) parts.push('', '## 适用标签', d.tags.join('、'))
+  const parts = [t('你是「{0}」。', [d.name]), '', t('## 角色定位'), d.role.trim()]
+  if (d.methodology.trim()) parts.push('', t('## 工作方法'), d.methodology.trim())
+  if (d.boundaries.trim()) parts.push('', t('## 行为边界'), d.boundaries.trim())
+  if (d.deliverables.trim()) parts.push('', t('## 交付物'), d.deliverables.trim())
+  if (d.tags.length) parts.push('', t('## 适用标签'), d.tags.join('、'))
   return parts.join('\n')
 })
 
@@ -157,7 +159,7 @@ async function load() {
       digest.value = ''
     }
   } catch (e: unknown) {
-    loadError.value = describeExpertError(e, '草稿读取失败')
+    loadError.value = describeExpertError(e, t('草稿读取失败'))
   }
   digestDirty.value = false
   loading.value = false
@@ -177,10 +179,10 @@ async function save() {
     revision.value = draft.revision
     digest.value = draft.digest
     digestDirty.value = false
-    saveNotice.value = `已保存为修订 #${draft.revision}`
+    saveNotice.value = t('已保存为修订 #{0}', [draft.revision])
     emit('saved', draft)
   } catch (e: unknown) {
-    saveError.value = describeExpertError(e, '保存失败')
+    saveError.value = describeExpertError(e, t('保存失败'))
   }
   saving.value = false
 }
@@ -195,7 +197,7 @@ async function requestChallenge() {
     challenge.value = await expertRequestConfirmation(props.expertId, revision.value, digest.value)
     showConfirm.value = true
   } catch (e: unknown) {
-    saveError.value = describeExpertError(e, '申请发布授权失败')
+    saveError.value = describeExpertError(e, t('申请发布授权失败'))
   }
   publishBusy.value = false
 }
@@ -207,11 +209,11 @@ async function onConfirmed(token: string) {
   try {
     const proof = await expertConfirm(token)
     const pub = await expertPublish(props.expertId, proof, props.projectRoot ?? null)
-    publishNotice.value = `已发布「${pub.name}」，persona 写入 ${pub.persona_path}`
+    publishNotice.value = t('已发布「{0}」，persona 写入 {1}', [pub.name, pub.persona_path])
     digestDirty.value = false
     emit('published', pub)
   } catch (e: unknown) {
-    publishError.value = describeExpertError(e, '发布失败')
+    publishError.value = describeExpertError(e, t('发布失败'))
   }
   publishing.value = false
 }
@@ -231,10 +233,10 @@ async function createDraft() {
     digestDirty.value = false
     showCreate.value = false
     newExpertId.value = ''
-    saveNotice.value = `已另存为新专家「${id}」，修订 #${draft.revision}`
+    saveNotice.value = t('已另存为新专家「{0}」，修订 #{1}', [id, draft.revision])
     emit('saved', draft)
   } catch (e: unknown) {
-    createError.value = describeExpertError(e, '另存失败')
+    createError.value = describeExpertError(e, t('另存失败'))
   }
 }
 
@@ -268,24 +270,23 @@ defineExpose({ load })
   <section class="ed">
     <header class="ed-head">
       <div class="ed-head-main">
-        <h3>专家草稿</h3>
-        <span class="ed-meta">
-          修订 #{{ revision || '—' }}
-          <template v-if="digest">· 摘要 {{ digest.slice(0, 10) }}…</template>
-          <template v-if="digestDirty">· 有未保存改动</template>
+        <h3>{{ t('专家草稿') }}</h3>
+        <span class="ed-meta">{{ t('修订 #{0}', [revision || '—']) }}<template v-if="digest">{{ t('· 摘要 {0}…', [digest.slice(0, 10)]) }}</template>
+          <template v-if="digestDirty">{{ t('· 有未保存改动') }}</template>
         </span>
       </div>
       <div class="ed-head-actions">
-        <span v-if="loading" class="ed-state">读取中…</span>
-        <button class="ed-btn" :disabled="saving || loading" @click="save">{{ saving ? '保存中…' : '保存草稿' }}</button>
-        <button
+        <span v-if="loading" class="ed-state">{{ t('读取中…') }}</span>
+        <AppButton variant="secondary" class="ed-btn" :disabled="saving || loading" @click="save">{{ saving ? t('保存中…') : t('保存草稿') }}</AppButton>
+        <AppButton
+          variant="primary"
           class="ed-btn primary"
           :disabled="!canPublish || publishing"
-          :title="blocking.length ? '还有校验问题待解决' : '发布需要一次显式确认'"
+          :title="blocking.length ? t('还有校验问题待解决') : t('发布需要一次显式确认')"
           @click="requestChallenge"
         >
-          {{ publishing ? '发布中…' : '发布' }}
-        </button>
+          {{ publishing ? t('发布中…') : t('发布') }}
+        </AppButton>
       </div>
     </header>
 
@@ -298,7 +299,7 @@ defineExpose({ load })
     <div class="ed-body">
       <div class="ed-col">
         <label class="ed-field">
-          <span class="ed-label">专家 id<em>发布后作为唯一标识</em></span>
+          <span class="ed-label">{{ t('专家 id') }}<em>{{ t('发布后作为唯一标识') }}</em></span>
           <AppInput
             :model-value="expertId"
             readonly
@@ -308,24 +309,24 @@ defineExpose({ load })
         </label>
 
         <label class="ed-field">
-          <span class="ed-label">名称</span>
-          <AppInput v-model="definition.name" placeholder="例如：代码评审专家" :maxlength="80" />
+          <span class="ed-label">{{ t('名称') }}</span>
+          <AppInput v-model="definition.name" :placeholder="t('例如：代码评审专家')" :maxlength="80" />
           <ul v-if="fieldIssues('name').length" class="ed-issues">
             <li v-for="(i, k) in fieldIssues('name')" :key="k">{{ i.message }}</li>
           </ul>
         </label>
 
         <label class="ed-field">
-          <span class="ed-label">描述</span>
-          <AppTextarea v-model="definition.description" :rows="2" placeholder="一句话说明这个专家解决什么问题" />
+          <span class="ed-label">{{ t('描述') }}</span>
+          <AppTextarea v-model="definition.description" :rows="2" :placeholder="t('一句话说明这个专家解决什么问题')" />
           <ul v-if="fieldIssues('description').length" class="ed-issues">
             <li v-for="(i, k) in fieldIssues('description')" :key="k">{{ i.message }}</li>
           </ul>
         </label>
 
         <label class="ed-field">
-          <span class="ed-label">标签<em>最多 8 个，用于匹配意图</em></span>
-          <AppInput :model-value="tagText" placeholder="用顿号或逗号分隔" @update:model-value="tagText = $event" />
+          <span class="ed-label">{{ t('标签') }}<em>{{ t('最多 8 个，用于匹配意图') }}</em></span>
+          <AppInput :model-value="tagText" :placeholder="t('用顿号或逗号分隔')" @update:model-value="tagText = $event" />
         </label>
 
         <div v-for="f in PROSE_FIELDS" :key="f.key" class="ed-field">
@@ -338,42 +339,38 @@ defineExpose({ load })
         </div>
 
         <div class="ed-field">
-          <span class="ed-label">
-            启动示例
-            <em>最多 6 条，给内核一个可用的开场</em>
+          <span class="ed-label">{{ t('启动示例') }}<em>{{ t('最多 6 条，给内核一个可用的开场') }}</em>
           </span>
           <div class="ed-sublist">
             <div v-for="(ex, i) in definition.examples" :key="i" class="ed-subitem">
               <div class="ed-subrow">
-                <AppInput v-model="ex.id" placeholder="示例 id" :maxlength="64" />
+                <AppInput v-model="ex.id" :placeholder="t('示例 id')" :maxlength="64" />
                 <AppInput
                   :model-value="ex.title ?? ''"
-                  placeholder="标题（可选）"
+                  :placeholder="t('标题（可选）')"
                   :maxlength="120"
                   @update:model-value="setExampleTitle(i, $event)"
                 />
-                <button class="ed-mini danger" @click="removeExample(i)">删除</button>
+                <AppButton variant="text" size="sm" class="ed-mini danger" @click="removeExample(i)">{{ t('删除') }}</AppButton>
               </div>
-              <AppTextarea v-model="ex.prompt" :rows="2" placeholder="示例的完整输入或期望的回应" />
+              <AppTextarea v-model="ex.prompt" :rows="2" :placeholder="t('示例的完整输入或期望的回应')" />
               <ul v-if="fieldIssues(`examples.${i}.id`).length" class="ed-issues">
                 <li v-for="(it, k) in fieldIssues(`examples.${i}.id`)" :key="k">{{ it.message }}</li>
               </ul>
             </div>
-            <button class="ed-mini" @click="addExample">+ 添加示例</button>
+            <AppButton variant="text" size="sm" class="ed-mini" @click="addExample">{{ t('+ 添加示例') }}</AppButton>
           </div>
         </div>
 
         <div class="ed-field">
-          <span class="ed-label">
-            Skill 依赖
-            <em>最多 32 条，声明要先装载哪些技能</em>
+          <span class="ed-label">{{ t('Skill 依赖') }}<em>{{ t('最多 32 条，声明要先装载哪些技能') }}</em>
           </span>
           <div class="ed-sublist">
             <div v-for="(s, i) in definition.skill_requirements" :key="i" class="ed-subrow">
-              <AppInput v-model="s.name" placeholder="Skill 名称" />
-              <button class="ed-mini danger" @click="removeSkill(i)">删除</button>
+              <AppInput v-model="s.name" :placeholder="t('Skill 名称')" />
+              <AppButton variant="text" size="sm" class="ed-mini danger" @click="removeSkill(i)">{{ t('删除') }}</AppButton>
             </div>
-            <button class="ed-mini" @click="addSkill">+ 添加 Skill 依赖</button>
+            <AppButton variant="text" size="sm" class="ed-mini" @click="addSkill">{{ t('+ 添加 Skill 依赖') }}</AppButton>
           </div>
         </div>
       </div>
@@ -381,7 +378,7 @@ defineExpose({ load })
       <aside class="ed-side">
         <div class="ed-preview">
           <div class="ed-preview-head">
-            <span>persona 预览</span>
+            <span>{{ t('persona 预览') }}</span>
             <span class="ed-tokens">{{ personaTokens }} tokens</span>
           </div>
           <pre class="ed-pre">{{ personaText }}</pre>
@@ -389,38 +386,38 @@ defineExpose({ load })
 
         <div class="ed-check">
           <div class="ed-check-head">
-            <span>发布检查</span>
-            <span v-if="validating" class="ed-state">校验中…</span>
+            <span>{{ t('发布检查') }}</span>
+            <span v-if="validating" class="ed-state">{{ t('校验中…') }}</span>
           </div>
-          <p v-if="!blocking.length && !loading" class="ed-ok">定义已通过全部校验，可以发布。</p>
-          <p v-else-if="loading" class="ed-state">正在读取草稿…</p>
+          <p v-if="!blocking.length && !loading" class="ed-ok">{{ t('定义已通过全部校验，可以发布。') }}</p>
+          <p v-else-if="loading" class="ed-state">{{ t('正在读取草稿…') }}</p>
           <ul v-else class="ed-check-list">
             <li v-for="(i, k) in blocking" :key="k">
               <code>{{ i.path || i.code }}</code> {{ i.message }}
             </li>
           </ul>
-          <button class="ed-mini" @click="showCreate = true">另存为新专家…</button>
+          <AppButton variant="text" size="sm" class="ed-mini" @click="showCreate = true">{{ t('另存为新专家…') }}</AppButton>
         </div>
       </aside>
     </div>
 
     <AppModal
       v-model:open="showCreate"
-      title="另存为新专家"
+      :title="t('另存为新专家')"
       size="sm"
       @close="showCreate = false"
     >
       <div class="ed-create">
         <label>
-          <span>新专家 id</span>
-          <AppInput v-model="newExpertId" placeholder="例如：code-review" mono />
+          <span>{{ t('新专家 id') }}</span>
+          <AppInput v-model="newExpertId" :placeholder="t('例如：code-review')" mono />
         </label>
-        <p class="ed-hint">当前表单内容会被整体复制过去，原草稿不变。</p>
+        <p class="ed-hint">{{ t('当前表单内容会被整体复制过去，原草稿不变。') }}</p>
         <p v-if="createError" class="ed-err">{{ createError }}</p>
       </div>
       <template #footer>
-        <button class="ed-btn" @click="showCreate = false">取消</button>
-        <button class="ed-btn primary" :disabled="!newExpertId.trim()" @click="createDraft">创建</button>
+        <AppButton variant="secondary" class="ed-btn" @click="showCreate = false">{{ t('取消') }}</AppButton>
+        <AppButton variant="primary" class="ed-btn primary" :disabled="!newExpertId.trim()" @click="createDraft">{{ t('创建') }}</AppButton>
       </template>
     </AppModal>
 

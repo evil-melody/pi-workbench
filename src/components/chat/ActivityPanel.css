@@ -11,7 +11,7 @@
   align-items: center;
   gap: 6px;
   margin-bottom: 12px;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text-dim);
   text-transform: uppercase;
@@ -20,8 +20,7 @@
 
 /* 事件计数：面板收起状态下也能判断「本轮是否有轨迹」。 */
 .panel-count {
-  margin-left: auto;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
   color: var(--text-faint);
   background: var(--bg-elev);
@@ -29,6 +28,24 @@
   border-radius: var(--r-full);
   padding: 1px 7px;
   letter-spacing: 0;
+}
+
+.panel-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: 3px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.panel-menu-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
 }
 
 .status-card {
@@ -44,7 +61,7 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 
 .dot {
@@ -62,35 +79,57 @@
 
 .meta {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--text-faint);
+  flex-wrap: wrap;
+  gap: var(--sp-1);
 }
 
-.stat-row {
+/* 相位不再重复成文字（活动语已经说明在做什么），只留工具/技能名。 */
+.meta-chip {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+}
+
+/*
+ * 分段统计条（P0-4）：一条外框 + 内部 hairline 分格。
+ * 三个独立圆角框并排是「三张卡片」，读起来像三个不相干的小组件；
+ * 它们其实是同一个计数器的三段，容器必须只有一个。
+ */
+.stat-bar {
   display: flex;
-  gap: 8px;
   margin-bottom: 10px;
-}
-
-.stat {
-  flex: 1;
-  padding: 7px 8px;
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   background: var(--bg-elev);
-  font-size: 10.5px;
+}
+
+.stat {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  font-size: var(--fs-xs);
   color: var(--text-faint);
-  text-align: center;
   white-space: nowrap;
 }
 
+.stat + .stat {
+  border-left: 1px solid var(--border-soft);
+}
+
 .stat b {
-  display: block;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--fs-md);
+  font-weight: 700;
   color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-tight);
 }
 
 .event-list {
@@ -102,47 +141,192 @@
   overflow: auto;
 }
 
+/*
+ * run stream 行（ai-console.md §2）：[26px 图标列][主文 + 一行结果][时间/时长 + chevron]。
+ * 类别词、原始事件名、payload 一律收进展开体，折叠态只说「这一步做了什么」。
+ */
 .event-item {
-  display: grid;
-  grid-template-columns: 14px 30px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
   border-radius: var(--r-sm);
-  font-size: 12px;
 }
 
 .event-item:hover {
   background: var(--bg-hover);
 }
 
-.event-kind {
-  font-size: 10.5px;
+.event-head {
+  display: grid;
+  grid-template-columns: var(--rail) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.event-ic {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-faint);
+}
+
+.event-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
 }
 
 .event-name {
-  font-family: var(--mono);
-  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  color: var(--text);
+}
+
+/* 主文截断；事件名小标签固定不缩（它是这行的身份，宁可让主文出省略号）。 */
+.evt-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.event-desc {
-  grid-column: 2 / -1;
-  margin-top: -2px;
+.evt-type-tag {
+  flex: none;
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
   color: var(--text-faint);
-  font-size: 11px;
+}
+
+.event-desc {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * 生命周期行都是 quiet 档：单条（.quiet）与聚合（.evt-agg）同处理——
+ * 灰字 + 图标半透，让它退到背景里，而不是靠删掉信息。
+ */
+.event-item.quiet .event-ic,
+.evt-agg .event-ic {
+  opacity: 0.6;
+}
+
+.event-item.quiet .event-name,
+.evt-agg .event-name {
+  color: var(--text-faint);
+}
+
+/* 连续生命周期事件折成的一行：外壳与普通行同解剖，明细只到事件名粒度。 */
+.evt-agg-body {
+  padding: 0 8px 8px calc(var(--rail) + var(--sp-2));
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.evt-agg-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  min-width: 0;
+}
+
+.evt-agg-name {
+  flex: none;
+  max-width: 55%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.evt-agg-row .event-time {
+  margin-left: auto;
+}
+
+.event-slot {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+}
+
+.event-dur {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
 }
 
 .event-time {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
   color: var(--text-faint);
+}
+
+.event-caret {
+  color: var(--text-faint);
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.event-item.open .event-caret {
+  transform: rotate(90deg);
+}
+
+.event-body {
+  padding: 0 8px 8px calc(var(--rail) + var(--sp-2));
+}
+
+.event-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+.event-kind {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.event-type {
+  font-family: var(--mono);
+}
+
+/* §2.B：原始 payload 只进展开体的等宽块，长文自滚动，不撑坏列表。 */
+.event-payload {
+  max-height: 240px;
+  margin: 0;
+  padding: var(--sp-2);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .empty {
@@ -151,30 +335,12 @@
   border: 1px dashed var(--border);
   border-radius: var(--r-sm);
   color: var(--text-faint);
-  font-size: 11.5px;
+  font-size: var(--fs-xs);
   line-height: 1.6;
   text-align: center;
 }
 
-.note {
-  margin: 12px 0 0;
-  padding: 8px;
-  border-radius: var(--r-sm);
-  background: var(--accent-dim);
-  color: var(--text-dim);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-.note code {
-  font-family: var(--mono);
-  background: var(--bg-elev);
-  padding: 1px 3px;
-  border-radius: 3px;
-  font-size: 10px;
-}
-
-/* A4 崩溃重放：从 journal 重建转写的操作区。 */
+/* A4 崩溃重放：从 journal 重建转写的结果区（入口在面板头部「···」菜单）。 */
 .replay-zone {
   margin-top: 10px;
   padding-top: 10px;
@@ -184,33 +350,9 @@
   gap: 6px;
 }
 
-.replay-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  align-self: flex-start;
-  padding: 5px 10px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--border);
-  background: var(--bg-elev);
-  color: var(--text-dim);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.replay-btn:hover:not(:disabled) {
-  color: var(--text);
-  border-color: var(--border-strong);
-}
-
-.replay-btn:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
 .replay-note {
   margin: 0;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-faint);
 }
 
@@ -232,7 +374,7 @@
 
 .replay-msg {
   margin: 0;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   line-height: 1.5;
   display: flex;
   gap: 6px;
@@ -266,7 +408,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-dim);
 }
 
@@ -275,18 +417,11 @@
   font-weight: 500;
 }
 
-.usage-refresh {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px;
-  border: none;
-  background: none;
+/* 诚实空态：内核未启动 / journal 为空时不给假数字。 */
+.usage-empty {
+  margin: 0;
+  font-size: var(--fs-xs);
   color: var(--text-faint);
-  cursor: pointer;
-}
-
-.usage-refresh:hover {
-  color: var(--text);
 }
 
 .usage-row {
@@ -294,7 +429,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   min-width: 0;
 }
 
@@ -308,4 +443,58 @@
 .usage-num {
   flex: none;
   color: var(--text-faint);
+}
+
+/*
+ * F10 从 composer 迁来的上下文区（.usage-zone 做分节外壳，这里只补行解剖）：
+ * 本会话统计 + 代码库索引状态。WorkBuddy 式弱化——纯灰字 + 小图标，
+ * 它是提示信息，不是按钮组。
+ */
+.ctx-line {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.ctx-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 已索引 / 失败是真状态，用状态色；索引中保持灰字。 */
+.ctx-line.ready {
+  color: var(--ok);
+}
+
+.ctx-line.error {
+  color: var(--danger);
+}
+
+.ctx-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 2px;
+  padding: 0 var(--sp-1);
+  height: 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: inherit;
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.ctx-act:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
 }

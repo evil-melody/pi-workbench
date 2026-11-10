@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 /**
  * 连接器新建 / 编辑弹窗。
  *
@@ -10,6 +11,7 @@ import AppInput from '@/components/ui/AppInput.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
 import AppSelect, { type SelectOption } from '@/components/ui/AppSelect.vue'
 import AppModal from '@/components/ui/AppModal.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import {
   connectorsConfig,
   connectorsCreate,
@@ -24,10 +26,10 @@ import {
 const props = defineProps<{ open: boolean; connectorId: string | null }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
 
-const TRANSPORT_OPTIONS: SelectOption[] = [
-  { value: 'stdio', label: 'stdio 子进程', hint: '本地命令，会真的握手拿工具' },
-  { value: 'streamable-http', label: 'Streamable HTTP', hint: '远程 HTTP 端点' },
-]
+const TRANSPORT_OPTIONS = computed<SelectOption[]>(() => [
+  { value: 'stdio', label: t('stdio 子进程'), hint: t('本地命令，会真的握手拿工具') },
+  { value: 'streamable-http', label: 'Streamable HTTP', hint: t('远程 HTTP 端点') },
+])
 
 const form = ref<ConnectorInput>(emptyInput())
 const loading = ref(false)
@@ -37,7 +39,7 @@ const authConfigured = ref(false)
 
 const isEdit = computed(() => !!props.connectorId)
 const serverNameError = computed(() => validateServerName(form.value.server_name))
-const titleError = computed(() => (form.value.title.trim() ? null : '名称不能为空'))
+const titleError = computed(() => (form.value.title.trim() ? null : t('名称不能为空')))
 
 async function fillForm() {
   error.value = ''
@@ -61,7 +63,7 @@ async function fillForm() {
     }
     authConfigured.value = cfg.authorization_configured
   } catch (e) {
-    error.value = describeConnectorError(e, '读取连接器配置失败')
+    error.value = describeConnectorError(e, t('读取连接器配置失败'))
   } finally {
     loading.value = false
   }
@@ -104,7 +106,7 @@ function payload(): ConnectorInput {
 
 async function save() {
   if (titleError.value || serverNameError.value) {
-    error.value = '请先修正表单中的错误'
+    error.value = t('请先修正表单中的错误')
     return
   }
   saving.value = true
@@ -118,7 +120,7 @@ async function save() {
     emit('saved')
     emit('close')
   } catch (e) {
-    error.value = describeConnectorError(e, '保存失败')
+    error.value = describeConnectorError(e, t('保存失败'))
   } finally {
     saving.value = false
   }
@@ -134,39 +136,37 @@ function close() {
 </script>
 
 <template>
-  <AppModal :open="open" :title="isEdit ? '编辑连接器' : '新建连接器'" size="md" @close="close">
+  <AppModal :open="open" :title="isEdit ? t('编辑连接器') : t('新建连接器')" size="md" @close="close">
     <div class="ce-form">
       <div class="ce-row">
         <label>
-          <span class="ce-label">名称</span>
+          <span class="ce-label">{{ t('名称') }}</span>
           <AppInput v-model="form.title" placeholder="GitHub" />
         </label>
         <small v-if="titleError" class="ce-err">{{ titleError }}</small>
       </div>
 
       <label>
-        <span class="ce-label">描述</span>
+        <span class="ce-label">{{ t('描述') }}</span>
         <AppTextarea
           :model-value="form.description"
           :rows="2"
-          placeholder="这个连接器提供哪些能力"
+          :placeholder="t('这个连接器提供哪些能力')"
           @update:model-value="form.description = $event"
         />
       </label>
 
       <div class="ce-row">
         <label>
-          <span class="ce-label">服务标识（serverName）</span>
+          <span class="ce-label">{{ t('服务标识（serverName）') }}</span>
           <AppInput v-model="form.server_name" mono placeholder="github" />
         </label>
         <small v-if="serverNameError" class="ce-err">{{ serverNameError }}</small>
-        <small v-else class="ce-hint">
-          决定工具命名空间 <code>mcp__&lt;标识&gt;__&lt;工具&gt;</code>，全局唯一
-        </small>
+        <small v-else class="ce-hint">{{ t('决定工具命名空间') }}<code>{{ t('mcp__<标识>__<工具>') }}</code>{{ t('，全局唯一') }}</small>
       </div>
 
       <label>
-        <span class="ce-label">传输协议</span>
+        <span class="ce-label">{{ t('传输协议') }}</span>
         <AppSelect
           :model-value="form.transport"
           :options="TRANSPORT_OPTIONS"
@@ -175,12 +175,12 @@ function close() {
       </label>
 
       <label v-if="form.transport === 'stdio'">
-        <span class="ce-label">启动命令</span>
+        <span class="ce-label">{{ t('启动命令') }}</span>
         <AppInput v-model="form.command" mono placeholder="npx -y @modelcontextprotocol/server-github" />
       </label>
 
       <label v-if="form.transport === 'stdio'">
-        <span class="ce-label">启动参数（一行一个）</span>
+        <span class="ce-label">{{ t('启动参数（一行一个）') }}</span>
         <AppTextarea
           :model-value="argsToText(form.args)"
           :rows="3"
@@ -191,31 +191,29 @@ function close() {
       </label>
 
       <label v-else>
-        <span class="ce-label">HTTP 地址</span>
+        <span class="ce-label">{{ t('HTTP 地址') }}</span>
         <AppInput v-model="form.url" mono placeholder="https://mcp.example.com/mcp" />
       </label>
 
       <label>
-        <span class="ce-label">
-          凭据令牌
-          <em v-if="isEdit && authConfigured" class="ce-set">已配置，留空表示不修改</em>
+        <span class="ce-label">{{ t('凭据令牌') }}<em v-if="isEdit && authConfigured" class="ce-set">{{ t('已配置，留空表示不修改') }}</em>
         </span>
         <AppInput
           v-model="form.authorization_token"
           type="password"
-          placeholder="只写字段，保存后不会回显"
+          :placeholder="t('只写字段，保存后不会回显')"
         />
       </label>
 
       <p v-if="error" class="ce-error">{{ error }}</p>
-      <p v-if="loading" class="ce-hint">正在读取配置…</p>
+      <p v-if="loading" class="ce-hint">{{ t('正在读取配置…') }}</p>
     </div>
 
     <template #footer>
-      <button class="ce-btn" :disabled="saving" @click="close">取消</button>
-      <button class="ce-btn primary" :disabled="saving || loading" @click="save">
-        {{ saving ? '保存中…' : '保存' }}
-      </button>
+      <AppButton variant="secondary" class="ce-btn" :disabled="saving" @click="close">{{ t('取消') }}</AppButton>
+      <AppButton variant="primary" class="ce-btn primary" :disabled="saving || loading" @click="save">
+        {{ saving ? t('保存中…') : t('保存') }}
+      </AppButton>
     </template>
   </AppModal>
 </template>

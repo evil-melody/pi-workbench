@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { invoke } from '@tauri-apps/api/core'
 import { ref } from 'vue'
 
@@ -153,16 +154,18 @@ export interface TaskContext {
 export const activeProjectPath = ref('')
 export const activeProjectId = ref<string | null>(null)
 
-export const WORK_ITEM_STATUS = [
-  { value: 'todo', label: '待办' },
-  { value: 'doing', label: '进行中' },
-  { value: 'review', label: '评审中' },
-  { value: 'done', label: '已完成' },
-  { value: 'cancelled', label: '已取消' },
-]
+export function workItemStatusOptions() {
+  return [
+    { value: 'todo', label: t('待办') },
+    { value: 'doing', label: t('进行中') },
+    { value: 'review', label: t('评审中') },
+    { value: 'done', label: t('已完成') },
+    { value: 'cancelled', label: t('已取消') },
+  ]
+}
 
 export function workItemStatusLabel(status: string) {
-  return WORK_ITEM_STATUS.find((s) => s.value === status)?.label ?? status
+  return workItemStatusOptions().find((s) => s.value === status)?.label ?? status
 }
 
 export function loadActiveProject() {
@@ -269,7 +272,7 @@ export const PI_SESSION_ID = 'pi-workbench:default'
  *
  * `codebaseIndexing` 只是「前端是否正在等后端索引」；真正的进度来自
  * `codebaseStatus`（后端落库的结果）。两者都放到模块级 ref，
- * ChatView（触发）和 ComposerStatus（展示）读同一份，避免状态分裂。
+ * ChatView（触发）和 ActivityPanel（展示）读同一份，避免状态分裂。
  */
 export const codebaseIndexing = ref(false)
 export const codebaseStatus = ref<CodebaseIndexStatus | null>(null)
@@ -324,26 +327,26 @@ export async function taskContextPreamble(sessionId = PI_SESSION_ID): Promise<st
     .then((g) => g.identity?.operator)
     .catch(() => '')
   const lines = [
-    `[项目] ${ctx.project.name}`,
-    identity ? `[操作者] ${identity}` : '',
-    `[配置修订 #${ctx.config.number}]`,
+    t('[项目] {0}', [ctx.project.name]),
+    identity ? t('[操作者] {0}', [identity]) : '',
+    t('[配置修订 #{0}]', [ctx.config.number]),
     ctx.config.instruction.trim(),
   ]
-  if (caps.length) lines.push(`[本次可用能力] ${caps.join('、')}`)
-  if (refs.length) lines.push(`[本次引用] ${refs.join('、')}`)
+  if (caps.length) lines.push(t('[本次可用能力] {0}', [caps.join('、')]))
+  if (refs.length) lines.push(t('[本次引用] {0}', [refs.join('、')]))
   return lines.filter(Boolean).join('\n')
 }
 
 /** 把内核返回的领域错误码翻成人话，前端不再对外暴露 projects/* 这类内部标识。 */
-export function describeProjectError(err: unknown, fallback = '操作失败') {
+export function describeProjectError(err: unknown, fallback = t('操作失败')) {
   const raw = String((err as { message?: string })?.message ?? err)
   const map: Array<[string, string]> = [
-    ['projects/revision-conflict', '这份内容已经被改过，请刷新后重试'],
-    ['projects/instruction-budget-exceeded', '项目指令超出 token 预算，请精简后再保存'],
-    ['projects/reference-stale', '引用的计划或资产已变更，请重新选择'],
-    ['projects/capability-not-bound', '该能力未绑定在项目配置里'],
-    ['projects/template-not-found', '模板不存在'],
-    ['projects/not-found', '项目或对象不存在'],
+    ['projects/revision-conflict', t('这份内容已经被改过，请刷新后重试')],
+    ['projects/instruction-budget-exceeded', t('项目指令超出 token 预算，请精简后再保存')],
+    ['projects/reference-stale', t('引用的计划或资产已变更，请重新选择')],
+    ['projects/capability-not-bound', t('该能力未绑定在项目配置里')],
+    ['projects/template-not-found', t('模板不存在')],
+    ['projects/not-found', t('项目或对象不存在')],
   ]
   for (const [code, text] of map) if (raw.includes(code)) return text
   return fallback

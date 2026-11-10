@@ -190,11 +190,14 @@ const TASKS = {
     return run('pnpm', ['tauri', 'build'])
   },
 
-  /** 全量校验：环境 → Rust → 前端。对齐上游工具的 check 脚本矩阵。 */
+  /** 全量校验：环境 → Rust → 未声明标识符 → 前端。对齐上游工具的 check 脚本矩阵。 */
   async check() {
     await preflight({ requireRust: true })
     console.log('\n[check] cargo check')
     if ((await run('cargo', ['check', '--manifest-path', 'src-tauri/Cargo.toml'])) !== 0) return 1
+    // 漏 import 能过 vite build，运行时才 ReferenceError；必须单独挡。
+    console.log('\n[check] 未声明标识符')
+    if ((await run('node', ['scripts/check-undefined.mjs'])) !== 0) return 1
     console.log('\n[check] pnpm build')
     return run('pnpm', ['build'])
   },

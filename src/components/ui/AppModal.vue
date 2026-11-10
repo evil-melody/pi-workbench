@@ -9,6 +9,8 @@ const props = defineProps<{
   // xl：artifact 文档预览用（原手搓 overlay 是 960px，表格/文档需要更宽的面板）。
   // page：整页设置搬进参照仓 720px 对话框（modal.ts）。
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'page'
+  // bare：命令面板这类「输入框即标题」的浮层，隐藏 header，保留遮罩/焦点陷阱/Esc。
+  bare?: boolean
 }>()
 
 // AUDIT-011：补 update:open 事件，让 v-model:open 双向绑定真正生效
@@ -114,8 +116,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
         @click="onBackdrop"
         @keydown="trapTab"
       >
-        <div class="modal-panel" :class="size ?? 'md'">
-          <div class="modal-header">
+        <div class="modal-panel" :class="[size ?? 'md', { bare }]">
+          <div v-if="!bare" class="modal-header">
             <h3>{{ title }}</h3>
             <AppButton variant="icon" class="modal-close" :aria-label="t('关闭')" @click="requestClose">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>

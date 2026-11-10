@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 /**
  * 资料库 —— 面板版式与功能。
  *
@@ -9,11 +10,12 @@
  */
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { onTablistKeydown } from '@/composables/useTablist'
 import { open } from '@tauri-apps/plugin-dialog'
 import {
-  CONVERT_TEXT,
-  KIND_TEXT,
-  ORIGIN_TEXT,
+  convertStatusText,
+  kindText,
+  originText,
   describeLibraryError,
   formatBytes,
   formatTime,
@@ -23,6 +25,7 @@ import {
   libraryMarks,
   libraryMove,
   libraryOpen,
+  libraryBytes,
   libraryPublish,
   libraryRead,
   libraryRemove,
@@ -41,21 +44,25 @@ import {
   type LibraryStats,
 } from '@/composables/useLibrary'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
 import MemoryView from '@/views/MemoryView.vue'
+import { officeToHtml } from '@/composables/useOfficePreview'
+import { sanitizeHtml } from '@/utils/sanitizeHtml'
+import type { ArtifactKind } from '@/composables/useArtifacts'
 
 type View = 'library' | 'search' | 'recent' | 'outputs' | 'memory'
 type Dialog = '' | 'create' | 'rename' | 'move' | 'import' | 'revisions'
 
-const views: { key: View; label: string; icon: string }[] = [
-  { key: 'library', label: '资料库', icon: 'book' },
-  { key: 'search', label: '搜索', icon: 'search' },
-  { key: 'recent', label: '最近', icon: 'clock' },
-  { key: 'outputs', label: '输出', icon: 'box' },
-  { key: 'memory', label: '记忆', icon: 'database' },
-]
+const views = computed<{ key: View; label: string; icon: string }[]>(() => [
+  { key: 'library', label: t('资料库'), icon: 'book' },
+  { key: 'search', label: t('搜索'), icon: 'search' },
+  { key: 'recent', label: t('最近'), icon: 'clock' },
+  { key: 'outputs', label: t('输出'), icon: 'box' },
+  { key: 'memory', label: t('记忆'), icon: 'database' },
+])
 
 const route = useRoute()
 
@@ -67,8 +74,15 @@ function viewFromQuery(): View {
   return VIEW_KEYS.includes(value as View) ? (value as View) : 'library'
 }
 
+/** 全局搜索带过来的查询词：/library?view=search&q=... 直接落到搜索页。 */
+function queryText(key: string): string {
+  const raw = route.query[key]
+  const value = Array.isArray(raw) ? raw[0] : raw
+  return typeof value === 'string' ? value : ''
+}
+
 const view = ref<View>(viewFromQuery())
-const busy = ref(false)
+const busy = ref(true)
 const status = ref('')
 const stats = ref<LibraryStats | null>(null)
 const assets = ref<LibraryAssetView[]>([])
@@ -76,7 +90,7 @@ const marks = ref<LibraryAssetView[]>([])
 const children = ref<Record<string, LibraryNode[]>>({})
 const expanded = ref<Set<string>>(new Set())
 const cwd = ref('/')
-const keyword = ref('')
+const keyword = ref(queryText('q'))
 const hits = ref<LibraryHit[]>([])
 const selectedId = ref('')
 const content = ref('')
@@ -101,7 +115,7 @@ const usedRatio = computed(() => {
   return Math.min(1, s.used_bytes / s.max_total_bytes)
 })
 const convertText = (a: LibraryAssetView) =>
-  a.searchable ? CONVERT_TEXT.ready : CONVERT_TEXT[a.enabled ? 'failed' : 'skipped']
+  a.searchable ? convertStatusText('ready') : convertStatusText(a.enabled ? 'failed' : 'skipped')
 
 async function refresh() {
   busy.value = true
@@ -151,19 +165,43 @@ async function openNode(node: LibraryNode) {
   }
   const id = node.asset_id
   if (!id) {
-    status.value = '磁盘上有这个文件，但还没登记为资料；先在目录里选中它再操作。'
+    status.value = t('磁盘上有这个文件，但还没登记为资料；先在目录里选中它再操作。')
     return
   }
   await openAsset(id)
 }
 
+const officeHtml = ref('')
+
+function isOfficeAsset(a: LibraryAssetView | null): boolean {
+  if (!a) return false
+  const name = a.name.toLowerCase()
+  return a.kind === 'docx' || a.kind === 'pptx' || a.kind === 'pdf' || name.endsWith('.xlsx')
+}
+
+async function loadPreview(id: string) {
+  officeHtml.value = ''
+  const a = assets.value.find((x) => x.id === id) ?? null
+  if (a && isOfficeAsset(a)) {
+    try {
+      const res = await libraryBytes(id)
+      officeHtml.value = sanitizeHtml(await officeToHtml(res.kind as ArtifactKind, res.content))
+    } catch (e) {
+      officeHtml.value = ''
+      status.value = describeLibraryError(e, t('无法预览该文件，请用「原件」打开'))
+    }
+    return
+  }
+  const body = await libraryRead(id)
+  content.value = body.content
+  status.value = body.truncated ? t('正文超过 512 KiB，已截断显示') : ''
+}
+
 async function openAsset(id: string) {
+  selectedId.value = id
+  dirty.value = false
   try {
-    const body = await libraryRead(id)
-    selectedId.value = id
-    content.value = body.content
-    dirty.value = false
-    status.value = body.truncated ? '正文超过 512 KiB，已截断显示' : ''
+    await loadPreview(id)
   } catch (e) {
     status.value = describeLibraryError(e)
   }
@@ -188,7 +226,7 @@ async function publish() {
   if (!id) return
   try {
     await libraryPublish(id)
-    status.value = '已发布：现在可以被检索到'
+    status.value = t('已发布：现在可以被检索到')
   } catch (e) {
     status.value = describeLibraryError(e)
   }
@@ -214,7 +252,7 @@ async function removeAsset() {
     await libraryRemove(id)
     selectedId.value = ''
     confirmDelete.value = false
-    status.value = '已删除原件、索引与修订快照'
+    status.value = t('已删除原件、索引与修订快照')
   } catch (e) {
     status.value = describeLibraryError(e)
   }
@@ -264,7 +302,7 @@ async function openRevisions() {
 async function rollback(rev: number) {
   try {
     await libraryRollback(selectedId.value, rev)
-    status.value = `已回滚到 #${rev}`
+    status.value = t('已回滚到 #{0}', [rev])
     dialog.value = ''
   } catch (e) {
     status.value = describeLibraryError(e)
@@ -291,7 +329,7 @@ function openMove() {
 async function submitCreate() {
   const name = dialogName.value.trim()
   if (!name) {
-    status.value = describeLibraryError(null, '请填写文件名')
+    status.value = describeLibraryError(null, t('请填写文件名'))
     return
   }
   try {
@@ -300,7 +338,7 @@ async function submitCreate() {
     dialog.value = ''
     dialogName.value = ''
     selectedId.value = asset.id
-    status.value = '已新建草稿，写正文后点「发布」才会进入检索'
+    status.value = t('已新建草稿，写正文后点「发布」才会进入检索')
   } catch (e) {
     status.value = describeLibraryError(e)
   }
@@ -314,7 +352,7 @@ async function submitRename() {
   const name = dialogName.value.trim()
   if (!id) return
   if (!name) {
-    status.value = describeLibraryError(null, '请填写新名称')
+    status.value = describeLibraryError(null, t('请填写新名称'))
     return
   }
   try {
@@ -358,9 +396,9 @@ async function submitImport() {
     await libraryImport(path, cwd.value)
     dialog.value = ''
     expanded.value.add(cwd.value)
-    status.value = '已导入原件，转换器结果见转换状态'
+    status.value = t('已导入原件，转换器结果见转换状态')
   } catch (e) {
-    status.value = describeLibraryError(e, `导入失败：${String(e)}`)
+    status.value = describeLibraryError(e, t('导入失败：{0}', [String(e)]))
   }
   await refresh()
   await loadTree(cwd.value)
@@ -417,8 +455,7 @@ watch(selectedId, async (id) => {
   dirty.value = false
   if (!id) return
   try {
-    const body = await libraryRead(id)
-    content.value = body.content
+    await loadPreview(id)
   } catch (e) {
     status.value = describeLibraryError(e)
   }
@@ -433,12 +470,15 @@ watch(
   { immediate: true },
 )
 
-// 兼容来自 /agent-ops/memory 的重定向：query 变化时同步切换 tab。
+// 兼容来自 /agent-ops/memory 的重定向与全局搜索的 ?q=：
+// query 变化时同步 tab 与搜索词（同路径改 query 不会重挂载本组件）。
 watch(
-  () => route.query.view,
-  (q) => {
-    const value = Array.isArray(q) ? q[0] : q
+  () => [route.query.view, route.query.q],
+  ([v, q]) => {
+    const value = Array.isArray(v) ? v[0] : v
     if (value && VIEW_KEYS.includes(value as View)) view.value = value as View
+    const text = Array.isArray(q) ? q[0] : q
+    if (typeof text === 'string' && text) keyword.value = text
   },
 )
 
@@ -450,64 +490,69 @@ loadTree('/')
   <section class="wd-library">
     <header class="lib-header">
       <div class="lib-title">
-        <h1>资料库</h1>
-        <p class="muted">浏览、检索并维护项目内的文件资产。原件始终保留，检索文本只是产物。</p>
+        <h1>{{ t('资料库') }}</h1>
+        <p class="muted">{{ t('浏览、检索并维护项目内的文件资产。原件始终保留，检索文本只是产物。') }}</p>
       </div>
       <div v-if="stats" class="lib-quota">
-        <div class="quota-bar" role="img" :aria-label="`已用 ${formatBytes(stats.used_bytes)}`">
+        <div class="quota-bar" role="img" :aria-label="t('已用 {0}', [formatBytes(stats.used_bytes)])">
           <!-- 功能性动态值（配额比例），豁免纯样式抽离铁律：CSS 变量传值 -->
           <span :style="{ '--quota-w': `${usedRatio * 100}%` }"></span>
         </div>
         <span class="quota-text">
-          {{ stats.asset_count }} 份 · {{ formatBytes(stats.used_bytes) }} / {{ formatBytes(stats.max_total_bytes) }}
+          {{ t('{0} 份 · {1} / {2}', [stats.asset_count, formatBytes(stats.used_bytes), formatBytes(stats.max_total_bytes)]) }}
         </span>
       </div>
     </header>
 
     <div class="lib-toolbar">
-      <nav class="lib-tabs">
-        <button
+      <nav class="lib-tabs" role="tablist" :aria-label="t('资料库视图')" @keydown="onTablistKeydown">
+        <AppButton
           v-for="v in views"
           :key="v.key"
+          variant="tab"
+          role="tab"
+          :aria-selected="view === v.key"
+          :tabindex="view === v.key ? 0 : -1"
           class="lib-tab"
           :class="{ active: view === v.key }"
           @click="view = v.key"
         >
           <AppIcon :name="v.icon" :size="14" />
           {{ v.label }}
-        </button>
+        </AppButton>
       </nav>
       <div class="lib-tools">
         <!-- 记忆 tab 的检索由记忆层自己负责，这里的资料库检索框不适用。 -->
         <AppInput
           v-if="view !== 'memory'"
           v-model="keyword"
-          :placeholder="view === 'library' ? '在当前目录下筛选' : '搜索资料库全文'"
+          :placeholder="view === 'library' ? t('在当前目录下筛选') : t('搜索资料库全文')"
         />
-        <button
+        <AppButton
           v-if="view === 'library'"
+          variant="secondary"
           class="tool-btn"
-          title="在当前目录下新建草稿"
+          :title="t('在当前目录下新建草稿')"
           @click="openCreate()"
         >
-          <AppIcon name="folder-plus" :size="14" /> 新建
-        </button>
-        <button
+          <AppIcon name="folder-plus" :size="14" />{{ t('新建') }}</AppButton>
+        <AppButton
           v-if="view === 'library'"
+          variant="secondary"
           class="tool-btn"
-          title="导入外部文件"
+          :title="t('导入外部文件')"
           @click="dialog = 'import'"
         >
-          <AppIcon name="upload" :size="14" /> 导入
-        </button>
-        <button class="tool-btn" title="刷新" :disabled="busy" @click="refresh()">
+          <AppIcon name="upload" :size="14" />{{ t('导入') }}</AppButton>
+        <AppButton variant="icon" class="tool-btn" :title="t('刷新')" :aria-label="t('刷新资料库')" :disabled="busy" @click="refresh()">
           <AppIcon name="refresh" :size="14" />
-        </button>
+        </AppButton>
       </div>
     </div>
 
     <!-- 记忆 tab 下资料库自身的加载错误与本页无关，交给内嵌的记忆视图表达状态。 -->
     <div v-if="status && view !== 'memory'" class="lib-status err" role="alert">{{ status }}</div>
+    <div v-if="busy && view !== 'memory'" class="load-state">{{ t('正在加载资料库…') }}</div>
 
     <section v-if="view === 'memory'" class="lib-memory-shell">
       <MemoryView embedded />
@@ -515,7 +560,7 @@ loadTree('/')
 
     <div v-else class="lib-body">
       <aside v-if="view === 'search'" class="lib-tree">
-        <div class="tree-head"><span class="muted">命中结果</span></div>
+        <div class="tree-head"><span class="muted">{{ t('命中结果') }}</span></div>
         <ul class="tree-list">
           <li
             v-for="hit in hits"
@@ -527,27 +572,27 @@ loadTree('/')
               <AppIcon name="search" :size="12" />
               <span class="tree-name">{{ hit.name }}</span>
               <span class="hit-convert" :class="{ bad: hit.convert_status !== 'ready' }">
-                {{ CONVERT_TEXT[hit.convert_status] ?? hit.convert_status }}
+                {{ convertStatusText(hit.convert_status) }}
               </span>
             </div>
             <div class="hit-meta">
-              <span>目录 {{ hit.dir }}</span>
-              <span>{{ KIND_TEXT[hit.kind] ?? hit.kind }}</span>
-              <span>来源 {{ ORIGIN_TEXT[hit.origin.kind] ?? hit.origin.kind }}</span>
-              <span>修订 #{{ hit.revision }}</span>
+              <span>{{ t('目录 {0}', [hit.dir]) }}</span>
+              <span>{{ kindText(hit.kind) }}</span>
+              <span>{{ t('来源 {0}', [originText(hit.origin.kind)]) }}</span>
+              <span>{{ t('修订 #{0}', [hit.revision]) }}</span>
               <span v-if="hit.location">{{ hit.location }}</span>
             </div>
             <p class="hit-snippet">{{ hit.snippet }}</p>
           </li>
           <li v-if="!hits.length" class="tree-empty">
-            {{ keyword.trim() ? '没有命中，换个关键词试试' : '输入关键词做全文检索' }}
+            {{ keyword.trim() ? t('没有命中，换个关键词试试') : t('输入关键词做全文检索') }}
           </li>
         </ul>
       </aside>
 
       <aside v-else-if="view === 'recent' || view === 'outputs'" class="lib-tree">
         <div class="tree-head">
-          <span class="muted">{{ view === 'outputs' ? '最近写入' : '最近打开' }}</span>
+          <span class="muted">{{ view === 'outputs' ? t('最近写入') : t('最近打开') }}</span>
         </div>
         <ul class="tree-list">
           <li
@@ -561,12 +606,12 @@ loadTree('/')
             <span class="tree-name">{{ m.name }}</span>
             <span class="tree-badge">{{ m.dir }}</span>
           </li>
-          <li v-if="!marks.length" class="tree-empty">还没有记录</li>
+          <li v-if="!marks.length" class="tree-empty">{{ t('还没有记录') }}</li>
         </ul>
       </aside>
 
       <aside v-else class="lib-tree">
-        <div class="tree-head"><span class="muted">目录</span></div>
+        <div class="tree-head"><span class="muted">{{ t('目录') }}</span></div>
         <ul class="tree-list">
           <li
             v-for="item in renderTree('/')"
@@ -581,9 +626,7 @@ loadTree('/')
             <span
               v-if="item.node.asset_id && assets.find((a) => a.id === item.node.asset_id)?.draft"
               class="tree-flag"
-            >
-              草稿
-            </span>
+            >{{ t('草稿') }}</span>
             <span
               v-else-if="
                 item.node.asset_id &&
@@ -591,11 +634,9 @@ loadTree('/')
                 !assets.find((a) => a.id === item.node.asset_id)?.enabled
               "
               class="tree-flag off"
-            >
-              停用
-            </span>
+            >{{ t('停用') }}</span>
           </li>
-          <li v-if="!rowsOf('/').length" class="tree-empty">还没有文件，先新建一个草稿</li>
+          <li v-if="!rowsOf('/').length" class="tree-empty">{{ t('还没有文件，先新建一个草稿') }}</li>
         </ul>
       </aside>
 
@@ -603,51 +644,41 @@ loadTree('/')
         <div class="preview-head">
           <div class="preview-title">
             <AppIcon name="file" :size="14" /> {{ selected.name }}
-            <span v-if="selected.draft" class="preview-flag">草稿</span>
-            <span v-if="dirty" class="preview-dirty">未保存</span>
+            <span v-if="selected.draft" class="preview-flag">{{ t('草稿') }}</span>
+            <span v-if="dirty" class="preview-dirty">{{ t('未保存') }}</span>
           </div>
           <div class="preview-actions">
-            <button class="tool-btn" :disabled="!dirty" @click="save()">
-              <AppIcon name="check" :size="14" /> 保存
-            </button>
-            <button class="tool-btn" title="重命名" @click="openRename()">
-              <AppIcon name="edit" :size="14" /> 重命名
-            </button>
-            <button class="tool-btn" title="移动到其它目录" @click="openMove()">
-              <AppIcon name="corner-down-left" :size="14" /> 移动
-            </button>
-            <button v-if="selected.draft" class="tool-btn" @click="publish()">
-              <AppIcon name="upload" :size="14" /> 发布
-            </button>
-            <button class="tool-btn" @click="toggleEnabled()">
-              <AppIcon name="lock" :size="14" /> {{ selected.enabled ? '停用' : '启用' }}
-            </button>
-            <button class="tool-btn" title="查看修订并回滚" @click="openRevisions()">
-              <AppIcon name="corner-down-left" :size="14" /> 修订
-            </button>
-            <button class="tool-btn" @click="openOriginal()">
-              <AppIcon name="external" :size="14" /> 原件
-            </button>
-            <button class="tool-btn danger" title="删除资料" @click="confirmDelete = true">
-              <AppIcon name="trash" :size="14" /> 删除
-            </button>
+            <AppButton variant="secondary" class="tool-btn" :disabled="!dirty" @click="save()">
+              <AppIcon name="check" :size="14" />{{ t('保存') }}</AppButton>
+            <AppButton variant="secondary" class="tool-btn" :title="t('重命名')" @click="openRename()">
+              <AppIcon name="edit" :size="14" />{{ t('重命名') }}</AppButton>
+            <AppButton variant="secondary" class="tool-btn" :title="t('移动到其它目录')" @click="openMove()">
+              <AppIcon name="corner-down-left" :size="14" />{{ t('移动') }}</AppButton>
+            <AppButton v-if="selected.draft" variant="secondary" class="tool-btn" @click="publish()">
+              <AppIcon name="upload" :size="14" />{{ t('发布') }}</AppButton>
+            <AppButton variant="secondary" class="tool-btn" @click="toggleEnabled()">
+              <AppIcon name="lock" :size="14" /> {{ selected.enabled ? t('停用') : t('启用') }}
+            </AppButton>
+            <AppButton variant="secondary" class="tool-btn" :title="t('查看修订并回滚')" @click="openRevisions()">
+              <AppIcon name="corner-down-left" :size="14" />{{ t('修订') }}</AppButton>
+            <AppButton variant="secondary" class="tool-btn" @click="openOriginal()">
+              <AppIcon name="external" :size="14" />{{ t('原件') }}</AppButton>
+            <AppButton variant="danger" class="tool-btn danger" :title="t('删除资料')" @click="confirmDelete = true">
+              <AppIcon name="trash" :size="14" />{{ t('删除') }}</AppButton>
           </div>
         </div>
 
         <div class="preview-meta">
-          <span>目录 {{ selected.dir }}</span>
-          <span>{{ KIND_TEXT[selected.kind] ?? selected.kind }}</span>
-          <span>来源 {{ ORIGIN_TEXT[selected.origin.kind] ?? selected.origin.kind }}{{ selected.origin.detail ? ` · ${selected.origin.detail}` : '' }}</span>
-          <span>修订 #{{ selected.revision }}</span>
+          <span>{{ t('目录 {0}', [selected.dir]) }}</span>
+          <span>{{ kindText(selected.kind) }}</span>
+          <span>{{ t('来源 {0}{1}', [originText(selected.origin.kind), selected.origin.detail ? ` · ${selected.origin.detail}` : '']) }}</span>
+          <span>{{ t('修订 #{0}', [selected.revision]) }}</span>
           <span>{{ formatBytes(selected.size) }}</span>
-          <span :class="{ 'meta-bad': !selected.searchable }">
-            转换 {{ convertText(selected) }}
+          <span :class="{ 'meta-bad': !selected.searchable }">{{ t('转换 {0}', [convertText(selected)]) }}
           </span>
           <span class="muted">{{ formatTime(selected.updated_at) }}</span>
         </div>
-        <div v-if="selected.convert_error && !selected.searchable" class="preview-note">
-          转换失败原因：{{ selected.convert_error }}（原件未改动）
-        </div>
+        <div v-if="selected.convert_error && !selected.searchable" class="preview-note">{{ t('转换失败原因：{0}（原件未改动）', [selected.convert_error]) }}</div>
 
         <AppTextarea
           v-if="selected.kind === 'markdown' || selected.kind === 'text' || selected.kind === 'html'"
@@ -655,91 +686,95 @@ loadTree('/')
           class="preview-editor"
           mono
         />
+        <div v-else-if="officeHtml" class="preview-office">
+          <p class="preview-office-caveat">{{ t('只读预览：还原阅读版式，不承诺与 Office 逐项保真') }}</p>
+          <div class="office-body" v-html="officeHtml"></div>
+        </div>
         <div v-else class="preview-binary">
           <AppIcon name="pdf" :size="28" />
-          <span>该格式不在正文通道内，点「原件」用系统应用打开。</span>
+          <span>{{ t('该格式不在正文通道内，点「原件」用系统应用打开。') }}</span>
         </div>
       </section>
 
       <section v-else class="lib-preview empty">
         <AppIcon name="book" :size="40" />
-        <strong>选中左侧文件即可预览与编辑</strong>
-        <span class="muted">新建的文件是草稿，发布后才会进入检索。</span>
+        <strong>{{ t('选中左侧文件即可预览与编辑') }}</strong>
+        <span class="muted">{{ t('新建的文件是草稿，发布后才会进入检索。') }}</span>
       </section>
     </div>
 
-    <AppModal :open="dialog === 'create'" title="新建草稿" size="sm" @close="dialog = ''">
+    <AppModal :open="dialog === 'create'" :title="t('新建草稿')" size="sm" @close="dialog = ''">
       <label class="dialog-row">
-        <span>文件名</span>
-        <AppInput v-model="dialogName" placeholder="例如 会议纪要.md" />
+        <span>{{ t('文件名') }}</span>
+        <AppInput v-model="dialogName" :placeholder="t('例如 会议纪要.md')" />
       </label>
-      <p class="dialog-hint">当前目录：{{ cwd }}</p>
+      <p class="dialog-hint">{{ t('当前目录：{0}', [cwd]) }}</p>
       <template #footer>
-        <button class="tool-btn" @click="dialog = ''">取消</button>
-        <button class="tool-btn primary" @click="submitCreate()">新建</button>
+        <AppButton variant="secondary" class="tool-btn" @click="dialog = ''">{{ t('取消') }}</AppButton>
+        <AppButton variant="primary" class="tool-btn primary" @click="submitCreate()">{{ t('新建') }}</AppButton>
       </template>
     </AppModal>
 
-    <AppModal :open="dialog === 'rename'" title="重命名" size="sm" @close="dialog = ''">
+    <AppModal :open="dialog === 'rename'" :title="t('重命名')" size="sm" @close="dialog = ''">
       <label class="dialog-row">
-        <span>新名称</span>
+        <span>{{ t('新名称') }}</span>
         <AppInput v-model="dialogName" :placeholder="selected?.name ?? ''" />
       </label>
       <template #footer>
-        <button class="tool-btn" @click="dialog = ''">取消</button>
-        <button class="tool-btn primary" @click="submitRename()">保存</button>
+        <AppButton variant="secondary" class="tool-btn" @click="dialog = ''">{{ t('取消') }}</AppButton>
+        <AppButton variant="primary" class="tool-btn primary" @click="submitRename()">{{ t('保存') }}</AppButton>
       </template>
     </AppModal>
 
-    <AppModal :open="dialog === 'move'" title="移动到…" size="sm" @close="dialog = ''">
+    <AppModal :open="dialog === 'move'" :title="t('移动到…')" size="sm" @close="dialog = ''">
       <label class="dialog-row">
-        <span>目标目录</span>
+        <span>{{ t('目标目录') }}</span>
         <AppInput v-model="dialogDir" placeholder="/docs" />
       </label>
-      <p class="dialog-hint">填相对资料库根目录的目录，根级填 /；文件本身留在原来的名字。</p>
+      <p class="dialog-hint">{{ t('填相对资料库根目录的目录，根级填 /；文件本身留在原来的名字。') }}</p>
       <template #footer>
-        <button class="tool-btn" @click="dialog = ''">取消</button>
-        <button class="tool-btn primary" @click="submitMove()">移动</button>
+        <AppButton variant="secondary" class="tool-btn" @click="dialog = ''">{{ t('取消') }}</AppButton>
+        <AppButton variant="primary" class="tool-btn primary" @click="submitMove()">{{ t('移动') }}</AppButton>
       </template>
     </AppModal>
 
-    <AppModal :open="dialog === 'import'" title="导入文件" size="sm" @close="dialog = ''">
+    <AppModal :open="dialog === 'import'" :title="t('导入文件')" size="sm" @close="dialog = ''">
       <label class="dialog-row">
-        <span>源文件路径</span>
-        <AppInput v-model="dialogName" placeholder="留空则点按钮选择文件" />
+        <span>{{ t('源文件路径') }}</span>
+        <AppInput v-model="dialogName" :placeholder="t('留空则点按钮选择文件')" />
       </label>
-      <p class="dialog-hint">当前目录：{{ cwd }}。原件复制进资料库后保留原文件名。</p>
+      <p class="dialog-hint">{{ t('当前目录：{0}。原件复制进资料库后保留原文件名。', [cwd]) }}</p>
       <template #footer>
-        <button class="tool-btn" @click="dialog = ''">取消</button>
-        <button class="tool-btn primary" @click="submitImport()">导入</button>
+        <AppButton variant="secondary" class="tool-btn" @click="dialog = ''">{{ t('取消') }}</AppButton>
+        <AppButton variant="primary" class="tool-btn primary" @click="submitImport()">{{ t('导入') }}</AppButton>
       </template>
     </AppModal>
 
-    <AppModal :open="dialog === 'revisions'" title="修订历史" size="sm" @close="dialog = ''">
+    <AppModal :open="dialog === 'revisions'" :title="t('修订历史')" size="sm" @close="dialog = ''">
       <ul class="rev-list">
         <li v-for="r in revisions" :key="r.rev">
           <span class="rev-no">#{{ r.rev }}</span>
           <span class="rev-size">{{ formatBytes(r.size) }}</span>
           <span class="muted">{{ formatTime(r.at) }}</span>
-          <button class="tool-btn tiny" @click="rollback(r.rev)">回滚到此版</button>
+          <AppButton variant="text" size="sm" class="tool-btn tiny" @click="rollback(r.rev)">{{ t('回滚到此版') }}</AppButton>
         </li>
       </ul>
-      <p v-if="!revisions.length" class="dialog-hint">还没有修订快照，保存正文后会自动生成。</p>
+      <p v-if="!revisions.length" class="dialog-hint">{{ t('还没有修订快照，保存正文后会自动生成。') }}</p>
       <template #footer>
-        <button class="tool-btn" @click="dialog = ''">关闭</button>
+        <AppButton variant="secondary" class="tool-btn" @click="dialog = ''">{{ t('关闭') }}</AppButton>
       </template>
     </AppModal>
 
     <AppModal
       :open="confirmDelete"
-      title="删除资料"
+      :title="t('删除资料')"
       size="sm"
       @close="confirmDelete = false"
     >
-      <p>删除「{{ selected?.name }}」会同时删掉索引与全部修订快照，原件不可恢复。</p>
+      <p>{{ t('删除「{0}」会同时删掉索引与全部修订快照，原件不可恢复。', [selected?.name]) }}</p>
       <template #footer>
-        <button class="tool-btn" @click="confirmDelete = false">取消</button>
-        <button class="tool-btn danger" @click="removeAsset()">确认删除</button>
+        <AppButton variant="secondary" class="tool-btn" @click="confirmDelete = false">{{ t('取消') }}</AppButton>
+        <AppButton variant="danger" class="tool-btn danger" @click="removeAsset()">{{ t('确认删除') }}</AppButton>
       </template>
     </AppModal>
   </section>

@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 /**
  * 运行记录「分享任务」的 markdown 摘要拼装。
  *
@@ -21,14 +22,14 @@ export interface ShareableRun {
 export function fmtRunDuration(ms: number): string {
   if (!Number.isFinite(ms) || ms <= 0) return ''
   const min = Math.floor(ms / 60_000)
-  if (min < 1) return '不到 1 分钟'
-  if (min < 60) return `${min} 分钟`
+  if (min < 1) return t('不到 1 分钟')
+  if (min < 60) return t('{0} 分钟', [min])
   const h = Math.floor(min / 60)
   const restMin = min % 60
-  if (h < 24) return restMin ? `${h} 小时 ${restMin} 分钟` : `${h} 小时`
+  if (h < 24) return restMin ? t('{0} 小时 {1} 分钟', [h, restMin]) : t('{0} 小时', [h])
   const d = Math.floor(h / 24)
   const restH = h % 24
-  return restH ? `${d} 天 ${restH} 小时` : `${d} 天`
+  return restH ? t('{0} 天 {1} 小时', [d, restH]) : t('{0} 天', [d])
 }
 
 /** 本地时间 `YYYY-MM-DD HH:mm`（分钟精度，分享摘要不需要秒）。空值返回空串。 */
@@ -49,11 +50,11 @@ export function fmtRunTimeRange(start: number | null, end: number | null): strin
   const e = fmtRunClock(end)
   if (s && e) {
     const dur = fmtRunDuration((end as number) - (start as number))
-    return dur ? `${s} ~ ${e}（约 ${dur}）` : `${s} ~ ${e}`
+    return dur ? t('{0} ~ {1}（约 {2}）', [s, e, dur]) : `${s} ~ ${e}`
   }
-  if (s) return `开始于 ${s}`
-  if (e) return `结束于 ${e}`
-  return '时间未知'
+  if (s) return t('开始于 {0}', [s])
+  if (e) return t('结束于 {0}', [e])
+  return t('时间未知')
 }
 
 /**
@@ -61,14 +62,14 @@ export function fmtRunTimeRange(start: number | null, end: number | null): strin
  * 产出直接进剪贴板，粘到任何支持 markdown 的地方都能读。
  */
 export function buildRunShareText(run: ShareableRun): string {
-  const title = (run.title ?? '').trim() || '（未命名运行记录）'
+  const title = (run.title ?? '').trim() || t('（未命名运行记录）')
   const prompts = Number.isFinite(run.prompts) ? Math.max(0, Math.trunc(run.prompts)) : 0
   return [
     `# ${title}`,
     '',
-    `- 起止时间：${fmtRunTimeRange(run.startedAtMs, run.endedAtMs)}`,
-    `- 轮数：${prompts} 轮`,
-    `- 任务数：${prompts}`,
-    `- 工作目录：\`${run.cwd ?? ''}\``,
+    t('- 起止时间：{0}', [fmtRunTimeRange(run.startedAtMs, run.endedAtMs)]),
+    t('- 轮数：{0} 轮', [prompts]),
+    t('- 任务数：{0}', [prompts]),
+    t('- 工作目录：`{0}`', [run.cwd ?? '']),
   ].join('\n')
 }
