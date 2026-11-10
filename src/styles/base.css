@@ -52,19 +52,37 @@
   /* D-16：交互元素命中区下限 */
   --hit: 44px;
 
-  /* 排版阶梯：正文以上只有 4 档，散乱字号一律归到这里 */
-  --fs-xs: 11px;
-  --fs-sm: 12px;
-  --fs-base: 13px;
-  --fs-md: 14px;
-  --fs-lg: 16px;
-  --fs-xl: 18px;
-  --fs-2xl: 27px;
-
-  /* 页面标题单一事实源：参考仓 projects h1 = 26px / 1.3 / 650。
-     所有一级页面标题只准引用这三个令牌，不许各页自定字号（D-11）。 */
+  /*
+   * 字号阶梯（唯一事实源）。层级只有 7 档，全站任何文字必须落在其中：
+   * display 空态/数字、page 一级标题、section 区块标题、body 正文与卡片标题、
+   * ui 控件与导航、meta 辅助说明、micro 角标。旧代码里的 10.5/11.5/12.5/13.5/14.5
+   * 全部并到相邻档，禁止再出现半像素字号。
+   */
+  --fs-display: 32px;
   --fs-page: 26px;
+  --fs-section: 16px;
+  --fs-body: 14px;
+  --fs-ui: 13px;
+  --fs-meta: 12px;
+  --fs-micro: 11px;
+
+  /* 兼容别名：历史 CSS 仍按 --fs-xs…--fs-2xl 引用，一律指向语义层级 */
+  --fs-2xl: var(--fs-page);
+  --fs-xl: 18px;
+  --fs-lg: var(--fs-section);
+  --fs-md: var(--fs-body);
+  --fs-base: var(--fs-ui);
+  --fs-sm: var(--fs-meta);
+  --fs-xs: var(--fs-micro);
+
+  /* 行高按角色绑定，页面只引角色，不写数字 */
+  --lh-display: 1.15;
   --lh-page: 1.3;
+  --lh-section: 1.4;
+  --lh-ui: 1.5;
+  --lh-meta: 1.5;
+
+  /* 页面标题字重：参考仓 projects h1 = 26px / 1.3 / 650 */
   --fw-page: 650;
 
   /* 字重层级：正文 400 / 次级标签 500 / 标题与工具名 600 */
@@ -102,7 +120,7 @@
    */
   --chat-aside: clamp(320px, 26vw, 380px);
 
-  /* 间距 */
+  /* 间距刻度：只有 4 的倍数（加 4/8/12/16/20/24/32/40/48/64） */
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 12px;
@@ -110,6 +128,42 @@
   --sp-5: 20px;
   --sp-6: 24px;
   --sp-7: 32px;
+  --sp-8: 40px;
+  --sp-9: 48px;
+  --sp-10: 64px;
+
+  /*
+   * 密度与节奏（全站唯一一套，页面只许引用）：
+   * 页面内衬 / 区块间距 / 卡片内衬 / 行高四组，全部用 clamp 在四视口内收窄。
+   * 各页不得再各自写 padding 数值，否则同一层级元素尺寸会分叉。
+   */
+  --page-max: 1280px;
+  --page-x: clamp(20px, 3vw, 32px);
+  --page-y: clamp(24px, 4vh, 40px);
+  --page-bottom: clamp(32px, 6vh, 64px);
+  --pad-card: 16px;
+  --pad-card-lg: 20px;
+  --gap-card: 16px;
+  --gap-section: 32px;
+  --gap-head: 14px;
+  --row-h: 36px;
+  --row-h-lg: 44px;
+
+  /* 描边与焦点：所有可聚焦元素共用一条焦点环，键盘可见性统一 */
+  --stroke: 1px solid var(--border);
+  --stroke-strong: 1px solid var(--border-strong);
+  --focus-ring: 0 0 0 3px var(--accent-soft);
+  --focus-ring-danger: 0 0 0 3px var(--danger-soft);
+
+  /* 输入井 / 代码块的凹陷层，与页面底区分（暗色更深、亮色更灰） */
+  --bg-sunken: #1a1a1a;
+
+  /*
+   * 可编辑控件的底色与描边：暗色取比卡片再深一档（凹陷），亮色取纯白（浮起）。
+   * 之前两套都用 --bg-sunken，亮色下 #eef1f5 铺在白卡上像只读/禁用。
+   */
+  --bg-field: #1c1c1c;
+  --stroke-field: 1px solid var(--border);
 
   /* 阴影只给浮层 */
   --sh-1: 0 1px 2px rgba(0, 0, 0, 0.32);
@@ -168,6 +222,10 @@
   --warn: #d97706;
   --warn-soft: rgba(217, 119, 6, 0.1);
 
+  --bg-sunken: #eef1f5;
+  --bg-field: #ffffff;
+  --stroke-field: 1px solid var(--border-strong);
+
   --sh-1: 0 1px 2px rgba(16, 24, 40, 0.06);
   --sh-2: 0 12px 32px rgba(16, 24, 40, 0.12);
   --sh-card: 0 6px 22px rgba(16, 24, 40, 0.07);
@@ -207,13 +265,16 @@ h4 {
 
 button {
   font-family: inherit;
-  font-size: var(--fs-base);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
   cursor: pointer;
   color: var(--text);
   background: var(--bg-elev);
-  border: 1px solid var(--border);
+  border: var(--stroke);
   border-radius: var(--r);
-  padding: 6px 12px;
+  min-height: var(--row-h);
+  padding: 6px 14px;
   transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
@@ -227,20 +288,30 @@ button:active:not(:disabled) {
   transform: scale(0.98);
 }
 
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
+button[aria-busy='true'] {
+  cursor: progress;
+  opacity: 0.7;
+}
+
 input,
 textarea {
   font-family: inherit;
-  font-size: var(--fs-base);
+  font-size: var(--fs-ui);
   color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--bg-field);
+  border: var(--stroke-field);
   border-radius: var(--r);
-  padding: 8px 10px;
+  padding: 8px 12px;
   outline: none;
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
@@ -248,7 +319,7 @@ textarea {
 input:focus,
 textarea:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  box-shadow: var(--focus-ring);
 }
 
 input::placeholder,

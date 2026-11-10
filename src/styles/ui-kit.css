@@ -1,0 +1,162 @@
+/**
+ * 设计系统共用原语（单一实现）：
+ * 页面壳 / 页头 / 区块头 / 卡片 / 空态 / 骨架屏。
+ * 页面只引用，不再各写一套 padding、字号与描边。所有尺寸来自 base.css 令牌。
+ */
+
+/* ── 页面壳 ─────────────────────────────────────────────────── */
+.page-shell {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  container-type: inline-size;
+  background: var(--bg);
+}
+
+.page-inner {
+  width: 100%;
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: var(--page-y) var(--page-x) var(--page-bottom);
+}
+
+/* ── 页头：标题 + 说明 + 右侧动作，三者同基座 ───────────────── */
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.page-title {
+  margin: 0;
+  font-size: var(--fs-page);
+  line-height: var(--lh-page);
+  font-weight: var(--fw-page);
+  letter-spacing: -0.2px;
+  color: var(--text);
+}
+
+.page-sub {
+  margin: var(--sp-2) 0 0;
+  max-width: 62ch;
+  color: var(--text-dim);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+/* ── 区块头：全站统一的上下节奏 ─────────────────────────────── */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin: var(--gap-section) 0 var(--gap-head);
+}
+
+.section-title {
+  margin: 0;
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+
+/* ── 卡片 ───────────────────────────────────────────────────── */
+.card {
+  background: var(--bg-elev);
+  border: var(--stroke);
+  border-radius: var(--r-lg);
+  padding: var(--pad-card);
+}
+
+/* ── 空态：图标 + 一句主文案 + 一句去向 ─────────────────────── */
+.empty-state {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--sp-2);
+  min-height: 180px;
+  padding: var(--sp-6) var(--sp-5);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-lg);
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.empty-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: var(--sp-1);
+  border-radius: var(--r-full);
+  background: var(--bg-hover);
+  color: var(--text-dim);
+}
+
+.empty-title {
+  margin: 0;
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+
+.empty-hint {
+  margin: 0;
+  max-width: 46ch;
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+  color: var(--text-faint);
+}
+
+/* ── 骨架屏：加载中不留空白，也不闪文字 ─────────────────────── */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-hover);
+  border-radius: var(--r-sm);
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+  animation: sk-sweep 1.4s var(--ease) infinite;
+}
+
+[data-theme='light'] .skeleton::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+}
+
+.sk-line {
+  height: 10px;
+  margin: var(--sp-2) 0;
+}
+
+.sk-line.w-40 { width: 40%; }
+.sk-line.w-60 { width: 60%; }
+.sk-line.w-80 { width: 80%; }
+.sk-block { height: 72px; }
+
+@keyframes sk-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
+}

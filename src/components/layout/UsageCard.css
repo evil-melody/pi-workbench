@@ -107,7 +107,7 @@
   /* AUDIT-018：宽度由模板经 --bar-in-w / --bar-out-w 传入
      （功能性动态值，豁免纯样式抽离铁律）。 */
   width: var(--bar-in-w, 0%);
-  transition: width 0.25s ease;
+  transition: width var(--dur) var(--ease);
 }
 
 .uc-bar i.bar-out {
@@ -159,7 +159,7 @@
   color: var(--text-faint);
   font-size: var(--fs-xs);
   cursor: pointer;
-  transition: color 0.15s ease;
+  transition: color var(--dur-fast) var(--ease);
 }
 
 .uc-link:hover {

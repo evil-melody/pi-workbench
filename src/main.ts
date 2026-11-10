@@ -4,6 +4,7 @@ import router from './router'
 import { initTheme } from './theme'
 import { initLocale, i18n } from './i18n'
 import './styles/base.css'
+import './styles/ui-kit.css'
 import './styles/buttons.css'
 import './styles/agent-ops.css'
 

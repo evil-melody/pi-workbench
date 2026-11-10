@@ -6,9 +6,9 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 22px;
-  transition: width 0.2s ease;
+  transition: width var(--dur) var(--ease);
 }
 
 .sidebar.collapsed {
@@ -59,7 +59,7 @@
 }
 
 .bname {
-  font-size: 18px;
+  font-size: var(--fs-xl);
   font-weight: 600;
   letter-spacing: 0.2px;
   line-height: 1.4;
@@ -78,7 +78,7 @@
   background: transparent;
   color: var(--text-faint);
   opacity: 1;
-  transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: opacity var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 .collapse:hover {
@@ -100,9 +100,9 @@
   background: var(--bg-hover);
   color: var(--text);
   font-weight: 500;
-  font-size: 14px;
+  font-size: var(--fs-body);
   flex-shrink: 0;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
 .new-chat:hover {
@@ -129,7 +129,7 @@
   align-items: center;
 }
 
-/* 参考 .wd-nav-item：高 36 / 圆角 8 / padding 6 8 / gap 4 / 行距 2 / 激活 #3a3a3a。 */
+/* 参考 .wd-nav-item：高 36 / 圆角 8 / padding 6 8 / gap 4 / 行距 2 / 激活 var(--bg-active)。 */
 .nav-item {
   position: relative;
   display: flex;
@@ -141,9 +141,9 @@
   padding: 6px 8px;
   border-radius: var(--r);
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: var(--fs-body);
   text-decoration: none;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 .nav-item > .app-icon {
@@ -220,7 +220,7 @@
 }
 
 .ws-title {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   font-weight: 400;
   letter-spacing: 0;
   color: var(--text-dim);
@@ -256,7 +256,7 @@
   padding: 0 10px 20px;
 }
 
-/* 参考 .wd-task-row：高 36 / 圆角 6 / padding 8 10 / gap 8 / 激活 #343434。 */
+/* 参考 .wd-task-row：高 36 / 圆角 6 / padding 8 10 / gap 8 / 激活 var(--border)。 */
 .ws-list li:not(.ws-runs) {
   display: flex;
   align-items: center;
@@ -265,9 +265,9 @@
   padding: 8px 10px;
   border-radius: var(--r-sm);
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: var(--fs-body);
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
 .ws-list li:not(.ws-runs):hover {
@@ -302,7 +302,7 @@
 
 .ws-caret :deep(svg),
 .ws-caret :deep(.icon) {
-  transition: transform 0.15s ease;
+  transition: transform var(--dur-fast) var(--ease);
 }
 
 .ws-caret.open :deep(svg),
@@ -352,7 +352,7 @@
   color: var(--text-faint);
   opacity: 0.6;
   cursor: pointer;
-  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+  transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
 }
 
 /* 项目行「···」（对齐 WorkBuddy）：hover 才露操作入口，常态不占视觉 */
@@ -369,7 +369,7 @@
   color: var(--text-faint);
   opacity: 0;
   cursor: pointer;
-  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+  transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
 }
 
 .ws-list li:hover .ws-more,
@@ -462,7 +462,7 @@
   border: none;
   background: transparent;
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: var(--fs-body);
   text-align: left;
 }
 
@@ -481,7 +481,7 @@
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
 }
 
@@ -491,7 +491,7 @@
 
 .ws-dialog-text {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   line-height: 1.6;
   color: var(--text-dim);
 }
@@ -502,10 +502,10 @@
   border-radius: var(--r-full);
   background: transparent;
   color: var(--text-dim);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   font-family: inherit;
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 
 .ws-btn:hover {
@@ -543,7 +543,7 @@
   grid-template-columns: auto 1fr;
   gap: 8px var(--sp-4);
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
 }
 
 .about dt {

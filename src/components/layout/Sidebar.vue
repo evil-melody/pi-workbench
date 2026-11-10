@@ -19,6 +19,8 @@ import { refreshUnread, unreadCount, useProactive } from '@/composables/useProac
 // F19：项目行时间戳与运行记录同一套格式（无空格的「N分钟前」），不再各写一份相对时间。
 import { timeAgo } from '@/utils/timeAgo'
 import { focusFirstMenuItem, onMenuKeydown } from '@/composables/useMenuKeys'
+// 菜单定位与贴底翻转与运行记录菜单同源，避免两处各写一版。
+import { menuStyleFor, settleMenu } from '@/composables/useCtxMenu'
 // 与首页共用同一份透明吉祥物：品牌图只有一处真源。
 import mascotUrl from '@/assets/mascot.png'
 
@@ -143,14 +145,13 @@ let menuReturnFocus: HTMLElement | null = null
 
 function openProjectMenu(p: Project, el: Event) {
   const trigger = el.currentTarget as HTMLElement
-  const anchor = trigger.closest('li') as HTMLElement | null
-  const r = anchor?.getBoundingClientRect()
-  if (!r) return
+  const anchor = (trigger.closest('li') as HTMLElement | null) ?? trigger
   menuReturnFocus = trigger
-  const width = 180
-  const left = Math.min(Math.max(8, r.right - width), window.innerWidth - width - 8)
-  projectMenu.value = { project: p, style: { left: `${left}px`, top: `${r.bottom + 6}px` } }
-  void nextTick(() => focusFirstMenuItem(projectMenuEl.value))
+  projectMenu.value = { project: p, style: menuStyleFor(anchor, 180) }
+  void nextTick(() => {
+    if (projectMenu.value) projectMenu.value.style = settleMenu(anchor, projectMenu.value.style)
+    focusFirstMenuItem(projectMenuEl.value)
+  })
 }
 
 function closeProjectMenu() {
@@ -321,7 +322,7 @@ defineExpose({ refreshProjects })
               <AppIcon name="chevron-right" :size="12" />
             </AppButton>
             <AppIcon v-else class="ws-caret-spacer" name="folder" :size="14" />
-            <span class="ws-name">{{ p.name }}</span>
+            <span class="ws-name" :title="p.name">{{ p.name }}</span>
             <AppButton
               variant="icon"
               class="ws-more"

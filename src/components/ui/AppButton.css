@@ -8,30 +8,66 @@
   align-items: center;
   justify-content: center;
   gap: var(--sp-1);
-  /* 参考 controls.ts：高 36 / 圆角 9 / padding 9 16 / 不被压扁。 */
-  min-height: 36px;
+  /* 参考 controls.ts：高 36 / 圆角 9 / padding 9 16 / 不被压扁（圆角归一到 --r）。 */
+  min-height: var(--row-h);
   padding: 8px 16px;
   border-radius: var(--r);
   flex-shrink: 0;
   font-family: inherit;
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
   white-space: nowrap;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
 }
 
 .app-btn:where(.s-sm) {
   min-height: 28px;
   padding: 3px 8px;
-  font-size: var(--fs-sm);
+  font-size: var(--fs-meta);
 }
 
 .app-btn:where(.v-primary) {
   background: var(--accent);
   color: var(--accent-ink);
   border-color: var(--accent);
-  font-weight: 550;
+  font-weight: var(--fw-semibold);
 }
 
 .app-btn:where(.v-primary):where(:hover:not(:disabled)) {
+  background: var(--accent);
   filter: brightness(1.08);
+}
+
+.app-btn:where(.v-primary):where(:active:not(:disabled)) {
+  filter: brightness(0.94);
+}
+
+/* 次级动作：无边框幽灵按钮。全站只有主操作带实底/描边，
+   工具栏里的一排次要按钮不再各自长一个方框（视觉噪声的主要来源）。 */
+.app-btn:where(.v-secondary) {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+  font-weight: var(--fw-medium);
+}
+
+.app-btn:where(.v-secondary):where(:hover:not(:disabled)) {
+  background: var(--bg-hover);
+  border-color: transparent;
+  color: var(--text);
+}
+
+.app-btn:where(.v-secondary):where(:active:not(:disabled)) {
+  background: var(--bg-active);
+}
+
+/* 已开启的开关型工具按钮：用强调底色表态，不加描边 */
+.app-btn:where(.v-secondary):where(.on) {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent);
 }
 
 .app-btn:where(.v-danger) {

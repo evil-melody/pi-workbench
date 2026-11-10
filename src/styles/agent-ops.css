@@ -14,7 +14,7 @@
 .agent-ops {
   height: 100%;
   overflow-y: auto;
-  padding: var(--sp-6) var(--sp-7);
+  padding: var(--page-y) var(--page-x) var(--page-bottom);
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
@@ -31,8 +31,11 @@
   margin-top: 0;
 }
 
+/* 内嵌视图的标题降为区块级：外层页面已有 26px 一级标题。 */
 .agent-ops.embedded .aops-title h1 {
-  font-size: 18px;
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
 }
 
 .aops-head {
@@ -47,17 +50,19 @@
 }
 
 .aops-title h1 {
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: 0.2px;
+  margin: 0;
+  font-size: var(--fs-xl);
+  line-height: var(--lh-page);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.2px;
 }
 
 .aops-title p {
-  margin: 6px 0 0;
+  margin: var(--sp-2) 0 0;
   max-width: 70ch;
   color: var(--text-dim);
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
 }
 
 .aops-meta {
@@ -75,7 +80,7 @@
  * 那些按钮会被压成方块、文字竖排换行（已复现并修复）。
  */
 .agent-ops .badge {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
   background: var(--bg-elev);
   border: 1px solid var(--border);
@@ -94,7 +99,7 @@
   border: 1px solid var(--border);
   background: var(--bg-elev);
   color: var(--text-dim);
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
 .agent-ops .tool-btn:hover:not(:disabled) {
@@ -111,7 +116,7 @@
 }
 
 .aops-status {
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   color: var(--ok);
 }
 
@@ -122,7 +127,7 @@
 /* 行内 code：仅作用于本层视图内部，避免污染全局 */
 .agent-ops code {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
@@ -154,7 +159,7 @@
 
 .aops-empty strong {
   color: var(--text);
-  font-size: 15px;
+  font-size: var(--fs-section);
   font-weight: 600;
 }
 
@@ -174,7 +179,7 @@
 }
 
 .aops-row > span {
-  font-size: 13px;
+  font-size: var(--fs-ui);
   color: var(--text-dim);
 }
 
@@ -191,9 +196,9 @@
   border: 1px solid var(--border);
   background: var(--bg-elev);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
 .aops-plain:hover {

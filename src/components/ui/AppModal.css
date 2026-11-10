@@ -30,19 +30,21 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--border);
+  gap: var(--sp-4);
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: var(--stroke);
 }
 
 .modal-header h3 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 650;
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
   color: var(--text);
 }
 
 .modal-close {
+  position: relative;
   width: 26px;
   height: 26px;
   display: grid;
@@ -55,9 +57,25 @@
   cursor: pointer;
 }
 
+/* 关闭键视觉 26×26，命中区撑到 44×44（D-16） */
+.modal-close::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--hit);
+  height: var(--hit);
+  transform: translate(-50%, -50%);
+}
+
 .modal-close:hover {
   background: var(--bg-hover);
   color: var(--text);
+}
+
+.modal-close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .modal-body {
@@ -85,7 +103,7 @@
 
 .modal-enter-active,
 .modal-leave-active {
-  transition: opacity 0.2s ease;
+  transition: opacity var(--dur) var(--ease);
 }
 
 .modal-enter-from,
@@ -95,7 +113,7 @@
 
 .modal-enter-active .modal-panel,
 .modal-leave-active .modal-panel {
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition: transform var(--dur) var(--ease), opacity var(--dur) var(--ease);
 }
 
 .modal-enter-from .modal-panel,
@@ -127,7 +145,7 @@
 }
 
 .modal-panel.page .modal-header h3 {
-  font-size: 18px;
+  font-size: var(--fs-xl);
   font-weight: 650;
 }
 

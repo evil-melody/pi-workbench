@@ -87,8 +87,9 @@ watch(
       restoreFocus = document.activeElement as HTMLElement | null
       document.addEventListener('keydown', onKeydown)
       await nextTick()
-      // 打开即聚焦：面板内首个可聚焦元素，没有则聚焦面板本身（tabindex=-1）。
-      ;(focusables()[0] ?? panel.value)?.focus()
+      // 打开即聚焦面板本身（tabindex=-1）。聚焦首个可聚焦元素会给关闭键画一圈
+      // 只有键盘用户才该看到的焦点环，鼠标打开时看起来像误触高亮。
+      panel.value?.focus({ preventScroll: true })
     } else {
       document.removeEventListener('keydown', onKeydown)
       restoreFocus?.focus()

@@ -19,25 +19,30 @@
   gap: 8px;
   height: 28px;
   padding: 0 8px;
-  border: 1px solid var(--border);
+  border: var(--stroke);
   border-radius: var(--r-sm);
   background: var(--bg-elev);
   color: var(--text);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-ui);
   cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
 .trigger:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: var(--border-strong);
 }
 
 .trigger:focus-visible,
 .trigger.open {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.22);
+  box-shadow: var(--focus-ring);
   outline: none;
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .trigger:disabled {
@@ -56,8 +61,8 @@
 .caret {
   flex: none;
   color: var(--text-dim);
-  font-size: 10px;
-  transition: transform 0.15s ease;
+  font-size: var(--fs-micro);
+  transition: transform var(--dur-fast) var(--ease);
 }
 
 .trigger.open .caret {
@@ -84,10 +89,10 @@
   margin: 0;
   padding: 4px;
   list-style: none;
-  border: 1px solid var(--border);
-  border-radius: var(--r);
+  border: var(--stroke);
+  border-radius: var(--r-lg);
   background: var(--bg-panel);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
+  box-shadow: var(--sh-2);
 }
 
 .opt {
@@ -95,10 +100,11 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  padding: 5px 8px;
+  min-height: 32px;
+  padding: 5px 10px;
   border-radius: var(--r-sm);
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--fs-ui);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -107,19 +113,21 @@
   white-space: nowrap;
 }
 
-.opt:hover {
-  background: var(--bg-elev);
+.opt:hover,
+.opt:focus-visible {
+  background: var(--bg-hover);
+  outline: none;
 }
 
 .opt.on {
-  background: rgba(110, 168, 254, 0.16);
+  background: var(--accent-soft);
   color: var(--accent);
 }
 
 .opt-hint,
 .opt-empty {
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-micro);
   white-space: nowrap;
 }
 

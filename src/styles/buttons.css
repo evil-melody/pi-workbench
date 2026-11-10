@@ -23,7 +23,7 @@
 }
 .btn.tiny {
   padding: 3px 8px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 .btn:disabled {
   opacity: 0.45;
