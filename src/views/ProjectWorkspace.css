@@ -530,6 +530,10 @@
   .pw-chip-path {
     max-width: 100%;
     min-width: 0;
+    /* 390 下列宽 288 < 路径 314：允许换行显示全文，不做省略号截断。 */
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
   }
 
   .pw-tabs {

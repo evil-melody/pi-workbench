@@ -632,6 +632,11 @@
 }
 
 @media (max-width: 640px) {
+  /* 窄屏 tab 条横向滚动：右缘渐隐，提示后面还有分区。 */
+  .lib-tabs {
+    mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+  }
+
   .lib-tools {
     width: 100%;
   }

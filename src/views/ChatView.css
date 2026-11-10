@@ -241,6 +241,32 @@
   }
 }
 
+@media (max-width: 900px) {
+  /* 参考仓的窄屏收缩策略：控制组退化为图标（title 保留说明），
+     分隔点隐藏，把整行宽度让给工作区名；靠截断名字换空间不在选项里。 */
+  .chat-controls span {
+    display: none;
+  }
+
+  .header-pill .sep {
+    display: none;
+  }
+
+  /* 768 下胶囊总宽 466，固定项占 346：收紧胶囊内衬与间距 10px，
+     正好把工作区名需要的 129px 让出来。 */
+  .header-pill {
+    gap: 6px;
+    padding: 2px 7px;
+  }
+
+  /* 二级选择器按内容定宽，不再吸收剩余空间；剩余宽度全部归工作区名。 */
+  .header-pill :deep(.role-switcher),
+  .header-pill :deep(.mode-switcher),
+  .header-pill :deep(.model-switcher) {
+    flex: 0 0 auto;
+  }
+}
+
 @media (max-width: 640px) {
   .chat-header {
     flex-wrap: wrap;

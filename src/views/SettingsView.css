@@ -464,6 +464,19 @@
     border-right: 0;
     border-bottom: 1px solid var(--border);
     overflow-x: auto;
+    scrollbar-width: none;
+    /* 右侧渐隐提示还有后续分区，避免在 390 下被硬裁成半截。 */
+    mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+  }
+
+  .settings-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 横排时按钮按内容定宽；width:100% 会让每个分区各占一屏、只看见第一个。 */
+  .settings-tabs button {
+    width: auto;
+    flex-shrink: 0;
   }
 
   .settings-tabs button span {
