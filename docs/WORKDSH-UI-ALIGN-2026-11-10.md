@@ -354,3 +354,52 @@
 
 
 
+
+---
+
+## 14. 设计系统级视觉重做（2026-11-10）
+
+不再按缺陷逐条修，改为「令牌 → 组件 → 逐页」三层收敛。改前/改后四视口截图存于
+`docs/ui-redo-2026-11-10/{before,after}/`（另附 `after-dark/` 暗色），实测数据在
+`consistency-1440.json` / `consistency-390.json` 与各页 `metrics-*.json`。
+
+### 14.1 令牌层（`src/styles/base.css`，唯一事实源）
+
+| 组 | 令牌 | 值 |
+|---|---|---|
+| 字号 | `--fs-display/page/section/body/ui/meta/micro` | 32 / 26 / 16 / 14 / 13 / 12 / 11 |
+| 行高 | `--lh-display/page/section/body/ui/meta` | 1.15 / 1.3 / 1.4 / 1.65 / 1.5 / 1.5 |
+| 字重 | `--fw-regular/medium/semibold/page` | 400 / 500 / 600 / 650 |
+| 间距 | `--sp-1…--sp-10` | 4/8/12/16/20/24/32/40/48/64 |
+| 密度 | `--page-max/page-x/page-y/page-bottom`、`--pad-card(+lg)`、`--gap-card/section/head`、`--row-h(+lg)` | 1280；clamp(20,3vw,32)；clamp(24,4vh,40)；clamp(32,6vh,64)；16/20；16/32/14；36/44 |
+| 表面 | `--bg/panel/elev/hover/active/sunken` + `--border(+strong/soft)` | 7 级，亮/暗各一套 |
+| 描边/焦点 | `--stroke(+strong)`、`--focus-ring(+danger)` | 1px；`0 0 0 3px accent-soft` |
+| 动效 | `--dur-fast/--dur/--ease` | 120/180ms，`cubic-bezier(.22,1,.36,1)` |
+
+旧别名（`--fs-xs…--fs-2xl`）全部指向语义层级，页面不再写数值。
+
+### 14.2 组件层
+
+- 新增 `src/styles/ui-kit.css`：`.page-shell/.page-inner/.page-head/.page-title/.page-sub/.page-actions`、
+  `.section-head/.section-title`、`.card`、`.empty-state/.empty-icon/.empty-title/.empty-hint`、`.skeleton/.sk-line/.sk-block`。
+- `AppButton`：36 高、`--r` 圆角、13/500，补齐 hover/active/focus-visible/disabled/loading（`aria-busy`）；
+  新增 `.v-secondary` 幽灵态 —— 全站只有主操作带实底，工具栏不再一排方框。
+- `AppInput/AppTextarea`：36 高、`--bg-sunken` 输入井、`--focus-ring`；文本框不再按 44 撑高（文本域宽度已远超命中下限）。
+- `AppSelect`：触发器/选项/焦点环统一到令牌，选项补 `:focus-visible`。
+- `AppModal`：头 16/20 内衬、标题 16/600、关闭键 26 视觉 + 44 命中区。
+
+### 14.3 逐页落地
+
+| 批次 | 页面 | 改动要点 |
+|---|---|---|
+| 1 | 对话（落地页/会话态）、项目 | hero 标题归 `--fs-page`、间距归刻度；项目 hero 收到 980 阅读宽、模板区空时不渲染、空态换 `empty-state`；会话顶栏次要动作改幽灵态 |
+| 2 | 工作台、收件箱、设置 | 工作台 tab 从下划线改胶囊分段、正文卡片独立成卡；收件箱页内衬/按钮/空态统一；设置左栏改中性选中、表单下拉 36 高 |
+| 3 | 能力中心、记忆、资料库、插件 | 能力中心标题提到 tab 之上、卡片中性字头、工具按钮幽灵态；记忆用骨架屏；资料库 tab/空态统一；插件去掉「卡中卡」、tab 改胶囊、行卡改白底 |
+
+### 14.4 验收实测
+
+- 全站 CSS `font-size` 字面量 **0** 处（改前 348 处，含 10.5/11.5/12.5/13.5/14.5 半像素字号）；圆角字面量余 2 处（`WorkspacePicker` 冻结区，未动）。
+- 一级标题：项目/收件箱/能力中心/记忆/资料库/插件/设置 全部 `26px / 1.3 / 650`，左缘 292（1440）/ 84–88（390）。
+- 区块标题：`16px / 1.4 / 600`；卡片圆角 `12px`、内衬 `16px`；行高 36。
+- 横向溢出：10 页 × 4 视口 = 40 组，`overflowX` 均为 0；暗色 40 组同样 0。
+- 键盘焦点：Tab 遍历侧栏/按钮/导航，均为 `2px solid rgb(37,99,235)`；导航命中区仍 239×44。

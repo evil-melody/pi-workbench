@@ -415,8 +415,8 @@ async function main() {
 (() => {
   let cbId = 0
   const projects = [
-    { id: 'p-flow-a', name: '产品需求全流程', path: null, archived: false, updated_at: 2 },
-    { id: 'p-flow-b', name: 'pi-workbench', path: '/Users/tatsuma/Documents/GIT/pi-workbench', archived: false, updated_at: 1 },
+    { id: 'p-flow-a', name: '产品需求全流程', path: null, archived: false, updated_at: Date.now() - 3 * 86_400_000 },
+    { id: 'p-flow-b', name: 'pi-workbench', path: '/Users/tatsuma/Documents/GIT/pi-workbench', archived: false, updated_at: Date.now() - 2 * 3_600_000 },
   ]
   window.__PI_STUB__ = { calls: [], rpcTypes: [], emitted: [], bound: null, replayMode: !!window.__PI_REPLAY_MODE__, scripted: !!window.__PI_SCRIPTED__, slow: !!window.__PI_SLOW__, listeners: {}, lastSent: '', q: { steering: [], followUp: [] }, active: (window.__PI_REPLAY_ACTIVE__ || window.__PI_SCRIPTED__) ? 'p-flow-b' : null }
   // 字段完整性自检（AUDIT-001 回归）：漏字段立刻抛明确错误，
@@ -437,6 +437,8 @@ async function main() {
   window.__PI_STUB__.emitSettled = function () {
     emitPi({ type: 'agent_settled' })
   }
+  // 压测钩子：轨迹面板要验证「300 条调用」这种真实体量，需从外部灌事件。
+  window.__PI_STUB__.emitPi = emitPi
   // G5 桩内事件发射：listen 的 handler 经 transformCallback 注册在 window['_'+id]，
   // 反向调用即「内核推了一条 pi://event」。scripted 流程的 assistant 回复靠它。
   function emitPi(rec) {
@@ -645,6 +647,8 @@ async function main() {
         ])
       }
       if (cmd === 'conversations_list' || cmd === 'conversation_list') return r([ { id: 'c1', title: '产品需求补全', updated_at: Date.now() } ])
+      // 收件箱/定时任务：真实后端永远返回完整快照，桩缺这条会让页面渲染 null.unread 崩溃。
+      if (cmd === 'proactive_snapshot') return r({ jobs: [], inbox: [], unread: 0, runningJob: null, grantUsage: null })
       return r(null)
     },
   }
