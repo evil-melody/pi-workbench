@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   background: var(--bg-panel);
   overflow: hidden;
 }
@@ -46,7 +46,7 @@
 
 .ed-btn {
   padding: 7px 13px;
-  border-radius: 8px;
+  border-radius: var(--r);
   border: 1px solid var(--border);
   background: var(--bg-elev);
   color: var(--text);
@@ -140,7 +140,7 @@
   align-self: flex-start;
   margin-top: 4px;
   padding: 4px 10px;
-  border-radius: 7px;
+  border-radius: var(--r);
   border: 1px solid var(--border);
   background: var(--bg-elev);
   color: var(--text-dim);
@@ -188,7 +188,7 @@
   gap: 6px;
   padding: 10px;
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: var(--r);
   background: var(--bg);
 }
 
@@ -215,7 +215,7 @@
 
 .ed-preview {
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r);
   overflow: hidden;
 }
 
@@ -254,7 +254,7 @@
 
 .ed-check {
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -284,7 +284,7 @@
 
 .ed-check-list code {
   padding: 0 4px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: var(--surface-2);
   font-size: 10.5px;
   color: var(--text);

@@ -342,7 +342,7 @@
   height: 4px;
   width: 100%;
   max-width: 260px;
-  border-radius: 999px;
+  border-radius: var(--r-full);
   background: var(--bg-hover);
   overflow: hidden;
 }

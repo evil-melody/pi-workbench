@@ -20,7 +20,7 @@
   height: 28px;
   padding: 0 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: var(--bg-elev);
   color: var(--text);
   font: inherit;
@@ -85,7 +85,7 @@
   padding: 4px;
   list-style: none;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r);
   background: var(--bg-panel);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
 }
@@ -96,7 +96,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 5px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   color: var(--text);
   font-size: 12px;
   cursor: pointer;

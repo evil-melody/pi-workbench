@@ -11,7 +11,7 @@
   /* 参考 controls.ts：高 36 / 圆角 9 / padding 9 16 / 不被压扁。 */
   min-height: 36px;
   padding: 8px 16px;
-  border-radius: 9px;
+  border-radius: var(--r);
   flex-shrink: 0;
   font-family: inherit;
   white-space: nowrap;

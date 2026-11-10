@@ -37,7 +37,7 @@
 
 .ce-hint code {
   background: var(--bg-soft, var(--bg-hover));
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   padding: 0 3px;
 }
 
@@ -52,7 +52,7 @@
   color: var(--danger);
   background: var(--danger-soft);
   border: 1px solid var(--danger);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 6px 8px;
 }
 
@@ -60,7 +60,7 @@
   font: inherit;
   font-size: 13px;
   padding: 6px 14px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--border, var(--border));
   background: var(--surface, var(--bg-elev));
   color: var(--fg, var(--text));

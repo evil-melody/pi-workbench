@@ -5,7 +5,7 @@
   max-width: 100%;
   padding: 6px 10px 6px 8px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r);
   background: var(--bg-elev);
   color: var(--text);
   font: inherit;
@@ -32,7 +32,7 @@
   flex: none;
   min-width: 30px;
   padding: 2px 0;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: var(--bg);
   color: var(--accent);
   font-family: var(--mono);

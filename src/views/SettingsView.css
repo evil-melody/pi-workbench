@@ -63,7 +63,7 @@
   width: 100%;
   padding: 10px 12px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--r);
   background: transparent;
   color: var(--text-dim);
   font-size: 13.5px;
@@ -110,7 +110,7 @@
   margin: 0 0 20px;
   padding: 14px 16px 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r);
 }
 
 .kernel-head {
@@ -171,7 +171,7 @@
   place-items: center;
   flex-shrink: 0;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r);
   background: var(--bg-elev);
   color: var(--text-dim);
   cursor: pointer;
@@ -198,7 +198,7 @@
   height: 34px;
   padding: 0 14px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r);
   background: var(--bg-elev);
   color: var(--text);
   font-size: 13px;
@@ -250,7 +250,7 @@
 
 .model-card {
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   background: var(--bg-panel);
   overflow: hidden;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -338,7 +338,7 @@
   display: grid;
   place-items: center;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r);
   background: var(--bg-elev);
   color: var(--text-dim);
   cursor: pointer;
@@ -381,7 +381,7 @@
   padding: 32px 20px;
   margin-bottom: 16px;
   border: 1px dashed var(--border-strong);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   background: var(--bg-elev);
   text-align: center;
 }
@@ -391,7 +391,7 @@
   place-items: center;
   width: 56px;
   height: 56px;
-  border-radius: 16px;
+  border-radius: var(--r-xl);
   background: var(--accent-soft);
   color: var(--accent);
 }
@@ -418,7 +418,7 @@
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--r);
   border: 1px solid var(--border);
   background: var(--bg-panel);
 }
@@ -440,7 +440,7 @@
   flex-direction: column;
   gap: 4px;
   padding: 14px;
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   border: 1px solid var(--border);
   background: var(--bg-panel);
 }

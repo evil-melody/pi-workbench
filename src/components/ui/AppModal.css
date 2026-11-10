@@ -14,7 +14,7 @@
   max-height: calc(100vh - 40px);
   display: flex;
   flex-direction: column;
-  border-radius: 16px;
+  border-radius: var(--r-xl);
   background: var(--bg-panel);
   border: 1px solid var(--border);
   box-shadow: var(--sh-2);
@@ -49,7 +49,7 @@
   place-items: center;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--text-dim);
   cursor: pointer;
@@ -109,7 +109,7 @@
   max-width: min(720px, calc(100vw - 48px));
   max-height: calc(100dvh - 48px);
   border: 0;
-  border-radius: 16px;
+  border-radius: var(--r-xl);
   animation: modal-page-in 0.16s ease-out;
 }
 
@@ -140,7 +140,7 @@
   height: 32px;
   min-width: 32px;
   min-height: 32px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
 }
 
 @keyframes modal-page-in {
@@ -169,7 +169,7 @@
   .modal-panel.page {
     max-width: calc(100vw - 24px);
     max-height: calc(100dvh - 24px);
-    border-radius: 12px;
+    border-radius: var(--r-lg);
   }
 
   .modal-panel.page .modal-header {

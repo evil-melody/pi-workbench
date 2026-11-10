@@ -29,7 +29,7 @@
   min-width: 0;
   overflow-x: auto;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r);
   background: var(--bg-panel);
   scrollbar-width: none;
 }
@@ -49,7 +49,7 @@
   color: var(--text-dim);
   font-size: 13px;
   padding: 7px 14px;
-  border-radius: 7px;
+  border-radius: var(--r);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
@@ -75,7 +75,7 @@
   width: 220px;
   min-width: 0;
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: var(--r);
   padding: 9px 13px;
   background: var(--bg-panel);
   color: var(--text);
@@ -98,7 +98,7 @@
 
 .tool-btn {
   padding: 7px 12px;
-  border-radius: 8px;
+  border-radius: var(--r);
   border: 1px solid var(--border);
   background: var(--bg-panel);
   color: var(--text);
@@ -178,7 +178,7 @@
   padding: 32px 24px;
   text-align: center;
   border: 1px dashed var(--border-strong);
-  border-radius: 14px;
+  border-radius: var(--r-lg);
   background: var(--bg-panel);
 }
 
@@ -187,7 +187,7 @@
   height: 64px;
   display: grid;
   place-items: center;
-  border-radius: 16px;
+  border-radius: var(--r-xl);
   background: var(--bg-elev);
   color: var(--text-dim);
 }
@@ -224,7 +224,7 @@
   flex-direction: column;
   gap: 12px;
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--r-lg);
   background: var(--bg-panel);
   padding: 16px;
   transition: background 0.15s, border-color 0.15s;
@@ -244,7 +244,7 @@
   display: grid;
   place-items: center;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r);
   background: var(--bg-elev);
   color: var(--text);
   cursor: pointer;
@@ -291,7 +291,7 @@
   flex: 0 0 44px;
   display: grid;
   place-items: center;
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   /* AUDIT-014③：背景色由模板经 CSS 自定义属性 --card-bg 传入（功能性动态值，
      豁免纯样式抽离铁律）；无值时退化为面板底色。 */
   background: var(--card-bg, var(--bg-elev));
@@ -349,7 +349,7 @@
 .use-btn {
   margin-left: auto;
   padding: 5px 12px;
-  border-radius: 7px;
+  border-radius: var(--r);
   border: 1px solid var(--border);
   background: var(--bg-elev);
   color: var(--text);
@@ -394,7 +394,7 @@
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--r);
   background: var(--bg);
   border: 1px solid var(--border);
   cursor: pointer;
@@ -464,7 +464,7 @@
   overflow: auto;
   padding: 12px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   background: var(--bg-panel);
 }
 
@@ -487,7 +487,7 @@
   gap: 8px;
   min-height: 96px;
   border: 1px dashed var(--border-strong);
-  border-radius: 10px;
+  border-radius: var(--r);
   background: transparent;
   color: var(--text-faint);
   font-size: 12.5px;
@@ -505,7 +505,7 @@
   gap: 4px;
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: var(--r);
   background: var(--bg);
   color: var(--text);
   text-align: left;
@@ -563,7 +563,7 @@
 
 .tag-published {
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: var(--r-full);
   border: 1px solid rgba(61, 217, 108, 0.35);
   color: var(--ok);
   font-size: 10.5px;
@@ -587,7 +587,7 @@
   padding: 24px;
   text-align: center;
   border: 1px dashed var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   background: var(--bg-panel);
 }
 
@@ -655,7 +655,7 @@
 .hub-panel {
   padding: 16px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r);
   background: var(--surface-2);
 }
 
@@ -676,7 +676,7 @@
 .hub-lead code {
   padding: 1px 5px;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: var(--surface);
   font-size: 11.5px;
 }
@@ -702,7 +702,7 @@
 .meta.origin-url {
   padding: 1px 6px;
   border: 1px solid var(--accent);
-  border-radius: 999px;
+  border-radius: var(--r-full);
   color: var(--accent);
   font-size: 11px;
 }

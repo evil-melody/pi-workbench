@@ -135,7 +135,8 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  min-height: 36px;
+  /* D-16：导航行直接做到 44 高，避免隐形命中区与相邻行互相覆盖。 */
+  min-height: 44px;
   margin-bottom: 2px;
   padding: 6px 8px;
   border-radius: var(--r);
@@ -153,7 +154,7 @@
 .sidebar.collapsed .nav-item {
   justify-content: center;
   padding: 6px;
-  min-height: 40px;
+  min-height: 44px;
   margin-bottom: 4px;
 }
 

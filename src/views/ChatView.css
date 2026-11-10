@@ -494,7 +494,7 @@
  * 列宽由 .composer 的 --chat-pad 内衬决定（F2：顶栏 / 消息列 / 步骤行 / composer
  * 四条线同一个公式），卡内不再自己 max-width + margin auto 居中，
  * 否则内衬与居中两套机制叠加，气泡左缘和 composer 左缘必然错开。
- * 圆角/阴影对标 dsh .uV2eYG_card{border-radius:22px;box-shadow:shadow-lv2}，
+ * 圆角/阴影对标 dsh .uV2eYG_card{border-radius:var(--r-xl);box-shadow:shadow-lv2}，
  * 阴影走主题令牌（原来手写的 rgba(0,0,0,.03) 在浅色主题下几乎不可见）。
  */
 .input-wrap {

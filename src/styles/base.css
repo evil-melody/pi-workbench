@@ -40,15 +40,17 @@
   --warn: #ffb84d;
   --warn-soft: rgba(255, 184, 77, 0.16);
 
-  /* 圆角体系（Shape Lock，只有这四档 + 圆形）：
-     细行/小按钮 --r-sm/--r，卡片容器 --r-lg，消息气泡 --r-bubble，大输入容器 --r-2xl。 */
-  --r-sm: 6px;
+  /* 圆角体系（Shape Lock，只有 4/8/12/16 + 圆形五档）：
+     小按钮/标签 --r-sm，行内控件/输入 --r，卡片 --r-lg，气泡/弹窗 --r-xl。 */
+  --r-sm: 4px;
   --r: 8px;
   --r-lg: 12px;
-  --r-xl: 14px;
+  --r-xl: 16px;
   --r-bubble: 16px;
-  --r-2xl: 22px;
+  --r-2xl: 16px;
   --r-full: 999px;
+  /* D-16：交互元素命中区下限 */
+  --hit: 44px;
 
   /* 排版阶梯：正文以上只有 4 档，散乱字号一律归到这里 */
   --fs-xs: 11px;
@@ -296,6 +298,45 @@ pre {
   text-align: center;
   color: var(--text-faint);
   font-size: var(--fs-sm);
+}
+
+/* D-16：交互元素命中区下限 44×44。视觉尺寸不变，用透明伪元素把可点区域
+   撑到 --hit；实测以 elementFromPoint 覆盖 44×44 四角是否命中本元素为准。 */
+:where(
+  .app-btn,
+  .nav-item,
+  .app-select,
+  .ws-trigger,
+  .pw-tab,
+  .lib-tab,
+  .market-tab,
+  .settings-tabs button,
+  .app-check,
+  .icon-btn
+) {
+  position: relative;
+}
+
+:where(
+  .app-btn,
+  .nav-item,
+  .app-select,
+  .ws-trigger,
+  .pw-tab,
+  .lib-tab,
+  .market-tab,
+  .settings-tabs button,
+  .app-check,
+  .icon-btn
+)::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100%, var(--hit));
+  height: max(100%, var(--hit));
+  transform: translate(-50%, -50%);
+  border-radius: inherit;
 }
 
 @media (prefers-reduced-motion: reduce) {

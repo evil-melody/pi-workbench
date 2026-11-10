@@ -1,9 +1,10 @@
 .app-input {
   width: 100%;
-  height: 28px;
+  /* D-16：输入框自身就是命中区，直接做到 44 高（伪元素对 input 无效）。 */
+  height: var(--hit);
   padding: 0 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: var(--bg);
   color: var(--text);
   font-family: inherit;
