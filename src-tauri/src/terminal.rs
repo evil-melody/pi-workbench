@@ -39,7 +39,7 @@ pub fn term_exec(
                 let app_o = app.clone();
                 let id_o = id.clone();
                 let t_out = std::thread::spawn(move || {
-                    for line in BufReader::new(stdout).lines().flatten() {
+                    for line in BufReader::new(stdout).lines().map_while(Result::ok) {
                         let _ = app_o.emit(
                             "term://output",
                             json!({ "id": id_o, "stream": "out", "line": line }),
@@ -50,7 +50,7 @@ pub fn term_exec(
                 let app_e = app.clone();
                 let id_e = id.clone();
                 let t_err = std::thread::spawn(move || {
-                    for line in BufReader::new(stderr).lines().flatten() {
+                    for line in BufReader::new(stderr).lines().map_while(Result::ok) {
                         let _ = app_e.emit(
                             "term://output",
                             json!({ "id": id_e, "stream": "err", "line": line }),

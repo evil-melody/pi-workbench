@@ -358,7 +358,7 @@ pub(crate) fn start_kernel(
     if let Some(err) = stderr {
         std::thread::spawn(move || {
             let reader = BufReader::new(err);
-            for line in reader.lines().flatten() {
+            for line in reader.lines().map_while(Result::ok) {
                 eprintln!("[pi:stderr] {line}");
             }
         });
@@ -431,7 +431,7 @@ pub(crate) fn start_kernel(
             }
         };
 
-        for line in reader.lines().flatten() {
+        for line in reader.lines().map_while(Result::ok) {
             let line = line.trim();
             if line.is_empty() {
                 continue;
