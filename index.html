@@ -6,6 +6,22 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="theme-color" content="#2563eb" />
     <title>Pi Workbench</title>
+    <script>
+      // 首屏同步定语言：缓存 → 系统语言 → zh-CN，避免英文用户先看到一帧中文。
+      ;(function () {
+        try {
+          var saved = localStorage.getItem('pi-workbench:lang')
+          var lang = saved
+          if (lang !== 'en-US' && lang !== 'zh-CN') {
+            var nav = (navigator.language || '').toLowerCase()
+            lang = nav.indexOf('en') === 0 ? 'en-US' : 'zh-CN'
+          }
+          document.documentElement.lang = lang
+        } catch (e) {
+          /* localStorage 不可用时保持 zh-CN */
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>
