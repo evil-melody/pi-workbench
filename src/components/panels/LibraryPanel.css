@@ -17,8 +17,9 @@
 
 .lib-header h1 {
   margin: 0 0 4px;
-  font-size: 22px;
-  font-weight: 700;
+  font-size: var(--fs-page);
+  line-height: var(--lh-page);
+  font-weight: var(--fw-page);
 }
 
 .lib-header .muted {
@@ -53,15 +54,25 @@
   display: flex;
   gap: 4px;
   padding: 3px;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg-panel);
+  scrollbar-width: none;
+}
+
+.lib-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .lib-tab {
   display: flex;
   align-items: center;
   gap: 5px;
+  flex-shrink: 0;
+  white-space: nowrap;
   padding: 6px 12px;
   border: 0;
   border-radius: 7px;
@@ -234,9 +245,12 @@
 }
 
 .lib-preview.empty {
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: 8px;
+  padding: 24px;
   color: var(--text-dim);
   text-align: center;
 }
@@ -556,4 +570,79 @@
 .tool-btn.tiny {
   padding: 3px 8px;
   font-size: 11.5px;
+}
+
+/* ── Office 只读预览 ────────────────────────────────────────── */
+.preview-office {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg);
+}
+
+.preview-office-caveat {
+  position: sticky;
+  top: 0;
+  margin: 0;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-dim);
+  color: var(--text-dim);
+  font-size: 11.5px;
+}
+
+.office-body {
+  padding: 14px;
+}
+
+.office-body :deep(table) {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.office-body :deep(td),
+.office-body :deep(th) {
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+}
+
+.office-body :deep(.sname) {
+  margin: 14px 0 8px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* ── 窄屏（390 结构性破版修复）───────────────────────────────
+   左树 280px 固定宽把预览压到 2px（D-03）；工具栏 220px 输入框加按钮
+   超出 390 内容宽（D-06）。窄屏改上下两段，树给 42vh 上限。 */
+@media (max-width: 880px) {
+  .lib-body {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .lib-tree {
+    width: auto;
+    max-height: 42vh;
+  }
+
+  .lib-preview {
+    min-height: 240px;
+  }
+}
+
+@media (max-width: 640px) {
+  .lib-tools {
+    width: 100%;
+  }
+
+  .lib-tools :deep(.app-input) {
+    width: 100%;
+    flex: 1 1 140px;
+    min-width: 0;
+  }
+
+  .lib-toolbar {
+    gap: 10px;
+  }
 }

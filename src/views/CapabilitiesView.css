@@ -7,7 +7,8 @@
   padding: 24px clamp(20px, 3vw, 40px) 56px;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.5 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 /* ── Header ─────────────────────────────────────────────────── */
@@ -24,15 +25,25 @@
   display: flex;
   gap: 4px;
   padding: 3px;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg-panel);
+  scrollbar-width: none;
+}
+
+.market-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .market-tab {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
+  white-space: nowrap;
   border: 0;
   background: transparent;
   color: var(--text-dim);
@@ -125,8 +136,9 @@
 /* ── Title & Sub tabs ───────────────────────────────────────── */
 .market-title {
   margin: 0 0 16px;
-  font-size: 22px;
-  font-weight: 700;
+  font-size: var(--fs-page);
+  line-height: var(--lh-page);
+  font-weight: var(--fw-page);
 }
 
 .sub-tabs {
@@ -693,4 +705,52 @@
   border-radius: 999px;
   color: var(--accent);
   font-size: 11px;
+}
+
+/* ── 窄屏（390 结构性破版修复）───────────────────────────────
+   专家层 280px 固定左栏在 390 下把右栏压到 0；能力分类 tab 无滚动直接撑破
+   页面（D-05 溢出 209px）。 */
+@media (max-width: 1050px) {
+  .expert-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .expert-list {
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .wd-market {
+    padding: 20px 16px 40px;
+  }
+
+  .market-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .market-tools {
+    width: 100%;
+  }
+
+  .market-tools :deep(.app-input) {
+    width: 100%;
+    flex: 1 1 160px;
+  }
+
+  .sub-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .sub-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sub-tab {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
 }
