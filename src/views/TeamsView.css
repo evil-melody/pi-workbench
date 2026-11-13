@@ -26,8 +26,11 @@
   transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 
-.team-card:hover {
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .team-card:hover {
+    border-color: var(--border-strong);
+}
 }
 
 .team-top {
@@ -75,10 +78,170 @@
   border-radius: var(--r-full);
 }
 
+.chip.lead {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+/* 引用的专家已被删除：调度会被拦下，卡片上先露出来。 */
+.chip.missing {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
 .team-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
   font-size: var(--fs-meta);
+  color: var(--text-faint);
   border-top: 1px solid var(--border-soft);
   padding-top: var(--sp-2);
+}
+
+.team-fact {
+  white-space: nowrap;
+}
+
+.team-runs {
+  margin-left: auto;
+}
+
+/* 已删除团队：定义不可调度，运行记录仍可打开。 */
+.deleted-teams {
+  margin-top: var(--sp-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.deleted-title {
+  margin: 0;
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
+}
+
+.team-card.deleted {
+  opacity: 0.7;
+}
+
+.delete-warn {
+  display: inline-block;
+  margin: var(--sp-2) 0;
+}
+
+/* 运行记录弹窗：按 run 分组，成员行只保留状态 / 耗时 / 产出三层。 */
+.runs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+  font-size: var(--fs-meta);
+}
+
+.runs-empty {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+}
+
+.runs-notice {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-meta);
+  color: var(--text-dim);
+}
+
+.run-cancel {
+  margin-left: auto;
+}
+
+.run-block {
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.run-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+  font-size: var(--fs-meta);
+  color: var(--text-dim);
+}
+
+.run-badge {
+  padding: 0 6px;
+  border-radius: var(--r-full);
+  background: var(--bg-elev);
+  color: var(--text-faint);
+}
+
+.run-badge.bad {
+  color: var(--danger);
+}
+
+.run-badge.warn {
+  color: var(--warn, var(--text-dim));
+}
+
+.run-row {
+  display: grid;
+  grid-template-columns: 10px 1fr auto auto;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-1) 0;
+  font-size: var(--fs-meta);
+}
+
+.run-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  align-self: center;
+}
+
+.run-dot.ok {
+  background: var(--ok, var(--accent));
+}
+
+.run-dot.bad {
+  background: var(--danger);
+}
+
+.run-dot.live {
+  background: var(--warn, var(--accent));
+}
+
+.run-name {
+  color: var(--text);
+}
+
+.run-lead {
+  margin-left: 4px;
+  font-style: normal;
+  font-size: var(--fs-micro);
+  color: var(--text-faint);
+}
+
+.run-note,
+.run-dur {
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.run-output {
+  grid-column: 2 / -1;
+  margin: 2px 0 0;
+  max-height: 120px;
+  overflow: auto;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* 新建对话框内的「成员来自能力系统」块 */
@@ -109,7 +272,7 @@
 .cand {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   padding: 4px 9px;
   border-radius: var(--r-full);
   border: 1px solid var(--border);
@@ -119,9 +282,12 @@
   transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
 }
 
-.cand:hover {
-  border-color: var(--border-strong);
-  color: var(--text);
+@media (hover: hover) {
+
+  .cand:hover {
+    border-color: var(--border-strong);
+    color: var(--text);
+}
 }
 
 .cand.on {
@@ -164,8 +330,11 @@
   opacity: 0.7;
 }
 
-.chip.closeable:hover {
-  border-color: var(--danger);
-  color: var(--danger);
+@media (hover: hover) {
+
+  .chip.closeable:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+}
 }
 

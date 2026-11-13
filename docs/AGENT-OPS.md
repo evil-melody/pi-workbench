@@ -216,6 +216,19 @@ Tauri v2 官方文档明确写着：
 
 ---
 
+### §5.5 第七轮：团队编辑 / 删除 / 取消运行
+
+| 能力 | 后端 | 语义 |
+|---|---|---|
+| 编辑 | `agent_team_update` | 改名称 / 成员 / 牵头人 / 失败策略。校验：成员非空、成员不重复（编辑时显式报错，不静默去重）、牵头人必须在成员里。只改磁盘定义；`team_dispatch` 开头把定义读成内存快照，正在跑的实例按旧定义跑完，新定义下次调度生效 |
+| 删除 | `agent_team_delete` | 软删除：`<id>.json` 改名 `<id>.deleted.json`。Extension 的 `listTeams` 排除该后缀，删除后不可再调度；`<id>.jsonl` 原地保留，运行记录仍可在「已删除团队」区打开 |
+| 取消 | `agent_team_cancel` | 写 `<id>.cancel`（带本次 `runId`）。Extension 成员子进程每 400ms 轮询该文件，命中就 `SIGKILL` 子进程；未开始的成员不再 spawn。收口写 `run_end { cancelled: true }`，前端显示「已取消」而不是失败；成员已产出的 stdout 作为部分产出写进 `member_end.output` |
+
+判定「运行中」：日志里没有 `run_end` / `plan-only`，且最后一条事件在 120s 内（成员单次超时 90s）。
+界面侧：团队卡显示「运行中」；删除时会提示，并提供「先取消运行」；运行记录里未收口的 run 直接显示「取消运行」。
+
+---
+
 ## §6 与既有扩展层的关系
 
 `sandbox-env.ts` 是「声明式沙箱 + 企业能力接缝」的落点。本次新增的 4 个 `agent-*` extension 与之同级，同属「渐进式 Agent」插件层：

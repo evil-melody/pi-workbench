@@ -32,8 +32,42 @@ export interface TeamEntry {
   name: string
   members: string[]
   strategy: string | null
+  /** 牵头人（成员键）；旧团队为空。 */
+  lead: string | null
+  /** stop / continue / retry */
+  on_failure: string | null
   created_at: number | null
+  /** 最近一次编辑时间；旧定义没有。 */
+  updated_at?: number | null
+  /** 已删除（软删除）：定义不可再调度，运行日志仍可查。 */
+  deleted?: boolean
+  /** 有未收口的运行（120s 内有事件且没写 run_end）。 */
+  running?: boolean
+  active_run_id?: string | null
   runs: number
+}
+
+/** 团队调度日志的一行：成员产出行或运行摘要行（IPC 侧字段，磁盘日志的 `runId` 由后端映射为 `run_id`）。 */
+export interface TeamRunEvent {
+  type?: string
+  run_id?: string
+  member?: string
+  label?: string
+  ok?: boolean
+  lead?: boolean
+  output?: string
+  duration_ms?: number
+  attempts?: number
+  from?: string
+  to?: string
+  aborted?: boolean
+  cancelled?: boolean
+  reason?: string
+  at?: number
+  round?: number
+  strategy?: string
+  real?: boolean
+  note?: string
 }
 
 export interface MemoryEntry {
@@ -42,20 +76,20 @@ export interface MemoryEntry {
   text: string
   tags: string[]
   source?: string
-  jobId?: string
+  job_id?: string
 }
 
 /** 待撤销条目：删除后 24 小时内可恢复，到期由调度 tick 硬失效。 */
 export interface MemoryTrashEntry extends MemoryEntry {
-  deletedAt: number
-  purgeAt: number
+  deleted_at: number
+  purge_at: number
 }
 
 /** 画像字段：由记忆保留标签折叠，只读视图。 */
 export interface ProfileField {
   value: string
   evidence: string[]
-  updatedAt: number
+  updated_at: number
 }
 
 export interface MemoryProfile {
@@ -63,8 +97,8 @@ export interface MemoryProfile {
   taboo?: ProfileField
   goal?: ProfileField
   workflow?: ProfileField
-  generatedAt: number
-  sourceMtime: number
+  generated_at: number
+  source_mtime: number
 }
 
 export interface SkillPoolEntry {
@@ -83,8 +117,8 @@ export interface MemoryVecStatus {
   table: string
   exists: boolean
   rows: number
-  embedding: { baseUrl: string; model: string }
-  agentToolNote: string
+  embedding: { base_url: string; model: string }
+  agent_tool_note: string
 }
 export interface MemoryVecReindexResult {
   indexed: number
@@ -103,14 +137,56 @@ export interface BrowserStatus {
 
 // 查询（读）：非 Tauri 时返回空值，页面走空态。
 export const agentTeamsList = () => read<TeamEntry[]>('agent_teams_list', [])
+export const agentTeamRuns = (teamId: string) =>
+  isTauriRuntime()
+    ? invoke<TeamRunEvent[]>('agent_team_runs', { team_id: teamId })
+    : Promise.resolve([] as TeamRunEvent[])
 export const agentMemoryList = () => read<MemoryEntry[]>('agent_memory_list', [])
 export const agentMemoryTrash = () => read<MemoryTrashEntry[]>('agent_memory_trash', [])
 export const agentSkillPoolList = () => read<SkillPoolEntry[]>('agent_skillpool_list', [])
 export const agentBrowserStatus = () => read<BrowserStatus>('agent_browser_status', { active: false })
 
 // 管理（写，脱离内核也能用；写出的状态会被对应 Pi 工具读取）。
-export const agentTeamCreate = (name: string, members: string[], strategy?: string) =>
-  write<TeamEntry>('agent_team_create', { name, members, strategy: strategy ?? null })
+export const agentTeamCreate = (
+  name: string,
+  members: string[],
+  strategy?: string,
+  lead?: string,
+  onFailure?: string,
+) =>
+  write<TeamEntry>('agent_team_create', {
+    name,
+    members,
+    strategy: strategy ?? null,
+    lead: lead ?? null,
+    on_failure: onFailure ?? null,
+  })
+/** 编辑团队定义：只改磁盘，正在跑的实例持有旧定义快照，下次调度才用新定义。 */
+export const agentTeamUpdate = (
+  id: string,
+  name: string,
+  members: string[],
+  strategy?: string,
+  lead?: string,
+  onFailure?: string,
+) =>
+  write<TeamEntry>('agent_team_update', {
+    id,
+    name,
+    members,
+    strategy: strategy ?? null,
+    lead: lead ?? null,
+    on_failure: onFailure ?? null,
+  })
+/** 软删除：定义不再可调度，`<id>.jsonl` 历史运行记录保留可查。 */
+export const agentTeamDelete = (id: string) =>
+  write<{ id: string; deleted: boolean; runs_preserved: boolean }>('agent_team_delete', { id })
+/** 请求取消一次运行：Extension 轮询标记文件并真正 kill 成员子进程。 */
+export const agentTeamCancelRun = (teamId: string, runId?: string) =>
+  write<{ run_id: string; at: number }>('agent_team_cancel', {
+    team_id: teamId,
+    run_id: runId ?? null,
+  })
 export const agentMemoryStore = (text: string, tags: string[]) =>
   write<MemoryEntry>('agent_memory_store', { text, tags })
 /** 删除记忆：进入 24 小时待撤销态，召回立即不可见。返回删除后的有效列表。 */
@@ -127,7 +203,7 @@ export const agentMemoryUpdate = (id: string, text: string, tags: string[]) =>
   write<MemoryEntry[]>('agent_memory_update', { id, text, tags })
 /** 用户画像：由记忆保留标签折叠出的只读视图。 */
 export const agentProfileGet = () =>
-  read<MemoryProfile>('agent_profile_get', { generatedAt: 0, sourceMtime: 0 })
+  read<MemoryProfile>('agent_profile_get', { generated_at: 0, source_mtime: 0 })
 export const agentSkillPublish = (name: string, description: string, body: string) =>
   write<SkillPoolEntry>('agent_skill_publish', { name, description, body })
 
@@ -137,8 +213,8 @@ export const memoryVecStatus = () =>
     table: 'memory_vectors',
     exists: false,
     rows: 0,
-    embedding: { baseUrl: '', model: '' },
-    agentToolNote: '',
+    embedding: { base_url: '', model: '' },
+    agent_tool_note: '',
   })
 export const memoryVecSearch = (query: string, topK?: number) =>
   write<MemoryVecHit[]>('memory_vec_search', { query, top_k: topK })
