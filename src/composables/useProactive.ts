@@ -12,9 +12,9 @@ import { ref } from 'vue'
 export type JobStatus = 'pending' | 'running' | 'failed' | 'done' | 'interrupted'
 
 export interface ProactiveGrant {
-  bashAllow: string[]
-  writeRoots: string[]
-  maxToolCalls: number
+  bash_allow: string[]
+  write_roots: string[]
+  max_tool_calls: number
 }
 
 export interface ProactiveJob {
@@ -22,30 +22,30 @@ export interface ProactiveJob {
   title: string
   prompt: string
   cwd: string
-  intervalSecs: number
-  nextAt: number
+  interval_secs: number
+  next_at: number
   enabled: boolean
   status: JobStatus
   attempts: number
-  maxAttempts: number
-  lastRunAt?: number | null
-  lastError?: string | null
+  max_attempts: number
+  last_run_at?: number | null
+  last_error?: string | null
   grant: ProactiveGrant
 }
 
 export interface InboxItem {
   id: string
-  jobId: string
+  job_id: string
   title: string
   body: string
-  createdAt: number
+  created_at: number
   read: boolean
   kind: 'result' | 'failure'
 }
 
 /** 工具门写回的风险动作用量（只在任务有动作时存在）。 */
 export interface GrantUsage {
-  jobId: string
+  job_id: string
   used: number
   max: number
   at: number
@@ -55,14 +55,14 @@ export interface ProactiveSnapshot {
   jobs: ProactiveJob[]
   inbox: InboxItem[]
   unread: number
-  runningJob: string | null
-  grantUsage?: GrantUsage | null
+  running_job: string | null
+  grant_usage?: GrantUsage | null
 }
 
 /** 通知点击后的定位目标。 */
 export interface FocusTarget {
-  jobId: string
-  inboxId: string
+  job_id: string
+  inbox_id: string
 }
 
 /** 侧栏角标与收件箱页共用同一份未读数。 */
@@ -99,14 +99,14 @@ export function useProactive() {
     title: string
     prompt: string
     cwd: string
-    intervalSecs: number
+    interval_secs: number
   }) =>
     withSnapshot(
       invoke<ProactiveSnapshot>('proactive_job_create', {
         title: payload.title,
         prompt: payload.prompt,
         cwd: payload.cwd,
-        intervalSecs: payload.intervalSecs,
+        interval_secs: payload.interval_secs,
       }),
     )
 
@@ -124,8 +124,8 @@ export function useProactive() {
     withSnapshot(
       invoke<ProactiveSnapshot>('proactive_job_set_grant', {
         id,
-        bashAllow,
-        maxToolCalls,
+        bash_allow: bashAllow,
+        max_tool_calls: maxToolCalls,
       }),
     )
 

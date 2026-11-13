@@ -31,7 +31,7 @@ export interface ScanSource {
 }
 
 export interface ScanResult {
-  messageId: string
+  message_id: string
   artifacts: Artifact[]
 }
 
@@ -40,7 +40,7 @@ export interface ArtifactContent {
   kind: ArtifactKind
   content: string
   truncated: boolean
-  totalBytes: number
+  total_bytes: number
 }
 
 const SCAN_DEBOUNCE = 500
@@ -63,7 +63,7 @@ export function useArtifacts(root: Ref<string>) {
         sources,
       })
       const map: Record<string, Artifact[]> = {}
-      for (const r of res) map[r.messageId] = r.artifacts
+      for (const r of res) map[r.message_id] = r.artifacts
       byMessage.value = map
     } catch {
       // 会话解析失败不影响对话本身，退化为不显示成果卡片。

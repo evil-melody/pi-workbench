@@ -26,7 +26,6 @@ pub(crate) const OFFICE_LIMIT: u64 = 12 * 1024 * 1024;
 const NUL_SNIFF: usize = 2048;
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Artifact {
     pub path: String,
     pub name: String,
@@ -37,7 +36,6 @@ pub struct Artifact {
 }
 
 #[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ArtifactContent {
     pub path: String,
     pub kind: &'static str,
@@ -49,14 +47,12 @@ pub struct ArtifactContent {
 
 /// `artifacts_scan` 的输入：一条会话文本及其归属 id。
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ScanSource {
     pub id: String,
     pub text: String,
 }
 
 #[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ScanResult {
     pub message_id: String,
     pub artifacts: Vec<Artifact>,
@@ -90,9 +86,8 @@ fn split_ext(file_name: &str) -> (&str, &str) {
         Some(0) | None => (base, ""),
         Some(i) => {
             let ext = &base[i + 1..];
-            let is_ascii_ext = !ext.is_empty()
-                && ext.len() <= 8
-                && ext.chars().all(|c| c.is_ascii_alphanumeric());
+            let is_ascii_ext =
+                !ext.is_empty() && ext.len() <= 8 && ext.chars().all(|c| c.is_ascii_alphanumeric());
             if is_ascii_ext {
                 (&base[..i], ext)
             } else {
@@ -111,7 +106,20 @@ fn normalize_candidate(raw: &str) -> Option<String> {
         c.is_whitespace()
             || matches!(
                 c,
-                ',' | ';' | '"' | '\'' | '`' | '。' | '，' | '、' | '；' | '：' | '！' | '？' | '）' | '】' | '》'
+                ',' | ';'
+                    | '"'
+                    | '\''
+                    | '`'
+                    | '。'
+                    | '，'
+                    | '、'
+                    | '；'
+                    | '：'
+                    | '！'
+                    | '？'
+                    | '）'
+                    | '】'
+                    | '》'
             )
     });
     if s.is_empty() {
@@ -124,7 +132,20 @@ fn normalize_candidate(raw: &str) -> Option<String> {
     let s = s.trim_end_matches(|c: char| {
         matches!(
             c,
-            '.' | ')' | ']' | '>' | ':' | '。' | '，' | '、' | '；' | '：' | '！' | '？' | '）' | '】' | '》'
+            '.' | ')'
+                | ']'
+                | '>'
+                | ':'
+                | '。'
+                | '，'
+                | '、'
+                | '；'
+                | '：'
+                | '！'
+                | '？'
+                | '）'
+                | '】'
+                | '》'
         )
     });
 
@@ -172,8 +193,8 @@ fn scan_candidates(text: &str) -> Vec<String> {
     // 中文标点必须进分隔符集合：内核输出多为“已完成 xxx.md 与 yyy.md 的迁移。”
     // 这样的中文句子，标点缺失会让整句粘连成一个 token，扩展名判定随之失效。
     const TERMINATORS: &[char] = &[
-        ' ', '\t', '\n', '\r', '(', ')', '[', ']', '{', '}', '<', '>', '|', '\\',
-        '。', '，', '、', '；', '：', '！', '？', '（', '）', '《', '》', '【', '】',
+        ' ', '\t', '\n', '\r', '(', ')', '[', ']', '{', '}', '<', '>', '|', '\\', '。', '，', '、',
+        '；', '：', '！', '？', '（', '）', '《', '》', '【', '】',
     ];
     let mut out: Vec<String> = Vec::new();
     let mut start: Option<usize> = None;
@@ -247,7 +268,11 @@ pub(crate) fn base64_of(bytes: &[u8]) -> String {
     const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity((bytes.len() + 2) / 3 * 4);
     for chunk in bytes.chunks(3) {
-        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
         let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
         let offs = [n >> 18, (n >> 12) & 63, (n >> 6) & 63, n & 63];
         for k in 0..4 {
@@ -263,10 +288,7 @@ pub(crate) fn base64_of(bytes: &[u8]) -> String {
 
 /// 从多条会话文本里解析出成果。已存在的按规范路径去重，项目外的路径直接丢弃。
 #[tauri::command(async)]
-pub fn artifacts_scan(
-    root: String,
-    sources: Vec<ScanSource>,
-) -> Result<Vec<ScanResult>, String> {
+pub fn artifacts_scan(root: String, sources: Vec<ScanSource>) -> Result<Vec<ScanResult>, String> {
     let mut results = Vec::new();
     for s in sources {
         let mut seen: Vec<String> = Vec::new();
@@ -292,7 +314,7 @@ pub fn artifacts_scan(
 }
 
 /// 读取单个成果内容供预览。
-#[tauri::command(async)]
+#[tauri::command(rename_all = "snake_case", async)]
 pub fn artifacts_read(
     root: String,
     path: String,
@@ -364,7 +386,9 @@ pub fn artifacts_open(app: tauri::AppHandle, path: String) -> Result<(), String>
         return Err(format!("文件不存在：{path}"));
     }
     use tauri_plugin_opener::OpenerExt;
-    app.opener().open_path(&path, None::<String>).map_err(|e| e.to_string())
+    app.opener()
+        .open_path(&path, None::<String>)
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -389,10 +413,7 @@ mod tests {
     fn extracts_absolute_and_relative_paths() {
         let d = tmpproj("absrel");
         let root = d.to_string_lossy().to_string();
-        let text = format!(
-            "已完成 {}/README.md 与 docs/nested.txt 的迁移。",
-            root
-        );
+        let text = format!("已完成 {}/README.md 与 docs/nested.txt 的迁移。", root);
         let got = scan_candidates(&text)
             .iter()
             .filter_map(|c| describe(&root, c))
@@ -431,7 +452,14 @@ mod tests {
         let d = tmpproj("dedup");
         let root = d.to_string_lossy().to_string();
         let text = format!("写好了 {}/README.md，顺手改了 README.md", root);
-        let res = artifacts_scan(root, vec![ScanSource { id: "m1".into(), text }]).unwrap();
+        let res = artifacts_scan(
+            root,
+            vec![ScanSource {
+                id: "m1".into(),
+                text,
+            }],
+        )
+        .unwrap();
         let artifacts = &res[0].artifacts;
         assert_eq!(artifacts.len(), 1, "同一文件的两种写法应去重");
         assert_eq!(artifacts[0].name, "README.md");
@@ -465,7 +493,8 @@ mod tests {
         let c = artifacts_read(root.clone(), format!("{}/report.docx", root), None).unwrap();
         assert_eq!(c.kind, "docx");
         assert!(
-            c.content.starts_with("data:application/octet-stream;base64,"),
+            c.content
+                .starts_with("data:application/octet-stream;base64,"),
             "Office 应走字节流：{}",
             &c.content[..40]
         );
@@ -494,11 +523,18 @@ mod tests {
     #[test]
     fn images_render_as_data_url() {
         let d = tmpproj("img");
-        fs::write(d.join("shot.png"), vec![137u8, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4]).unwrap();
+        fs::write(
+            d.join("shot.png"),
+            vec![137u8, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4],
+        )
+        .unwrap();
         let root = d.to_string_lossy().to_string();
         let c = artifacts_read(root.clone(), format!("{}/shot.png", root), None).unwrap();
         assert_eq!(c.kind, "image");
-        assert!(c.content.starts_with("data:image/png;base64,"), "图片应为 data URL");
+        assert!(
+            c.content.starts_with("data:image/png;base64,"),
+            "图片应为 data URL"
+        );
         let _ = fs::remove_dir_all(&d);
     }
 

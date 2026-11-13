@@ -50,7 +50,10 @@ mod tests {
 
     #[test]
     fn trims_surrounding_whitespace() {
-        assert_eq!(normalize_url("  example.com ").unwrap(), "https://example.com");
+        assert_eq!(
+            normalize_url("  example.com ").unwrap(),
+            "https://example.com"
+        );
     }
 
     #[test]

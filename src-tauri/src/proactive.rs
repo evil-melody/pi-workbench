@@ -43,7 +43,7 @@ const KERNEL_IDLE_MS: u64 = 5 * 60 * 1000;
 // ── 领域模型 ──────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub enum JobStatus {
     /// 到点未执行 / 等待重试。
     Pending,
@@ -60,16 +60,15 @@ pub enum JobStatus {
 /// 无人值守预授权：硬边界由 `agent-tool-gate.ts` 执行，这里只声明额度。
 /// 默认最小权限——空 bash 白名单 + 仅项目目录可写。
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Grant {
     /// bash 命令前缀白名单。空 = 所有需审批的风险命令一律拒绝。
-    #[serde(default)]
+    #[serde(default, alias = "bashAllow")]
     pub bash_allow: Vec<String>,
     /// 允许写入的根目录（绝对路径）。
-    #[serde(default)]
+    #[serde(default, alias = "writeRoots")]
     pub write_roots: Vec<String>,
     /// 单次运行的风险动作（需审批的 bash/write）上限；只读调用不计。
-    #[serde(default = "default_tool_cap")]
+    #[serde(default = "default_tool_cap", alias = "maxToolCalls")]
     pub max_tool_calls: u32,
 }
 
@@ -92,7 +91,6 @@ impl Grant {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Job {
     pub id: String,
     pub title: String,
@@ -100,19 +98,21 @@ pub struct Job {
     /// 任务的工作目录（项目根）。执行时内核会切到该目录。
     pub cwd: String,
     /// 周期（秒）。首次 `next_at` 由创建时间 + 周期得出。
+    #[serde(alias = "intervalSecs")]
     pub interval_secs: u64,
     /// 下次触发的 Unix ms。
+    #[serde(alias = "nextAt")]
     pub next_at: u64,
     #[serde(default = "default_true")]
     pub enabled: bool,
     pub status: JobStatus,
     #[serde(default)]
     pub attempts: u32,
-    #[serde(default = "default_max_attempts")]
+    #[serde(default = "default_max_attempts", alias = "maxAttempts")]
     pub max_attempts: u32,
-    #[serde(default)]
+    #[serde(default, alias = "lastRunAt")]
     pub last_run_at: Option<u64>,
-    #[serde(default)]
+    #[serde(default, alias = "lastError")]
     pub last_error: Option<String>,
     #[serde(default = "default_grant")]
     pub grant: Grant,
@@ -135,12 +135,13 @@ fn default_grant() -> Grant {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct InboxItem {
     pub id: String,
+    #[serde(alias = "jobId")]
     pub job_id: String,
     pub title: String,
     pub body: String,
+    #[serde(alias = "createdAt")]
     pub created_at: u64,
     #[serde(default)]
     pub read: bool,
@@ -167,16 +168,17 @@ pub struct ProactiveState {
 
 /// 通知点击定位目标：收件箱条目 + 它对应的任务。
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FocusTarget {
+    #[serde(alias = "jobId")]
     pub job_id: String,
+    #[serde(alias = "inboxId")]
     pub inbox_id: String,
 }
 
 /// 风险动作额度用量（由工具门写入 `proactive-usage.json`，这里只读展示）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct GrantUsage {
+    #[serde(alias = "jobId")]
     pub job_id: String,
     pub used: u32,
     #[serde(default)]
@@ -187,7 +189,6 @@ pub struct GrantUsage {
 
 /// 前端一次拿全：任务列表 + 收件箱 + 未读数 + 正在执行的任务 + 额度用量。
 #[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Snapshot {
     pub jobs: Vec<Job>,
     pub inbox: Vec<InboxItem>,
@@ -232,7 +233,12 @@ pub fn next_run_label(store: &ProactiveStore, paused: bool, now: u64, lang: &str
     let when = if diff == 0 {
         if en { "very soon" } else { "即将执行" }.to_string()
     } else if diff < 60_000 {
-        if en { "in less than a minute" } else { "不到 1 分钟后" }.to_string()
+        if en {
+            "in less than a minute"
+        } else {
+            "不到 1 分钟后"
+        }
+        .to_string()
     } else if diff < 3_600_000 {
         if en {
             format!("in about {} min", diff / 60_000)
@@ -419,21 +425,24 @@ fn append_audit(app: &AppHandle, entry: serde_json::Value) {
 fn write_policy(app: &AppHandle, job: Option<&Job>) -> Result<(), String> {
     let path = policy_file(app)?;
     let body = match job {
-        None => serde_json::json!({ "activeJob": null }),
+        None => serde_json::json!({ "active_job": null }),
         Some(job) => {
             let now = now_ms();
             serde_json::json!({
-                "activeJob": {
+                "active_job": {
                     "id": job.id,
-                    "startedAt": now,
-                    "expiresAt": now + POLICY_TTL_MS,
+                    "started_at": now,
+                    "expires_at": now + POLICY_TTL_MS,
                     "grant": job.grant,
                 }
             })
         }
     };
-    fs::write(&path, serde_json::to_string(&body).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())
+    fs::write(
+        &path,
+        serde_json::to_string(&body).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())
 }
 
 // ── 执行 ──────────────────────────────────────────────────────
@@ -489,7 +498,11 @@ fn extract_assistant_text(path: &Path, offset: u64) -> String {
             _ => {}
         }
     }
-    let out = if text.trim().is_empty() { fallback } else { text };
+    let out = if text.trim().is_empty() {
+        fallback
+    } else {
+        text
+    };
     out.chars().take(RESULT_MAX_CHARS).collect()
 }
 
@@ -544,7 +557,7 @@ fn notify(app: &AppHandle, title: &str, body: &str) {
     let _ = app.notification().builder().title(title).body(body).show();
 }
 
-/// 主动任务 prompt：头部带 job 标识，扩展据此打 source/jobId 并限流单轮写入。
+/// 主动任务 prompt：头部带 job 标识，扩展据此打 source/job_id 并限流单轮写入。
 pub fn job_prompt(job: &Job) -> String {
     format!(
         "【主动任务 {}】{}\n（若本轮产生可复用的长期结论，用 memory_store 写入，单轮最多 3 条。）\n\n{}",
@@ -567,7 +580,8 @@ fn execute(app: &AppHandle, job: Job) {
 
     let pi = app.state::<PiState>();
     let gov = app.state::<crate::governance::GovernanceState>();
-    if let Err(e) = crate::pi_bridge::start_kernel(app, Some(job.cwd.clone()), pi.inner(), gov.inner())
+    if let Err(e) =
+        crate::pi_bridge::start_kernel(app, Some(job.cwd.clone()), pi.inner(), gov.inner())
     {
         finish_failure(app, job, format!("拉起内核失败：{e}"));
         return;
@@ -595,13 +609,8 @@ fn execute(app: &AppHandle, job: Job) {
             let inbox_id = {
                 let state = app.state::<ProactiveState>();
                 let mut store = state.store.lock().unwrap();
-                let inbox_id = push_inbox(
-                    &mut store,
-                    &job,
-                    "result",
-                    job.title.clone(),
-                    text.clone(),
-                );
+                let inbox_id =
+                    push_inbox(&mut store, &job, "result", job.title.clone(), text.clone());
                 if let Some(j) = store.jobs.iter_mut().find(|j| j.id == job.id) {
                     mark_done(j, now);
                 }
@@ -767,8 +776,7 @@ pub fn proactive_snapshot(app: AppHandle, state: State<'_, ProactiveState>) -> S
 }
 
 /// 新建任务。周期最小 60s；首次触发 = 创建时刻 + 一个周期。
-#[tauri::command(async)]
-#[allow(non_snake_case)]
+#[tauri::command(rename_all = "snake_case", async)]
 pub fn proactive_job_create(
     app: AppHandle,
     title: String,
@@ -812,7 +820,6 @@ pub fn proactive_job_create(
 }
 
 #[tauri::command(async)]
-#[allow(non_snake_case)]
 pub fn proactive_job_set_enabled(
     app: AppHandle,
     id: String,
@@ -834,7 +841,6 @@ pub fn proactive_job_set_enabled(
 }
 
 #[tauri::command(async)]
-#[allow(non_snake_case)]
 pub fn proactive_job_remove(
     app: AppHandle,
     id: String,
@@ -870,8 +876,7 @@ pub fn proactive_job_run_now(
 
 /// 修改预授权：只有空闲任务可改，避免运行中途提权。
 /// 写入根不可编辑（固定为任务的项目目录），只允许调整 bash 命令前缀与风险动作额度。
-#[tauri::command(async)]
-#[allow(non_snake_case)]
+#[tauri::command(rename_all = "snake_case", async)]
 pub fn proactive_job_set_grant(
     app: AppHandle,
     id: String,
@@ -1063,7 +1068,10 @@ mod tests {
 
         j.attempts = MAX_ATTEMPTS;
         mark_failed(&mut j, 10_000, "boom");
-        assert_eq!(j.next_at, 70_000, "用尽重试后不再推进 next_at（停在最后一次退避值）");
+        assert_eq!(
+            j.next_at, 70_000,
+            "用尽重试后不再推进 next_at（停在最后一次退避值）"
+        );
     }
 
     #[test]

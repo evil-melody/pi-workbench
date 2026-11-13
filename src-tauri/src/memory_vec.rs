@@ -162,7 +162,11 @@ pub async fn embed(cfg: &EmbedConfig, text: &str) -> Result<Vec<f32>, String> {
         .get("embeddings")
         .and_then(|x| x.get(0))
         .and_then(|x| x.as_array())
-        .map(|arr| arr.iter().filter_map(|f| f.as_f64().map(|f| f as f32)).collect())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|f| f.as_f64().map(|f| f as f32))
+                .collect()
+        })
         .ok_or_else(|| "embedding 响应缺少 embeddings[0]".to_string())?;
     if vec.is_empty() {
         return Err("embedding 返回空向量".into());
@@ -410,7 +414,7 @@ pub async fn memory_vec_status(app: AppHandle) -> Result<Value, String> {
 }
 
 /// 语义检索：`query` 向量化后最近邻 top_k。
-#[tauri::command(async)]
+#[tauri::command(rename_all = "snake_case", async)]
 pub async fn memory_vec_search(
     app: AppHandle,
     query: String,
@@ -550,7 +554,8 @@ mod tests {
                 .unwrap();
         });
 
-        let table = tauri::async_runtime::block_on(async { open_table(&db).await.unwrap().unwrap() });
+        let table =
+            tauri::async_runtime::block_on(async { open_table(&db).await.unwrap().unwrap() });
         let rows = vec![
             ("b", "前端样式美化", &[0.0f32, 1.0, 0.0]),
             ("c", "发布上线检查清单", &[0.0, 0.0, 1.0]),
@@ -687,13 +692,70 @@ mod ab_bench {
 
     // —— 离线合成语义代理（确定性；贴合 20 组语料的领域概念词表）——
     const CONCEPTS: &[&str] = &[
-        "数据库", "db", "sql", "连接", "connect", "网络", "network", "失败", "fail", "error",
-        "排查", "debug", "前端", "frontend", "样式", "style", "ui", "发布", "deploy", "上线",
-        "release", "记忆", "memory", "检索", "search", "召回", "recall", "向量", "vector",
-        "embedding", "语义", "semantic", "权限", "auth", "登录", "login", "密码", "password",
-        "缓存", "cache", "redis", "性能", "perf", "慢", "slow", "依赖", "dependency", "包",
-        "测试", "test", "日志", "log", "配置", "config", "接口", "api", "构建", "build",
-        "仓库", "git", "容器", "docker", "镜像", "image",
+        "数据库",
+        "db",
+        "sql",
+        "连接",
+        "connect",
+        "网络",
+        "network",
+        "失败",
+        "fail",
+        "error",
+        "排查",
+        "debug",
+        "前端",
+        "frontend",
+        "样式",
+        "style",
+        "ui",
+        "发布",
+        "deploy",
+        "上线",
+        "release",
+        "记忆",
+        "memory",
+        "检索",
+        "search",
+        "召回",
+        "recall",
+        "向量",
+        "vector",
+        "embedding",
+        "语义",
+        "semantic",
+        "权限",
+        "auth",
+        "登录",
+        "login",
+        "密码",
+        "password",
+        "缓存",
+        "cache",
+        "redis",
+        "性能",
+        "perf",
+        "慢",
+        "slow",
+        "依赖",
+        "dependency",
+        "包",
+        "测试",
+        "test",
+        "日志",
+        "log",
+        "配置",
+        "config",
+        "接口",
+        "api",
+        "构建",
+        "build",
+        "仓库",
+        "git",
+        "容器",
+        "docker",
+        "镜像",
+        "image",
     ];
 
     struct Lcg(u64);
@@ -753,7 +815,10 @@ mod ab_bench {
 
     // 语料：0..=19 为改写对目标条目，20..=25 为干扰项。
     const CORPUS: &[(&str, &str)] = &[
-        ("PostgreSQL 数据库连接失败（ERR_HOST_UNREACHABLE）排查", "db,网络"),
+        (
+            "PostgreSQL 数据库连接失败（ERR_HOST_UNREACHABLE）排查",
+            "db,网络",
+        ),
         ("前端 CSS 样式在 Safari 下错位修复", "前端,样式"),
         ("生产环境发布上线回滚流程 checklist", "发布,上线"),
         ("Redis 缓存雪崩与击穿的应对方案", "缓存,redis"),
@@ -826,7 +891,11 @@ mod ab_bench {
             *score.entry(id.clone()).or_insert(0.0) += 1.0 / (K + (rank + 1) as f64);
         }
         let mut ids: Vec<String> = (0..n).map(|i| format!("c{i}")).collect();
-        ids.sort_by(|a, b| score[b].partial_cmp(&score[a]).unwrap_or(std::cmp::Ordering::Equal));
+        ids.sort_by(|a, b| {
+            score[b]
+                .partial_cmp(&score[a])
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         ids
     }
 

@@ -61,7 +61,9 @@ pub fn parse_skill_md(text: &str) -> Result<(String, String), String> {
         if line.is_empty() || line.starts_with('#') || line.starts_with('-') {
             continue;
         }
-        let Some((key, value)) = line.split_once(':') else { continue };
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
         let key = key.trim();
         let value = unquote(value.trim());
         if key == "name" && name.is_none() {
@@ -98,13 +100,17 @@ pub fn parse_skill_md(text: &str) -> Result<(String, String), String> {
 fn is_valid_name(name: &str) -> bool {
     // 首尾/连续连字符都会被 split 成空段，因此一次遍历即可同时挡掉三类非法形态。
     name.split('-').all(|part| {
-        !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit() || b.is_ascii_lowercase())
+        !part.is_empty()
+            && part
+                .bytes()
+                .all(|b| b.is_ascii_digit() || b.is_ascii_lowercase())
     })
 }
 
 fn unquote(v: &str) -> String {
     let v = v.trim();
-    if v.len() >= 2 && (v.starts_with('"') && v.ends_with('"') || v.starts_with('\'') && v.ends_with('\''))
+    if v.len() >= 2
+        && (v.starts_with('"') && v.ends_with('"') || v.starts_with('\'') && v.ends_with('\''))
     {
         return v[1..v.len() - 1].to_string();
     }
@@ -133,7 +139,10 @@ pub fn scan_skills(dir: &Path, scope: &str) -> Vec<SkillEntry> {
     let mut out = Vec::new();
     for entry in rd.filter_map(|e| e.ok()) {
         let path = entry.path();
-        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
         let is_skill_file = name.eq_ignore_ascii_case("SKILL.md");
         if path.is_dir() {
             // 单文件技能（直接放 SKILL.md 在目录里）同样合法。
@@ -171,9 +180,7 @@ fn load_skill(skill_md: &Path, scope: &str, kind: &str) -> Option<SkillEntry> {
 }
 
 fn agent_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .app_config_dir()
-        .map_err(|e| e.to_string())
+    app.path().app_config_dir().map_err(|e| e.to_string())
 }
 
 /// 用户级技能目录：`<agent-dir>/skills`，Pi 默认从这里发现用户技能。
@@ -244,10 +251,7 @@ pub fn skills_list(
 /// 其余按绝对路径处理。
 fn skill_dirs(dirs: &[String]) -> Vec<(PathBuf, &'static str)> {
     if dirs.is_empty() {
-        return vec![(
-            std::path::PathBuf::from("<agent-dir>/skills"),
-            "user",
-        )];
+        return vec![(std::path::PathBuf::from("<agent-dir>/skills"), "user")];
     }
     dirs.iter()
         .map(|d| {
@@ -314,7 +318,11 @@ fn rpc_get_commands(state: &PiState) -> Result<Vec<KernelCommand>, String> {
         .unwrap_or_default();
     let mut out = Vec::new();
     for item in arr {
-        let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let name = item
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         if name.is_empty() {
             continue;
         }
@@ -382,7 +390,11 @@ fn land_skill(
             kind: "skill".into(),
             path: target.to_string_lossy().into_owned(),
             via: "disk".into(),
-            scope: if in_project { "project".into() } else { "user".into() },
+            scope: if in_project {
+                "project".into()
+            } else {
+                "user".into()
+            },
             origin: origin.into(),
         },
         needs_restart: true,
@@ -393,7 +405,7 @@ fn land_skill(
 ///
 /// `path` 可以是 SKILL.md 本身，也可以是包含 SKILL.md 的目录。
 /// 目标位置沿用来源：来自项目 `.pi/skills` 的装到项目级，其余装到用户级。
-#[tauri::command(async)]
+#[tauri::command(rename_all = "snake_case", async)]
 pub fn skills_install(
     app: AppHandle,
     path: String,
@@ -420,9 +432,7 @@ pub fn skills_install(
     // 显式声明优先；否则按来源推断（来自项目 .pi/skills 的留在项目级）。
     let in_project_guess = root
         .as_ref()
-        .map(|r| {
-            is_under(Path::new(r), &skill_md) || skill_md.starts_with(project_skills_dir(r))
-        })
+        .map(|r| is_under(Path::new(r), &skill_md) || skill_md.starts_with(project_skills_dir(r)))
         .unwrap_or(false);
     let user_dir = user_skills_dir(&app)?;
     land_skill(
@@ -439,7 +449,7 @@ pub fn skills_install(
 ///
 /// 这让「社区市场」变成一条真实可用的链路：任何能给出 SKILL.md 直链的来源
 /// （raw 链接、自建市场、gist）都可直接安装，落盘位置与本地导入完全一致。
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 pub async fn skills_install_from_url(
     app: AppHandle,
     url: String,
@@ -467,7 +477,11 @@ fn is_under(root: &Path, child: &Path) -> bool {
 /// 卸载目标：`<技能目录>/<name>/SKILL.md`，先项目级后用户级。
 /// 顺序与 `skills_install` 的落盘位置一致——装到哪就卸到哪，不会卸错地方。
 pub fn uninstall_target(name: &str, root: Option<&str>, user_dir: &Path) -> Option<PathBuf> {
-    if name.trim().is_empty() || name.contains('/') || name.contains('\\') || name == "." || name == ".."
+    if name.trim().is_empty()
+        || name.contains('/')
+        || name.contains('\\')
+        || name == "."
+        || name == ".."
     {
         return None;
     }
@@ -589,7 +603,11 @@ description: Extract text and tables from PDF files.
         fs::write(dir.join("first-skill/SKILL.md"), VALID).unwrap();
         fs::write(dir.join("nested/second-skill/SKILL.md"), VALID).unwrap();
         // 畸形技能应被跳过而不是让整个扫描失败
-        fs::write(dir.join("broken/SKILL.md"), "---\nname: BAD\ndescription:\n---\n").unwrap();
+        fs::write(
+            dir.join("broken/SKILL.md"),
+            "---\nname: BAD\ndescription:\n---\n",
+        )
+        .unwrap();
 
         let found = scan_skills(&dir, "user");
         assert_eq!(found.len(), 2, "只应发现合法技能");
@@ -623,11 +641,13 @@ description: Extract text and tables from PDF files.
         fs::create_dir_all(&proj_skill).unwrap();
         fs::write(proj_skill.join("SKILL.md"), VALID).unwrap();
 
-        let hit = uninstall_target("dup", Some(proj.to_str().unwrap()), &user).expect("应命中项目级");
+        let hit =
+            uninstall_target("dup", Some(proj.to_str().unwrap()), &user).expect("应命中项目级");
         assert_eq!(hit, proj_skill.join("SKILL.md"));
 
         // 项目级没有时才落到用户级
-        let hit = uninstall_target("only-user", Some(proj.to_str().unwrap()), &user).expect("应命中用户级");
+        let hit = uninstall_target("only-user", Some(proj.to_str().unwrap()), &user)
+            .expect("应命中用户级");
         assert_eq!(hit, user.join("only-user/SKILL.md"));
 
         // 两者都没有 → None（调用方据此拒绝）
@@ -654,8 +674,15 @@ description: Extract text and tables from PDF files.
         fs::create_dir_all(&proj).unwrap();
 
         // 显式要求项目级 → 装到项目 .pi/skills
-        let r = land_skill(&user, VALID, true, Some(proj.to_str().unwrap()), Some(true), "url")
-            .unwrap();
+        let r = land_skill(
+            &user,
+            VALID,
+            true,
+            Some(proj.to_str().unwrap()),
+            Some(true),
+            "url",
+        )
+        .unwrap();
         assert_eq!(r.entry.scope, "project", "显式项目级优先");
         assert_eq!(r.entry.origin, "url", "来源需标记为远端安装");
         assert!(proj.join(".pi/skills/pdf-tools/SKILL.md").exists());

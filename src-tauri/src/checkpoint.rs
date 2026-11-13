@@ -167,7 +167,8 @@ pub fn rewind(base: &Path, seq: u64) -> Result<RewindReport, String> {
         let src = dir.join(&rel);
         if let Some(parent) = abs.parent() {
             if std::fs::create_dir_all(parent).is_err() {
-                rep.failed.push(format!("{}: 创建父目录失败", abs.display()));
+                rep.failed
+                    .push(format!("{}: 创建父目录失败", abs.display()));
                 continue;
             }
         }
@@ -276,7 +277,10 @@ mod tests {
     #[test]
     fn begin_turn_creates_marker_and_returns_increasing_seq() {
         let base = tmp("begin");
-        assert_eq!(begin_turn(&base, Some("leaf1"), "第一轮 prompt").unwrap(), 1);
+        assert_eq!(
+            begin_turn(&base, Some("leaf1"), "第一轮 prompt").unwrap(),
+            1
+        );
         assert_eq!(begin_turn(&base, None, "第二轮 prompt").unwrap(), 2);
         let m = read_marker(&base, 1).unwrap();
         assert_eq!(m.leaf_id.as_deref(), Some("leaf1"));

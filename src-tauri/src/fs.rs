@@ -60,9 +60,7 @@ pub fn fs_read_dir(path: String, root: String) -> Result<Vec<FileNode>, String> 
             children: None,
         });
     }
-    nodes.sort_by(|a, b| {
-        (b.is_dir, a.name.to_lowercase()).cmp(&(a.is_dir, b.name.to_lowercase()))
-    });
+    nodes.sort_by(|a, b| (b.is_dir, a.name.to_lowercase()).cmp(&(a.is_dir, b.name.to_lowercase())));
     Ok(nodes)
 }
 
@@ -125,7 +123,11 @@ mod tests {
         let d = std::env::temp_dir().join("piwb-fs-trav");
         fs::create_dir_all(d.join("proj")).ok();
         assert!(
-            resolve(d.join("proj").to_string_lossy().as_ref(), "../../etc/passwd").is_err(),
+            resolve(
+                d.join("proj").to_string_lossy().as_ref(),
+                "../../etc/passwd"
+            )
+            .is_err(),
             "相对路径穿越必须被拒绝"
         );
         let _ = fs::remove_dir_all(&d);

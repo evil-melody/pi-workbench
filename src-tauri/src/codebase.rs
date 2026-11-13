@@ -21,8 +21,10 @@ use crate::state::ProjectsState;
 const TOOL_NAME: &str = "codebase-memory-mcp";
 
 /// 索引结果，供前端展示「有没有在跑 / 成功没 / 规模多大」。
+///
+/// IPC 视图与 `projects` 域保持一致用 snake_case（前端 `useProject.ts` 逐字段对齐）；
+/// `CodebaseIndexMeta` 解析的是 codebase-memory-mcp 的 JSON，保留 camelCase。
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct CodebaseIndexStatus {
     pub project_id: String,
     pub project_name: String,
@@ -78,7 +80,10 @@ fn find_binary() -> Result<PathBuf, String> {
             return Ok(c);
         }
     }
-    Err(format!("找不到 {} 二进制。请安装 codebase-memory-mcp 或设置 CODEBASE_MEMORY_MCP_PATH", TOOL_NAME))
+    Err(format!(
+        "找不到 {} 二进制。请安装 codebase-memory-mcp 或设置 CODEBASE_MEMORY_MCP_PATH",
+        TOOL_NAME
+    ))
 }
 
 fn now_ms() -> u64 {
@@ -149,14 +154,22 @@ fn run_index(repo_path: &str) -> Result<Value, String> {
     }
     let text = stdout;
     let trimmed = text.trim();
-    let start = trimmed.find('{').ok_or_else(|| format!("{} 没有输出 JSON:\n{}", TOOL_NAME, trimmed))?;
-    let end = trimmed.rfind('}').ok_or_else(|| format!("{} 输出没有闭合的 JSON:\n{}", TOOL_NAME, trimmed))?;
+    let start = trimmed
+        .find('{')
+        .ok_or_else(|| format!("{} 没有输出 JSON:\n{}", TOOL_NAME, trimmed))?;
+    let end = trimmed
+        .rfind('}')
+        .ok_or_else(|| format!("{} 输出没有闭合的 JSON:\n{}", TOOL_NAME, trimmed))?;
     let json_str = &trimmed[start..=end];
 
     let wrapper: Value = serde_json::from_str(json_str)
         .map_err(|e| format!("{} 输出不是 JSON: {}\n---\n{}", TOOL_NAME, e, json_str))?;
 
-    if wrapper.get("isError").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if wrapper
+        .get("isError")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         let msg = wrapper
             .get("content")
             .and_then(|c| c.get(0))
@@ -185,10 +198,22 @@ fn parse_index_result(json: Value) -> Result<CodebaseIndexMeta, String> {
         })
         .unwrap_or(json);
 
-    let project_name = body.get("project").and_then(|v| v.as_str()).map(String::from);
-    let nodes = body.get("nodes").and_then(|v| v.as_u64()).map(|n| n as usize);
-    let edges = body.get("edges").and_then(|v| v.as_u64()).map(|n| n as usize);
-    let status = body.get("status").and_then(|v| v.as_str()).map(String::from);
+    let project_name = body
+        .get("project")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let nodes = body
+        .get("nodes")
+        .and_then(|v| v.as_u64())
+        .map(|n| n as usize);
+    let edges = body
+        .get("edges")
+        .and_then(|v| v.as_u64())
+        .map(|n| n as usize);
+    let status = body
+        .get("status")
+        .and_then(|v| v.as_str())
+        .map(String::from);
 
     if status.as_deref() != Some("indexed") {
         return Err(format!("索引未完成: {:?}", status));
@@ -205,7 +230,6 @@ fn parse_index_result(json: Value) -> Result<CodebaseIndexMeta, String> {
 
 /// 触发项目代码库索引，后台运行，返回最终状态。
 #[tauri::command(async)]
-#[allow(non_snake_case)]
 pub async fn project_index_codebase(
     app: AppHandle,
     id: String,
@@ -215,7 +239,10 @@ pub async fn project_index_codebase(
     let repo_path = {
         let store = state.store.lock().map_err(|e| e.to_string())?;
         let project = require_project(&store, &id)?;
-        let raw = project.path.as_deref().ok_or_else(|| "项目没有工作目录".to_string())?;
+        let raw = project
+            .path
+            .as_deref()
+            .ok_or_else(|| "项目没有工作目录".to_string())?;
         let canon = fs::canonicalize(raw).map_err(|e| format!("工作目录不存在: {e}"))?;
         canon.to_string_lossy().into_owned()
     };
@@ -283,7 +310,10 @@ pub async fn project_index_codebase(
 /// 读取项目当前的代码库索引状态（不触发重建）。
 #[tauri::command]
 #[allow(non_snake_case)]
-pub fn project_index_status(id: String, state: State<'_, ProjectsState>) -> Result<CodebaseIndexStatus, String> {
+pub fn project_index_status(
+    id: String,
+    state: State<'_, ProjectsState>,
+) -> Result<CodebaseIndexStatus, String> {
     let store = state.store.lock().map_err(|e| e.to_string())?;
     let project = require_project(&store, &id)?;
     let status = if project.codebase_indexed_at.is_some() {
@@ -302,4 +332,30 @@ pub fn project_index_status(id: String, state: State<'_, ProjectsState>) -> Resu
         indexed_at: project.codebase_indexed_at.unwrap_or(0),
         error: project.codebase_index_error.clone(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 契约守卫：`useProject.ts` 的 `CodebaseIndexStatus` 按 snake_case 读取。
+    #[test]
+    fn status_serializes_snake_case() {
+        let v = serde_json::to_value(CodebaseIndexStatus {
+            project_id: "p".into(),
+            project_name: "n".into(),
+            status: "indexed".into(),
+            nodes: 1,
+            edges: 2,
+            indexed_at: 3,
+            error: None,
+        })
+        .unwrap();
+        for k in ["project_id", "project_name", "indexed_at"] {
+            assert!(v.get(k).is_some(), "缺少 snake_case 字段 {k}: {v}");
+        }
+        for k in ["projectId", "projectName", "indexedAt"] {
+            assert!(v.get(k).is_none(), "误发 camelCase 字段 {k}: {v}");
+        }
+    }
 }

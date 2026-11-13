@@ -5,12 +5,12 @@ import { readonly, ref } from 'vue'
 export type CloseAction = 'ask' | 'background' | 'quit'
 
 export interface BackgroundInfo {
-  closeAction: CloseAction
+  close_action: CloseAction
   paused: boolean
   autostart: boolean
 }
 
-const info = ref<BackgroundInfo>({ closeAction: 'ask', paused: false, autostart: false })
+const info = ref<BackgroundInfo>({ close_action: 'ask', paused: false, autostart: false })
 /** 首次关窗的询问框：仅后端发事件时打开，不持久化。 */
 const closeAsk = ref(false)
 let listening = false

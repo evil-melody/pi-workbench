@@ -2,7 +2,7 @@
 //!
 //! 磁盘仍是 `<config>/.pi/memory/memory.jsonl`，与 Pi 扩展共用同一份状态。
 //! 后续写入的是**事件**而不是快照：
-//!   `{op:"delete", id, ts, purgeAt}` / `{op:"restore", id, ts}` / `{op:"purge", id, ts}`
+//!   `{op:"delete", id, ts, purge_at}` / `{op:"restore", id, ts}` / `{op:"purge", id, ts}`
 //!
 //! 老行（只有 ts/text/tags）按新增条目处理，id 用 `memory_vec::entry_id` 现算，
 //! 与向量表同一算法，两边 id 天然对齐。
@@ -20,7 +20,6 @@ use std::path::PathBuf;
 pub const UNDO_MS: u64 = 24 * 60 * 60 * 1000;
 
 #[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Entry {
     pub id: String,
     pub ts: i64,
@@ -103,12 +102,10 @@ pub fn materialize(lines: &[Value]) -> Vec<Entry> {
                         tags,
                         deleted_at: None,
                         purge_at: None,
-                        source: v
-                            .get("source")
-                            .and_then(|x| x.as_str())
-                            .map(str::to_string),
+                        source: v.get("source").and_then(|x| x.as_str()).map(str::to_string),
                         job_id: v
-                            .get("jobId")
+                            .get("job_id")
+                            .or_else(|| v.get("jobId"))
                             .and_then(|x| x.as_str())
                             .map(str::to_string),
                     },
@@ -135,7 +132,8 @@ pub fn materialize(lines: &[Value]) -> Vec<Entry> {
             "delete" => {
                 let at = v.get("ts").and_then(|x| x.as_u64()).unwrap_or(0);
                 let purge_at = v
-                    .get("purgeAt")
+                    .get("purge_at")
+                    .or_else(|| v.get("purgeAt"))
                     .and_then(|x| x.as_u64())
                     .unwrap_or_else(|| at.saturating_add(UNDO_MS));
                 if let Some(id) = v.get("id").and_then(|x| x.as_str()) {
@@ -209,7 +207,7 @@ pub fn soft_delete(app: &tauri::AppHandle, id: &str, now: u64) -> Result<Entry, 
     let purge_at = now.saturating_add(UNDO_MS);
     append_line(
         app,
-        &json!({ "op": "delete", "id": id, "ts": now, "purgeAt": purge_at }),
+        &json!({ "op": "delete", "id": id, "ts": now, "purge_at": purge_at }),
     )?;
     entry.deleted_at = Some(now);
     entry.purge_at = Some(purge_at);
@@ -319,15 +317,14 @@ pub fn update(
 // ── 画像折叠：保留标签 → 只读视图，不另立档案 ─────────────────
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
 pub struct ProfileField {
     pub value: String,
     pub evidence: Vec<String>,
+    #[serde(alias = "updatedAt")]
     pub updated_at: i64,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
 pub struct Profile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preference: Option<ProfileField>,
@@ -337,7 +334,9 @@ pub struct Profile {
     pub goal: Option<ProfileField>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub workflow: Option<ProfileField>,
+    #[serde(alias = "generatedAt")]
     pub generated_at: u64,
+    #[serde(alias = "sourceMtime")]
     pub source_mtime: u64,
 }
 
@@ -400,7 +399,11 @@ pub fn build_profile(entries: &[Entry], now: u64, mtime: u64) -> Profile {
     if !taboo.is_empty() {
         let updated_at = taboo.iter().map(|x| x.0).max().unwrap_or(0);
         out.taboo = Some(ProfileField {
-            value: taboo.iter().map(|x| x.1.clone()).collect::<Vec<_>>().join("；"),
+            value: taboo
+                .iter()
+                .map(|x| x.1.clone())
+                .collect::<Vec<_>>()
+                .join("；"),
             evidence: taboo.iter().map(|x| x.2.clone()).collect(),
             updated_at,
         });
@@ -466,7 +469,7 @@ mod tests {
     fn delete_then_restore_round_trip() {
         let mut lines = vec![add(1000, "用中文回复")];
         let id = crate::memory_vec::entry_id(1000, "用中文回复");
-        lines.push(json!({ "op": "delete", "id": id, "ts": 2000, "purgeAt": 2000 + UNDO_MS }));
+        lines.push(json!({ "op": "delete", "id": id, "ts": 2000, "purge_at": 2000 + UNDO_MS }));
         let deleted = materialize(&lines);
         assert_eq!(deleted.len(), 1);
         assert_eq!(deleted[0].deleted_at, Some(2000));
@@ -481,7 +484,7 @@ mod tests {
         let id = crate::memory_vec::entry_id(1000, "用中文回复");
         let lines = vec![
             add(1000, "用中文回复"),
-            json!({ "op": "delete", "id": id, "ts": 2000, "purgeAt": 2000 + UNDO_MS }),
+            json!({ "op": "delete", "id": id, "ts": 2000, "purge_at": 2000 + UNDO_MS }),
             json!({ "op": "purge", "id": id, "ts": 9_000_000 }),
         ];
         assert!(materialize(&lines).is_empty());
@@ -515,7 +518,7 @@ mod tests {
         let id = crate::memory_vec::entry_id(1000, "用中文回复");
         let out = materialize(&[
             add(1000, "用中文回复"),
-            json!({ "op": "delete", "id": id, "ts": 2000, "purgeAt": 2000 + UNDO_MS }),
+            json!({ "op": "delete", "id": id, "ts": 2000, "purge_at": 2000 + UNDO_MS }),
             json!({ "op": "purge", "id": id, "ts": 2001, "reason": "manual" }),
         ]);
         assert!(out.is_empty());

@@ -171,8 +171,7 @@ fn decode_definitions(raw: &Value) -> Vec<ConnectorDefinition> {
         .or_else(|| raw.as_array())
         .cloned()
         .unwrap_or_default();
-    rows
-        .iter()
+    rows.iter()
         .filter_map(|row| serde_json::from_value::<ConnectorDefinition>(row.clone()).ok())
         .collect()
 }
@@ -186,7 +185,9 @@ fn decode_selections(raw: &Value) -> HashMap<String, Vec<String>> {
                 if let Some(arr) = ids.as_array() {
                     out.insert(
                         session.clone(),
-                        arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect(),
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect(),
                     );
                 }
             }
@@ -224,7 +225,11 @@ fn migrate_from_legacy(app: &AppHandle) -> ConnectorStore {
     };
     let mut store = ConnectorStore::default();
     for (i, row) in rows.iter().enumerate() {
-        let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let name = row
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         let command = row
             .get("command")
             .and_then(|v| v.as_str())
@@ -236,7 +241,11 @@ fn migrate_from_legacy(app: &AppHandle) -> ConnectorStore {
         let args = row
             .get("args")
             .and_then(|v| v.as_array())
-            .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
             .unwrap_or_default();
         let now = now_ms();
         let server_name = sanitize_server_name(&name);
@@ -273,12 +282,16 @@ pub fn save_store(app: &AppHandle, store: &ConnectorStore) -> Result<(), String>
     let p = store_file(app, DEFINITIONS_FILE)?;
     fs::write(
         &p,
-        serde_json::to_string_pretty(&json!({ "definitions": store.definitions })).map_err(|e| e.to_string())?,
+        serde_json::to_string_pretty(&json!({ "definitions": store.definitions }))
+            .map_err(|e| e.to_string())?,
     )
     .map_err(|e| e.to_string())?;
     let sp = store_file(app, SELECTIONS_FILE)?;
-    fs::write(&sp, serde_json::to_string_pretty(&json!(store.selections)).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+    fs::write(
+        &sp,
+        serde_json::to_string_pretty(&json!(store.selections)).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -341,7 +354,11 @@ fn validate_input(input: &ConnectorInput) -> Result<(), String> {
     Ok(())
 }
 
-fn assert_unique_server(store: &ConnectorStore, server_name: &str, except_id: Option<&str>) -> Result<(), String> {
+fn assert_unique_server(
+    store: &ConnectorStore,
+    server_name: &str,
+    except_id: Option<&str>,
+) -> Result<(), String> {
     let hit = store
         .definitions
         .iter()
@@ -379,10 +396,10 @@ fn runtime(id: &str) -> Runtime {
 }
 
 fn set_runtime(id: &str, state: ConnectorState, diagnostic: Option<String>) {
-    runtimes().lock().unwrap().insert(
-        id.to_string(),
-        Runtime { state, diagnostic },
-    );
+    runtimes()
+        .lock()
+        .unwrap()
+        .insert(id.to_string(), Runtime { state, diagnostic });
 }
 
 /// 把定义落到运行时上：停用 → disabled；非 stdio → offline 并给诊断；
@@ -424,7 +441,10 @@ pub fn restore(app: &AppHandle, state: &ConnectorRuntimeState, mcp: &State<McpSt
     }
 }
 
-fn summary_of(dev: &ConnectorDefinition, mcp: &State<McpState>) -> Result<ConnectorSummary, String> {
+fn summary_of(
+    dev: &ConnectorDefinition,
+    mcp: &State<McpState>,
+) -> Result<ConnectorSummary, String> {
     let rt = runtime(&dev.id);
     let tool_names: Vec<String> = crate::mcp::server_tools(mcp, &dev.server_name)
         .into_iter()
@@ -456,8 +476,10 @@ fn summary_of(dev: &ConnectorDefinition, mcp: &State<McpState>) -> Result<Connec
 // ── 命令 ──────────────────────────────────────────────────────
 
 #[tauri::command]
-#[allow(non_snake_case)]
-pub fn connectors_list(state: State<ConnectorRuntimeState>, mcp: State<McpState>) -> Vec<ConnectorSummary> {
+pub fn connectors_list(
+    state: State<ConnectorRuntimeState>,
+    mcp: State<McpState>,
+) -> Vec<ConnectorSummary> {
     let store = state.store.lock().unwrap();
     let mut out: Vec<ConnectorSummary> = Vec::new();
     for dev in store.definitions.iter() {
@@ -690,29 +712,31 @@ pub fn connectors_set_enabled(
 
 // ── 会话级选择 ────────────────────────────────────────────────
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 #[allow(non_snake_case)]
-pub fn connectors_selection(state: State<ConnectorRuntimeState>, sessionId: String) -> Vec<String> {
+pub fn connectors_selection(state: State<ConnectorRuntimeState>, session_id: String) -> Vec<String> {
     state
         .store
         .lock()
         .unwrap()
         .selections
-        .get(&sessionId)
+        .get(&session_id)
         .cloned()
         .unwrap_or_default()
 }
 
-#[tauri::command(async)]
+#[tauri::command(rename_all = "snake_case", async)]
 #[allow(non_snake_case)]
 pub fn connectors_set_selection(
-    sessionId: String,
-    connectorIds: Vec<String>,
+    session_id: String,
+    connector_ids: Vec<String>,
     state: State<ConnectorRuntimeState>,
 ) -> Result<Vec<String>, String> {
-    let unique = dedup_limit(connectorIds);
+    let unique = dedup_limit(connector_ids);
     if unique.len() > SELECTION_MAX {
-        return Err(format!("connector/selection-limit-exceeded（上限 {SELECTION_MAX}）"));
+        return Err(format!(
+            "connector/selection-limit-exceeded（上限 {SELECTION_MAX}）"
+        ));
     }
     {
         let store = state.store.lock().unwrap();
@@ -733,7 +757,7 @@ pub fn connectors_set_selection(
         }
     }
     let mut store = state.store.lock().unwrap();
-    store.selections.insert(sessionId.clone(), unique.clone());
+    store.selections.insert(session_id.clone(), unique.clone());
     Ok(unique)
 }
 
@@ -782,7 +806,11 @@ fn scope_for(
         .filter(|d| d.enabled)
         .map(|d| d.server_name.clone())
         .collect();
-    let selected = guard.selections.get(session_id).cloned().unwrap_or_default();
+    let selected = guard
+        .selections
+        .get(session_id)
+        .cloned()
+        .unwrap_or_default();
     let selected_servers: HashSet<String> = guard
         .definitions
         .iter()
@@ -826,15 +854,15 @@ fn tool_server(fqn: &str) -> Option<String> {
     Some(rest[..idx].to_string())
 }
 
-#[tauri::command(async)]
+#[tauri::command(rename_all = "snake_case", async)]
 #[allow(non_snake_case)]
 pub fn connectors_apply_scope(
     app: AppHandle,
-    sessionId: String,
+    session_id: String,
     state: State<ConnectorRuntimeState>,
     mcp: State<McpState>,
 ) -> Result<Vec<String>, String> {
-    let scope = tool_scope_for(&app, &state, &mcp, &sessionId);
+    let scope = tool_scope_for(&app, &state, &mcp, &session_id);
     crate::tools::write_active(&app, &scope)?;
     Ok(scope)
 }
@@ -896,16 +924,25 @@ mod tests {
     #[test]
     fn empty_server_name_is_rejected() {
         let mut bad = input("名称", "!!!");
-        assert_eq!(validate_input(&bad), Err("connector/server-name-invalid".to_string()));
+        assert_eq!(
+            validate_input(&bad),
+            Err("connector/server-name-invalid".to_string())
+        );
         bad.server_name = String::new();
-        assert_eq!(validate_input(&bad), Err("connector/server-name-invalid".to_string()));
+        assert_eq!(
+            validate_input(&bad),
+            Err("connector/server-name-invalid".to_string())
+        );
     }
 
     #[test]
     fn stdio_without_command_is_rejected() {
         let mut bad = input("名称", "srv");
         bad.command = Some(String::new());
-        assert_eq!(validate_input(&bad), Err("connector/command-required".to_string()));
+        assert_eq!(
+            validate_input(&bad),
+            Err("connector/command-required".to_string())
+        );
     }
 
     #[test]
@@ -914,9 +951,15 @@ mod tests {
         bad.transport = ConnectorTransport::StreamableHttp;
         bad.command = None;
         bad.url = Some(String::new());
-        assert_eq!(validate_input(&bad), Err("connector/url-required".to_string()));
+        assert_eq!(
+            validate_input(&bad),
+            Err("connector/url-required".to_string())
+        );
         bad.url = Some("file:///tmp/mcp".into());
-        assert_eq!(validate_input(&bad), Err("connector/url-invalid".to_string()));
+        assert_eq!(
+            validate_input(&bad),
+            Err("connector/url-invalid".to_string())
+        );
     }
 
     #[test]
@@ -943,19 +986,19 @@ mod tests {
 
     #[test]
     fn selections_survive_decode_from_either_key_name() {
-        let raw: Value = serde_json::from_str(
-            r#"{"definitions":[],"selections":{"s1":["a"]}}"#,
-        )
-        .unwrap();
+        let raw: Value =
+            serde_json::from_str(r#"{"definitions":[],"selections":{"s1":["a"]}}"#).unwrap();
         let store = decode_store(&raw.to_string()).unwrap();
         assert_eq!(store.selections.get("s1"), Some(&vec!["a".to_string()]));
 
-        let raw2: Value = serde_json::from_str(
-            r#"{"definitions":[],"sessionSelections":{"s9":["b","c"]}}"#,
-        )
-        .unwrap();
+        let raw2: Value =
+            serde_json::from_str(r#"{"definitions":[],"sessionSelections":{"s9":["b","c"]}}"#)
+                .unwrap();
         let store2 = decode_store(&raw2.to_string()).unwrap();
-        assert_eq!(store2.selections.get("s9"), Some(&vec!["b".to_string(), "c".to_string()]));
+        assert_eq!(
+            store2.selections.get("s9"),
+            Some(&vec!["b".to_string(), "c".to_string()])
+        );
     }
 
     /// 早期 `mcp.json` 存的是裸数组：解码必须同时接受「有包一层 definitions」和「裸数组」两种形状。

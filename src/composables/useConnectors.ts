@@ -91,16 +91,16 @@ export const connectorsSetEnabled = (id: string, enabled: boolean): Promise<Conn
   invoke<ConnectorSummary>('connectors_set_enabled', { id, enabled })
 
 export const connectorsSelection = (sessionId: string): Promise<string[]> =>
-  invoke<string[]>('connectors_selection', { sessionId })
+  invoke<string[]>('connectors_selection', { session_id: sessionId })
 
 export const connectorsSetSelection = (
   sessionId: string,
   connectorIds: string[],
-): Promise<string[]> => invoke<string[]>('connectors_set_selection', { sessionId, connectorIds })
+): Promise<string[]> => invoke<string[]>('connectors_set_selection', { session_id: sessionId, connector_ids: connectorIds })
 
 /** 把选择真正落到内核白名单：返回应用后的完整工具作用域。 */
 export const connectorsApplyScope = (sessionId: string): Promise<string[]> =>
-  invoke<string[]>('connectors_apply_scope', { sessionId })
+  invoke<string[]>('connectors_apply_scope', { session_id: sessionId })
 
 function connectorErrorTable(): Array<[string, string]> {
   return [

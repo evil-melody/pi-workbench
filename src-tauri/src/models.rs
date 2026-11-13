@@ -82,6 +82,9 @@ pub struct AppSettings {
     /// 桌面进程 PATH 里常没有 pi（macOS GUI 只有 /usr/bin 等），探测不到时必须能手动指定。
     #[serde(default)]
     pub pi_bin: Option<String>,
+    /// 会话结束后把产物自动归档进资料库。None = 未设置，按开启处理。
+    #[serde(default)]
+    pub auto_archive_artifacts: Option<bool>,
 }
 
 impl AppSettings {
@@ -159,6 +162,7 @@ pub fn settings_load(app: AppHandle) -> AppSettings {
             theme: legacy.theme,
             language: legacy.language,
             pi_bin: None,
+            auto_archive_artifacts: None,
         };
     }
 
@@ -197,11 +201,12 @@ pub async fn settings_test_model(config: ModelConfig) -> Result<String, String> 
         .build()
         .map_err(|e| format!("HTTP 客户端初始化失败: {e}"))?;
 
-    let resp = client
-        .get(&target)
-        .send()
-        .await
-        .map_err(|e| format!("无法连接到 {provider} 服务端: {e}", provider = config.provider))?;
+    let resp = client.get(&target).send().await.map_err(|e| {
+        format!(
+            "无法连接到 {provider} 服务端: {e}",
+            provider = config.provider
+        )
+    })?;
 
     let status = resp.status();
     if status.is_server_error() {
@@ -258,7 +263,11 @@ fn write_models_json(app: &AppHandle, model: &ModelConfig) -> Result<(), String>
         .ok()
         .and_then(|t| serde_json::from_str(&t).ok())
         .unwrap_or_else(|| serde_json::json!({ "providers": {} }));
-    if !root.get("providers").map(|v| v.is_object()).unwrap_or(false) {
+    if !root
+        .get("providers")
+        .map(|v| v.is_object())
+        .unwrap_or(false)
+    {
         root["providers"] = serde_json::json!({});
     }
     let mut entry = serde_json::json!({

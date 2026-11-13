@@ -54,8 +54,7 @@ fn save(app: &AppHandle, state: &State<McpState>) -> Result<(), String> {
         .iter()
         .map(|(name, s)| json!({ "name": name, "command": s.command, "args": s.args }))
         .collect();
-    fs::write(&f, to_string_pretty(&arr).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())
+    fs::write(&f, to_string_pretty(&arr).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
 }
 
 pub fn load(app: &AppHandle, state: &State<McpState>) {
@@ -63,7 +62,11 @@ pub fn load(app: &AppHandle, state: &State<McpState>) {
         if let Ok(s) = fs::read_to_string(&f) {
             if let Ok(v) = serde_json::from_str::<Vec<Value>>(&s) {
                 for srv in v {
-                    let name = srv.get("name").and_then(|x| x.as_str()).unwrap_or("").to_string();
+                    let name = srv
+                        .get("name")
+                        .and_then(|x| x.as_str())
+                        .unwrap_or("")
+                        .to_string();
                     let command = srv
                         .get("command")
                         .and_then(|x| x.as_str())
@@ -72,7 +75,11 @@ pub fn load(app: &AppHandle, state: &State<McpState>) {
                     let args = srv
                         .get("args")
                         .and_then(|x| x.as_array())
-                        .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+                        .map(|a| {
+                            a.iter()
+                                .filter_map(|x| x.as_str().map(String::from))
+                                .collect()
+                        })
                         .unwrap_or_default();
                     if !name.is_empty() && !command.is_empty() {
                         let _ = mcp_connect(name, command, args, app.clone(), state.clone());
@@ -109,9 +116,17 @@ pub fn spawn_and_handshake(
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
-    let mut child = cmd.spawn().map_err(|e| format!("启动 MCP server 失败: {e}"))?;
-    let mut stdin = child.stdin.take().ok_or_else(|| "MCP 无 stdin".to_string())?;
-    let stdout = child.stdout.take().ok_or_else(|| "MCP 无 stdout".to_string())?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("启动 MCP server 失败: {e}"))?;
+    let mut stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| "MCP 无 stdin".to_string())?;
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| "MCP 无 stdout".to_string())?;
 
     let (tx, rx) = mpsc::channel::<String>();
     let pending = state.pending.clone();
@@ -175,7 +190,11 @@ pub fn register(
     state: &State<McpState>,
 ) -> Result<(), String> {
     let server = McpServer::new(child, tx, tools, command, args);
-    state.servers.lock().unwrap().insert(name.to_string(), server);
+    state
+        .servers
+        .lock()
+        .unwrap()
+        .insert(name.to_string(), server);
     save(app, state)
 }
 
@@ -187,7 +206,16 @@ pub fn spawn_and_register(
     state: &State<McpState>,
 ) -> Result<Vec<Value>, String> {
     let (child, tx, tools) = spawn_and_handshake(name, command, args, state)?;
-    register(name, child, tx, tools.clone(), command.to_string(), args.to_vec(), app, state)?;
+    register(
+        name,
+        child,
+        tx,
+        tools.clone(),
+        command.to_string(),
+        args.to_vec(),
+        app,
+        state,
+    )?;
     Ok(tools)
 }
 
@@ -272,8 +300,14 @@ pub fn mcp_call(
         guard.get(&server).map(|s| s.stdin_tx.clone())
     }
     .ok_or_else(|| "MCP server 未连接".to_string())?;
-    let args_val: Value = serde_json::from_str(&arguments).unwrap_or(Value::Object(Default::default()));
-    let resp = rpc_call(&tx, &state, "tools/call", json!({ "name": tool, "arguments": args_val }))?;
+    let args_val: Value =
+        serde_json::from_str(&arguments).unwrap_or(Value::Object(Default::default()));
+    let resp = rpc_call(
+        &tx,
+        &state,
+        "tools/call",
+        json!({ "name": tool, "arguments": args_val }),
+    )?;
     Ok(resp.get("result").cloned().unwrap_or(resp))
 }
 
@@ -283,4 +317,3 @@ pub fn mcp_disconnect(name: String, app: AppHandle, state: State<McpState>) -> R
     save(&app, &state)?;
     Ok(())
 }
-

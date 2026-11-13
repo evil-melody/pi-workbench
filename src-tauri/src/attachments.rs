@@ -1,7 +1,16 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use serde::Serialize;
 use tauri::Manager;
+
+/// 附件落盘结果：路径供内核按路径读取，name/size 供气泡卡片显示。
+#[derive(Serialize)]
+pub struct AttachmentInfo {
+    pub path: String,
+    pub name: String,
+    pub size: u64,
+}
 
 /// 把用户从对话框选中的文件（图片/文档）复制进本应用的托管附件目录，
 /// 返回**绝对路径**。前端把它写进 prompt 文本的「附件引用块」里交给 Pi——
@@ -12,7 +21,7 @@ use tauri::Manager;
 /// 所以多模态走引用路径的绕行方案，真·视觉理解等内核支持 content block 后再翻。
 /// 附件统一收口到 `app_config_dir/attachments/`，避免散落、也便于导入时按同一目录找回。
 #[tauri::command(async)]
-pub fn attachment_add(app: tauri::AppHandle, src: String) -> Result<String, String> {
+pub fn attachment_add(app: tauri::AppHandle, src: String) -> Result<AttachmentInfo, String> {
     let src_path = Path::new(&src);
     if !src_path.exists() {
         return Err(format!("附件源文件不存在: {src}"));
@@ -32,7 +41,17 @@ pub fn attachment_add(app: tauri::AppHandle, src: String) -> Result<String, Stri
     // 同名则加短后缀：否则上一轮的截图会被下一轮静默覆盖。
     let dest = uniquify(&dir, name);
     fs::copy(src_path, &dest).map_err(|e| format!("复制附件失败: {e}"))?;
-    Ok(dest.to_string_lossy().to_string())
+    let name = dest
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("attachment")
+        .to_string();
+    let size = fs::metadata(&dest).map(|m| m.len()).unwrap_or(0);
+    Ok(AttachmentInfo {
+        path: dest.to_string_lossy().to_string(),
+        name,
+        size,
+    })
 }
 
 /// 文件名只保留安全字符：字母/数字（含 CJK）/点/连字符/下划线；空格与斜杠等统一成下划线。
@@ -87,9 +106,9 @@ mod tests {
 
     #[test]
     fn sanitize_replaces_unsafe_chars() {
-    assert_eq!(sanitize_name("my file/pic.png"), "my_file_pic.png");
-    assert_eq!(sanitize_name("截图 1.png"), "截图_1.png");
-    assert_eq!(sanitize_name(""), "attachment");
+        assert_eq!(sanitize_name("my file/pic.png"), "my_file_pic.png");
+        assert_eq!(sanitize_name("截图 1.png"), "截图_1.png");
+        assert_eq!(sanitize_name(""), "attachment");
     }
 
     #[test]

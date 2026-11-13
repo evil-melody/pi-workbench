@@ -51,7 +51,9 @@ pub fn builtin_roles() -> Vec<Role> {
         Role {
             id: "aider-programmer".into(),
             name: "Aider 编程专家".into(),
-            description: "Aider 范式编程搭档：repo map 先行、最小 diff、测试驱动、原子提交、只读优先。".into(),
+            description:
+                "Aider 范式编程搭档：repo map 先行、最小 diff、测试驱动、原子提交、只读优先。"
+                    .into(),
             prompt: AIDER_PROMPT.into(),
         },
     ]
@@ -84,7 +86,10 @@ pub fn parse_role_md(text: &str) -> Option<(String, String, String)> {
 
 /// 把角色渲染回 md，供 role_set 落盘。
 pub fn render_role_md(role: &Role) -> String {
-    format!("<!-- role: {} | {} -->\n\n{}\n", role.id, role.name, role.prompt)
+    format!(
+        "<!-- role: {} | {} -->\n\n{}\n",
+        role.id, role.name, role.prompt
+    )
 }
 
 fn roles_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -213,7 +218,10 @@ mod tests {
             .unwrap();
         // 蓝图约束：单角色 system prompt 追加段 < 2000 token（中文按 1 字≈1.5 token 粗估）。
         assert!(role.prompt.chars().count() < 1400, "角色提示词过长");
-        assert!(role.prompt.contains("SEARCH/REPLACE"), "需保留字符级编辑约定");
+        assert!(
+            role.prompt.contains("SEARCH/REPLACE"),
+            "需保留字符级编辑约定"
+        );
         assert!(role.prompt.contains("测试"), "需保留测试驱动约定");
     }
 

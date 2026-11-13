@@ -22,7 +22,7 @@ use tauri_plugin_autostart::ManagerExt;
 use crate::proactive::{self, ProactiveState};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub enum CloseAction {
     Ask,
     Background,
@@ -36,9 +36,8 @@ impl Default for CloseAction {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct Prefs {
-    #[serde(default)]
+    #[serde(default, alias = "closeAction")]
     pub close_action: CloseAction,
     #[serde(default)]
     pub paused: bool,
@@ -67,7 +66,6 @@ pub struct TrayHandles {
 }
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct BackgroundInfo {
     pub close_action: CloseAction,
     pub paused: bool,
@@ -116,11 +114,7 @@ pub fn close_action(app: &AppHandle) -> CloseAction {
 }
 
 pub fn is_paused(app: &AppHandle) -> bool {
-    app.state::<BackgroundState>()
-        .prefs
-        .lock()
-        .unwrap()
-        .paused
+    app.state::<BackgroundState>().prefs.lock().unwrap().paused
 }
 
 fn info(app: &AppHandle, state: &BackgroundState) -> BackgroundInfo {

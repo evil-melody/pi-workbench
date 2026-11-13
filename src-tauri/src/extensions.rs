@@ -133,7 +133,10 @@ fn extension_name_from_url(url: &str) -> Option<String> {
     if stem.is_empty() || stem.len() > NAME_MAX {
         return None;
     }
-    if !stem.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    if !stem
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
         return None;
     }
     Some(stem.to_string())
@@ -256,7 +259,9 @@ pub fn list(app: &AppHandle) -> Vec<ExtensionInfo> {
                                     let mut chars = part.chars();
                                     chars
                                         .next()
-                                        .map(|c| c.to_uppercase().collect::<String>() + chars.as_str())
+                                        .map(|c| {
+                                            c.to_uppercase().collect::<String>() + chars.as_str()
+                                        })
                                         .unwrap_or_default()
                                 })
                                 .collect::<Vec<String>>()
@@ -274,12 +279,7 @@ pub fn list(app: &AppHandle) -> Vec<ExtensionInfo> {
                         id: id.clone(),
                         name,
                         description,
-                        kind: if tools.is_empty() {
-                            "command"
-                        } else {
-                            "tool"
-                        }
-                        .to_string(),
+                        kind: if tools.is_empty() { "command" } else { "tool" }.to_string(),
                         path: path.to_string_lossy().into_owned(),
                         tools: bound,
                         enabled: is_enabled(&tools, &active),

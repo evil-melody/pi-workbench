@@ -32,7 +32,7 @@ export const skillsInstall = (path: string, root?: string, projectScope = true) 
   invoke<SkillInstallResult>('skills_install', {
     path,
     root: root ?? null,
-    projectScope,
+    project_scope: projectScope,
   })
 
 /** 社区市场链路：下载远端 SKILL.md 直链并按同一套规则落盘。 */
@@ -40,7 +40,7 @@ export const skillsInstallFromUrl = (url: string, root?: string, projectScope = 
   invoke<SkillInstallResult>('skills_install_from_url', {
     url,
     root: root ?? null,
-    projectScope,
+    project_scope: projectScope,
   })
 
 /** 只删 `<技能目录>/<name>/SKILL.md` 这一种形态，用户手工放别处的技能会被拒绝。 */

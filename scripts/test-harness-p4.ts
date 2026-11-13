@@ -38,16 +38,16 @@ ok('物化：delete 后 purge，召回视图为空', () => {
   const id = idOf(1000, '用中文')
   const out = materialize([
     { ts: 1000, text: '用中文', tags: [] },
-    { op: 'delete', id, ts: 2000, purgeAt: 3000 },
+    { op: 'delete', id, ts: 2000, purge_at: 3000 },
     { op: 'purge', id, ts: 2001 },
   ])
   assert.equal(out.length, 0)
 })
 
-ok('物化：source / jobId 保留', () => {
-  const out = materialize([{ ts: 1, text: 'x', tags: [], source: 'proactive', jobId: 'job-1' }])
+ok('物化：source / job_id 保留', () => {
+  const out = materialize([{ ts: 1, text: 'x', tags: [], source: 'proactive', job_id: 'job-1' }])
   assert.equal(out[0].source, 'proactive')
-  assert.equal(out[0].jobId, 'job-1')
+  assert.equal(out[0].job_id, 'job-1')
 })
 
 // —— 落在临时目录里的注入与限流 ——
@@ -107,8 +107,8 @@ if (added.length !== 3) {
   console.error(`✗ 主动任务写入应为 3 条，实际 ${added.length}`)
   process.exit(1)
 }
-if (added.some((x) => x.jobId !== 'job-9' || !x.tags.includes('proactive'))) {
-  console.error('✗ 主动任务条目缺少 jobId / proactive 标签')
+if (added.some((x) => x.job_id !== 'job-9' || !x.tags.includes('proactive'))) {
+  console.error('✗ 主动任务条目缺少 job_id / proactive 标签')
   process.exit(1)
 }
 if (!results[3].includes('上限')) {

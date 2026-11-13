@@ -206,7 +206,7 @@ export const createProject = (
   invoke<ProjectSnapshot>('project_add', {
     name,
     description,
-    templateId: templateId ?? null,
+    template_id: templateId ?? null,
     path: path ?? null,
   })
 
@@ -221,8 +221,8 @@ export const updateProjectConfig = (
     id,
     instruction,
     capabilities,
-    expectedRevisionId,
-    expectedRevisionNumber,
+    expected_revision_id: expectedRevisionId,
+    expected_revision_number: expectedRevisionNumber,
   })
 
 export const addWorkItem = (id: string, title: string) =>
@@ -232,17 +232,17 @@ export const updateWorkItem = (id: string, patch: WorkItemPatch, expectedRevisio
   invoke<ProjectSnapshot>('project_update_work_item', {
     id,
     patch,
-    expectedRevision,
+    expected_revision: expectedRevision,
   })
 
 export const removeWorkItem = (id: string, workItemId: string) =>
-  invoke<ProjectSnapshot>('project_remove_work_item', { id, workItemId })
+  invoke<ProjectSnapshot>('project_remove_work_item', { id, work_item_id: workItemId })
 
 export const addAsset = (id: string, asset: AssetInput) =>
   invoke<ProjectSnapshot>('project_add_asset', { id, asset })
 
 export const removeAsset = (id: string, refId: string) =>
-  invoke<ProjectSnapshot>('project_remove_asset', { id, refId })
+  invoke<ProjectSnapshot>('project_remove_asset', { id, ref_id: refId })
 
 export const linkTask = (
   id: string,
@@ -254,15 +254,15 @@ export const linkTask = (
 ) =>
   invoke<ProjectSnapshot>('project_link_task', {
     id,
-    sessionId,
+    session_id: sessionId,
     title,
-    workItemId: workItemId ?? null,
+    work_item_id: workItemId ?? null,
     references,
     capabilities,
   })
 
 export const loadTaskContext = (sessionId: string) =>
-  invoke<TaskContext | null>('project_task_context', { sessionId })
+  invoke<TaskContext | null>('project_task_context', { session_id: sessionId })
 
 /** 会话 id：Pi 侧是单条常驻会话，工作台里绑定的「会话任务」就挂在这个 id 上。 */
 export const PI_SESSION_ID = 'pi-workbench:default'
