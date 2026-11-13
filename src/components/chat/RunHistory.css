@@ -1,5 +1,6 @@
 /* 运行记录列表：侧栏 / 过程抽屉共用一块板子，样式只随主题变量走。
- * 对齐 WorkBuddy：无整行标题、条目无前导图标；hover 整行高亮，右侧才露「···」。 */
+ * 对齐 WorkBuddy：无整行标题、行首只留 12px 置顶槽；hover 整行高亮，
+ * 当前会话浅强调底 + 标题加重，右侧才露「···」。 */
 
 .run-history {
   display: flex;
@@ -27,7 +28,9 @@
   padding: var(--sp-1) var(--sp-2);
   border: 1px solid transparent;
   border-radius: var(--r);
-  font-size: var(--fs-base);
+  /* WorkBuddy 紧凑行：14px 标题 + 30px 行高。与项目行同一字号，
+     嵌套列表不再出现 13/14 两种标题。 */
+  font-size: var(--fs-body);
   line-height: var(--lh-tight);
   color: var(--text);
   text-align: left;
@@ -66,12 +69,34 @@
   box-shadow: inset 2px 0 0 var(--accent), 0 0 0 2px var(--accent-soft);
 }
 
+/* 当前会话：浅强调底 + 标题加重（对齐 WorkBuddy 的 selected：只做这两件事）。
+   底色与 hover 的灰底区分；不改内边距与边框宽度，三态切换不位移。 */
+.rh-item.selected {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+}
+
+.rh-item.selected .rh-title {
+  font-weight: 600;
+}
+
 /* 归档记录：整行置灰，但仍可点开 / 取消归档（不是删除） */
 .rh-item.archived {
   opacity: 0.6;
 }
 
-/* 置顶标记：行首星标（后端合并置顶，这里只做视觉确认）。
+/* 行首槽位固定 12px：置顶行放星标，普通行留空。
+   置顶星标若临时插入会把这行标题推右 20px，置顶/取消时整行文字横向跳动。 */
+.rh-lead {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
+}
+
+/* 置顶标记：星标（后端合并置顶，这里只做视觉确认）。
    置顶是排序提示，没有成败语义，用中性弱色，占用的注意力让给状态色。 */
 .rh-pin {
   flex-shrink: 0;
@@ -83,9 +108,14 @@
   flex-shrink: 0;
 }
 
-/* 多选态下「···」让位给勾选，行高回落一点保持整齐 */
+/* 多选态下「···」让位给勾选，行高回落一点保持整齐；
+   勾选框本身占位，置顶槽不再重复留白。 */
 .rh-item:has(.rh-check) {
   padding-left: var(--sp-1);
+}
+
+.rh-item:has(.rh-check) .rh-lead {
+  display: none;
 }
 
 .rh-title {
@@ -125,17 +155,6 @@
   }
 }
 
-/* 「N 轮」徽标弱化成一颗低对比小计数点：只作次级线索，不与标题抢注意力。 */
-.rh-prompts {
-  padding: 1px 5px;
-  border-radius: var(--r-full);
-  background: var(--bg-elev);
-  color: var(--text-faint);
-  font-size: var(--fs-xs);
-  line-height: var(--lh-tight);
-  font-variant-numeric: tabular-nums;
-}
-
 /* 时间右对齐 + 等宽数字：多行列表里时间列不会左摇右摆。 */
 .rh-time {
   min-width: 42px;
@@ -147,8 +166,12 @@
 /* hover 才显「···」（对齐 WorkBuddy：常态不占空间，鼠标滑上去才露操作入口） */
 .rh-more-btn {
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
+  /* 图标键 20px：28px 的公共图标键会把 30px 行撑到 36px。
+     公共图标键的内容盒比按钮宽，不裁掉会把列表 scrollWidth 顶出 3px。 */
+  min-height: 20px;
+  overflow: hidden;
   display: grid;
   place-items: center;
   border: 0;

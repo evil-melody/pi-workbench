@@ -277,7 +277,8 @@
 .ws-list li:not(.ws-runs) {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  /* 4px 节奏：项目行有 4 个间隙，8px 会把长项目名额外挤掉 16px。 */
+  gap: var(--sp-1);
   min-height: 36px;
   padding: 8px 10px;
   border-radius: var(--r-sm);
@@ -309,6 +310,8 @@
   flex-shrink: 0;
   width: 16px;
   height: 16px;
+  /* 公共图标键 min-height 28 会把 36px 的项目行撑到 44px。 */
+  min-height: 16px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -371,6 +374,7 @@
   flex-shrink: 0;
   width: 20px;
   height: 20px;
+  min-height: 20px;
   display: grid;
   place-items: center;
   border: 0;
@@ -387,6 +391,7 @@
   flex-shrink: 0;
   width: 20px;
   height: 20px;
+  min-height: 20px;
   display: grid;
   place-items: center;
   padding: 0;
