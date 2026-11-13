@@ -21,7 +21,7 @@
 .pc-head h3 {
   margin: 0;
   font-size: var(--fs-section);
-  font-weight: 650;
+  font-weight: var(--fw-semibold);
   color: var(--text);
 }
 
@@ -105,9 +105,12 @@
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
-.pc-btn:hover:not(:disabled) {
-  background: var(--bg-hover);
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .pc-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+    border-color: var(--border-strong);
+}
 }
 
 .pc-btn.primary {
@@ -117,8 +120,11 @@
   font-weight: 600;
 }
 
-.pc-btn.primary:hover:not(:disabled) {
-  filter: brightness(1.08);
+@media (hover: hover) {
+
+  .pc-btn.primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+}
 }
 
 .pc-btn:disabled {

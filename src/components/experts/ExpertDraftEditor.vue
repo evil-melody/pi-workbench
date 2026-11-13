@@ -10,18 +10,22 @@ import { t } from '@/i18n'
  *   本地只做即时提示（输入体验），是否可发布由 expert_validate 与 expert_publish 决定。
  * 保存走草稿修订号乐观锁，别人改过就报 revision-conflict 而不是静默覆盖。
  */
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import AppButton from '@/components/ui/AppButton.vue'
+import AppCheckbox from '@/components/ui/AppCheckbox.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
 import AppModal from '@/components/ui/AppModal.vue'
+import AppSelect, { type SelectOption } from '@/components/ui/AppSelect.vue'
 import PublishConfirmDialog from './PublishConfirmDialog.vue'
+import { toolsList } from '@/composables/useTools'
 import {
   describeExpertError,
   emptyDefinition,
   estimateTokens,
   expertConfirm,
+  expertDelete,
   expertDraftLoad,
   expertDraftSave,
   expertPublish,
@@ -46,6 +50,7 @@ const emit = defineEmits<{
   published: [pub: ExpertPublication]
   /** 名字被改掉，父级需要知道新 id 才能刷新列表。 */
   renamed: [id: string]
+  deleted: [id: string]
 }>()
 
 const loading = ref(false)
@@ -91,12 +96,93 @@ const tagText = computed({
   },
 })
 
+/** 内核实际提供的工具清单：不写死，取不到时退回已选中的工具名。 */
+const toolCatalog = ref<string[]>([])
+onMounted(async () => {
+  try {
+    toolCatalog.value = (await toolsList()).catalog
+  } catch {
+    toolCatalog.value = []
+  }
+})
+const selectableTools = computed(() =>
+  Array.from(new Set([...toolCatalog.value, ...definition.value.allowed_tools])),
+)
+function isToolAllowed(name: string) {
+  return definition.value.allowed_tools.includes(name)
+}
+function toggleTool(name: string, on: boolean) {
+  const set = new Set(definition.value.allowed_tools)
+  if (on) set.add(name)
+  else set.delete(name)
+  definition.value.allowed_tools = Array.from(set)
+}
+
+const deniedText = computed({
+  get: () => definition.value.denied_patterns.join('、'),
+  set: (raw: string) => {
+    definition.value.denied_patterns = raw
+      .split(/[,，、\s]+/)
+      .map((v) => v.trim())
+      .filter(Boolean)
+  },
+})
+
+/** 老草稿可能没有这个字段：模板里统一走这个 computed，避免可选链铺满模板。 */
+const toolMappings = computed(() => definition.value.tool_mapping ?? [])
+
+/** 来源是草稿外层元信息：只展示，不允许在编辑器里改。 */
+const source = ref<'local' | 'imported'>('local')
+const importedFrom = ref('')
+
+/** 工具映射里表示「主动忽略」的哨兵值（AppSelect 只接受字符串）。 */
+const MAPPING_IGNORE = '__ignore__'
+const mappingTargetOptions = computed<SelectOption[]>(() => [
+  { value: MAPPING_IGNORE, label: t('忽略该工具'), hint: t('不加入允许工具集') },
+  ...selectableTools.value.map((name) => ({ value: name, label: name })),
+])
+
+function addMapping() {
+  toolMappings.value.push({ from: '', to: null, decision: 'ignored' })
+}
+
+function removeMapping(index: number) {
+  toolMappings.value.splice(index, 1)
+}
+
+/** 改外部工具名时同步改名允许工具集里的同名项，避免两处各说各话。 */
+function setMappingFrom(index: number, value: string) {
+  const row = toolMappings.value[index]
+  if (!row) return
+  const previous = row.from
+  row.from = value.trim()
+  const tools = new Set(definition.value.allowed_tools)
+  if (previous && tools.delete(previous)) {
+    if (row.from) tools.add(row.from)
+    definition.value.allowed_tools = Array.from(tools)
+  }
+}
+
+/** 改目标工具时把允许工具集里的源工具替换成目标；选「忽略」则移除。 */
+function setMappingTo(index: number, value: string) {
+  const row = toolMappings.value[index]
+  if (!row) return
+  const to = value === MAPPING_IGNORE ? null : value
+  row.to = to
+  row.decision = to ? 'mapped' : 'ignored'
+  if (!row.from) return
+  const tools = new Set(definition.value.allowed_tools)
+  if (tools.delete(row.from) && to) tools.add(to)
+  definition.value.allowed_tools = Array.from(tools)
+}
+
 const personaText = computed(() => {
   const d = definition.value
   const parts = [t('你是「{0}」。', [d.name]), '', t('## 角色定位'), d.role.trim()]
   if (d.methodology.trim()) parts.push('', t('## 工作方法'), d.methodology.trim())
   if (d.boundaries.trim()) parts.push('', t('## 行为边界'), d.boundaries.trim())
   if (d.deliverables.trim()) parts.push('', t('## 交付物'), d.deliverables.trim())
+  if (d.stop_condition.trim()) parts.push('', t('## 停止条件'), d.stop_condition.trim())
   if (d.tags.length) parts.push('', t('## 适用标签'), d.tags.join('、'))
   return parts.join('\n')
 })
@@ -122,6 +208,18 @@ async function runValidate() {
     if (seq === validateSeq) issues.value = []
   }
   validating.value = false
+}
+
+/** 老草稿没有运行约束字段：读入时补齐，避免模板里访问 undefined。 */
+function withRuntimeDefaults(definition: ExpertDefinition): ExpertDefinition {
+  return {
+    ...definition,
+    allowed_tools: definition.allowed_tools ?? [],
+    denied_patterns: definition.denied_patterns ?? [],
+    stop_condition: definition.stop_condition ?? '',
+    max_iterations: definition.max_iterations ?? null,
+    tool_mapping: definition.tool_mapping ?? [],
+  }
 }
 
 function markDirty() {
@@ -150,13 +248,17 @@ async function load() {
   try {
     const draft = await expertDraftLoad(props.expertId)
     if (draft) {
-      definition.value = draft.definition
+      definition.value = withRuntimeDefaults(draft.definition)
       revision.value = draft.revision
       digest.value = draft.digest
+      source.value = draft.source ?? 'local'
+      importedFrom.value = draft.imported_from ?? ''
     } else {
       definition.value = emptyDefinition()
       revision.value = 0
       digest.value = ''
+      source.value = 'local'
+      importedFrom.value = ''
     }
   } catch (e: unknown) {
     loadError.value = describeExpertError(e, t('草稿读取失败'))
@@ -178,6 +280,8 @@ async function save() {
     definition.value = draft.definition
     revision.value = draft.revision
     digest.value = draft.digest
+    source.value = draft.source ?? source.value
+    importedFrom.value = draft.imported_from ?? importedFrom.value
     digestDirty.value = false
     saveNotice.value = t('已保存为修订 #{0}', [draft.revision])
     emit('saved', draft)
@@ -220,14 +324,30 @@ async function onConfirmed(token: string) {
 
 const publishError = ref('')
 
+/** 删除专家：二次确认，只清本专家的文件；journal 历史不受影响。 */
+const showDelete = ref(false)
+const deleting = ref(false)
+async function confirmDelete() {
+  deleting.value = true
+  saveError.value = ''
+  try {
+    await expertDelete(props.expertId, props.projectRoot ?? null)
+    showDelete.value = false
+    emit('deleted', props.expertId)
+  } catch (e: unknown) {
+    saveError.value = describeExpertError(e, t('删除失败'))
+  }
+  deleting.value = false
+}
+
 async function createDraft() {
   const id = newExpertId.value.trim()
   if (!id) return
   createError.value = ''
   try {
     // 新 id 尚无草稿，后端 revision 从 0 起算；definition 直接沿用当前表单内容。
-    const draft = await expertDraftSave(id, definition.value, 0)
-    definition.value = draft.definition
+    const draft = await expertDraftSave(id, withRuntimeDefaults(definition.value), 0)
+    definition.value = withRuntimeDefaults(draft.definition)
     revision.value = draft.revision
     digest.value = draft.digest
     digestDirty.value = false
@@ -244,10 +364,6 @@ function addExample() {
   definition.value.examples.push({ id: `ex${definition.value.examples.length + 1}`, title: '', prompt: '' })
 }
 
-function addSkill() {
-  definition.value.skill_requirements.push({ name: '' })
-}
-
 function removeExample(index: number) {
   definition.value.examples.splice(index, 1)
 }
@@ -257,10 +373,6 @@ function setExampleTitle(index: number, value: string) {
   const ex = definition.value.examples[index]
   if (!ex) return
   ex.title = value.trim() || undefined
-}
-
-function removeSkill(index: number) {
-  definition.value.skill_requirements.splice(index, 1)
 }
 
 defineExpose({ load })
@@ -274,9 +386,13 @@ defineExpose({ load })
         <span class="ed-meta">{{ t('修订 #{0}', [revision || '—']) }}<template v-if="digest">{{ t('· 摘要 {0}…', [digest.slice(0, 10)]) }}</template>
           <template v-if="digestDirty">{{ t('· 有未保存改动') }}</template>
         </span>
+        <span class="ed-source" :data-source="source" :title="importedFrom || undefined">
+          {{ source === 'imported' ? t('导入自 {0}', [importedFrom || t('外部插件')]) : t('本地创建') }}
+        </span>
       </div>
       <div class="ed-head-actions">
         <span v-if="loading" class="ed-state">{{ t('读取中…') }}</span>
+        <AppButton variant="text" size="sm" class="ed-mini danger" :disabled="loading || deleting" @click="showDelete = true">{{ t('删除专家') }}</AppButton>
         <AppButton variant="secondary" class="ed-btn" :disabled="saving || loading" @click="save">{{ saving ? t('保存中…') : t('保存草稿') }}</AppButton>
         <AppButton
           variant="primary"
@@ -363,15 +479,62 @@ defineExpose({ load })
         </div>
 
         <div class="ed-field">
-          <span class="ed-label">{{ t('Skill 依赖') }}<em>{{ t('最多 32 条，声明要先装载哪些技能') }}</em>
+          <span class="ed-label">{{ t('可用工具') }}<em>{{ t('不勾选 = 不限制；勾选后越界工具会被工具门拦截') }}</em></span>
+          <div v-if="selectableTools.length" class="ed-tools">
+            <AppCheckbox
+              v-for="tool in selectableTools"
+              :key="tool"
+              class="ed-tool"
+              :model-value="isToolAllowed(tool)"
+              :label="tool"
+              @update:model-value="toggleTool(tool, $event)"
+            />
+          </div>
+          <p v-else class="ed-hint">{{ t('内核未启动，暂时取不到工具清单；启动后可重新打开本页。') }}</p>
+          <ul v-if="fieldIssues('allowedTools').length" class="ed-issues">
+            <li v-for="(i, k) in fieldIssues('allowedTools')" :key="k">{{ i.message }}</li>
+          </ul>
+        </div>
+
+        <div class="ed-field">
+          <span class="ed-label">
+            {{ t('工具映射记录') }}
+            <em>{{ t('导入时的决定；编辑后保存会同步允许工具集') }}</em>
           </span>
           <div class="ed-sublist">
-            <div v-for="(s, i) in definition.skill_requirements" :key="i" class="ed-subrow">
-              <AppInput v-model="s.name" :placeholder="t('Skill 名称')" />
-              <AppButton variant="text" size="sm" class="ed-mini danger" @click="removeSkill(i)">{{ t('删除') }}</AppButton>
+            <div v-for="(m, i) in toolMappings" :key="i" class="ed-subrow">
+              <AppInput
+                :model-value="m.from"
+                mono
+                :placeholder="t('外部工具名')"
+                @update:model-value="setMappingFrom(i, $event)"
+              />
+              <AppSelect
+                :model-value="m.to ?? MAPPING_IGNORE"
+                :options="mappingTargetOptions"
+                width="190px"
+                @update:model-value="setMappingTo(i, $event)"
+              />
+              <AppButton variant="text" size="sm" class="ed-mini danger" @click="removeMapping(i)">{{ t('删除') }}</AppButton>
             </div>
-            <AppButton variant="text" size="sm" class="ed-mini" @click="addSkill">{{ t('+ 添加 Skill 依赖') }}</AppButton>
+            <AppButton variant="text" size="sm" class="ed-mini" @click="addMapping">{{ t('+ 添加映射') }}</AppButton>
           </div>
+        </div>
+
+        <div class="ed-field">
+          <span class="ed-label">{{ t('拒绝模式') }}<em>{{ t('bash 命令包含这些片段时直接拦截，逗号分隔') }}</em></span>
+          <AppInput :model-value="deniedText" :placeholder="t('例如：git push、rm -rf')" @update:model-value="deniedText = $event" />
+          <ul v-if="fieldIssues('deniedPatterns').length" class="ed-issues">
+            <li v-for="(i, k) in fieldIssues('deniedPatterns')" :key="k">{{ i.message }}</li>
+          </ul>
+        </div>
+
+        <div class="ed-field">
+          <span class="ed-label">{{ t('停止条件') }}<em>{{ t('写进 persona：满足什么条件就收手') }}</em></span>
+          <AppTextarea v-model="definition.stop_condition" :rows="3" :placeholder="t('例如：拿到测试结果并给出结论后停止，不再继续改代码')" />
+          <ul v-if="fieldIssues('stopCondition').length" class="ed-issues">
+            <li v-for="(i, k) in fieldIssues('stopCondition')" :key="k">{{ i.message }}</li>
+          </ul>
         </div>
       </div>
 
@@ -418,6 +581,20 @@ defineExpose({ load })
       <template #footer>
         <AppButton variant="secondary" class="ed-btn" @click="showCreate = false">{{ t('取消') }}</AppButton>
         <AppButton variant="primary" class="ed-btn primary" :disabled="!newExpertId.trim()" @click="createDraft">{{ t('创建') }}</AppButton>
+      </template>
+    </AppModal>
+
+    <AppModal
+      v-model:open="showDelete"
+      :title="t('删除专家')"
+      size="sm"
+      @close="showDelete = false"
+    >
+      <p class="ed-hint">{{ t('将删除「{0}」的草稿、已发布定义与 persona；历史运行记录不会受影响。', [definition.name || props.expertId]) }}</p>
+      <p v-if="saveError" class="ed-err">{{ saveError }}</p>
+      <template #footer>
+        <AppButton variant="secondary" class="ed-btn" @click="showDelete = false">{{ t('取消') }}</AppButton>
+        <AppButton variant="primary" class="ed-btn primary" :disabled="deleting" @click="confirmDelete">{{ deleting ? t('删除中…') : t('确认删除') }}</AppButton>
       </template>
     </AppModal>
 

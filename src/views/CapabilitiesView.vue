@@ -18,6 +18,7 @@ import AppInput from '@/components/ui/AppInput.vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import AppCheckbox from '@/components/ui/AppCheckbox.vue'
 import ExpertDraftEditor from '@/components/experts/ExpertDraftEditor.vue'
+import ExpertImportDialog from '@/components/experts/ExpertImportDialog.vue'
 import ConnectorPanel from '@/components/connectors/ConnectorPanel.vue'
 import TeamsView from '@/views/TeamsView.vue'
 import SkillPoolView from '@/views/SkillPoolView.vue'
@@ -26,7 +27,7 @@ import { skillsInstall, skillsInstallFromUrl, skillsUninstall } from '@/composab
 import { toolsActivate, toolsList } from '@/composables/useTools'
 import { describeConnectorError } from '@/composables/useConnectors'
 import { expertsList, type ExpertSummary } from '@/composables/useExperts'
-import { PI_SESSION_ID } from '@/composables/useProject'
+import { PI_SESSION_ID, activeProjectId } from '@/composables/useProject'
 
 type Tab = 'expert' | 'skill' | 'connector' | 'team' | 'market' | 'browser'
 type SubTab = 'local' | 'hub'
@@ -47,12 +48,10 @@ interface SkillEntry {
 interface Row {
   key: string
   name: string
-  sub: string
   desc: string
   version: string
   source: string
   installed: boolean
-  color: string
   roleId?: string
   origin?: string
 }
@@ -65,8 +64,6 @@ const TABS = computed<{ key: Tab; label: string; icon: string }[]>(() => [
   { key: 'market', label: t('市场池'), icon: 'layers' },
   { key: 'browser', label: t('浏览器'), icon: 'monitor' },
 ])
-
-const PALETTE = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#ec4899']
 
 const route = useRoute()
 
@@ -97,19 +94,6 @@ const installProjectScope = ref(false)
 const installError = ref('')
 const installSuccess = ref('')
 
-function hashColor(name: string) {
-  let h = 0
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
-  return PALETTE[h % PALETTE.length]
-}
-
-function firstChar(name: string) {
-  for (const c of name) {
-    if (/\p{L}/u.test(c)) return c.toUpperCase()
-  }
-  return name.slice(0, 1).toUpperCase() || '?'
-}
-
 /**
  * 内嵌 tab：内容来自运行层视图（团队 / 市场池 / 浏览器），
  * 它们各自带工具栏，外层不再重复渲染「刷新 / 新建」等能力中心按钮。
@@ -130,6 +114,11 @@ const hubFromUrlCount = computed(() => skills.value.filter((s) => s.origin === '
 
 /** 专家域：草稿列表是专家 tab 的左侧栏，选中项交给编辑器。 */
 const expertItems = ref<ExpertSummary[]>([])
+/** 专家策略写进活动项目目录；没有活动项目时落到用户级。 */
+const projects = ref<{ id: string; path: string | null }[]>([])
+const expertRoot = computed(
+  () => projects.value.find((p) => p.id === activeProjectId.value)?.path ?? null,
+)
 const activeExpert = ref<string | null>(null)
 const expertViewError = ref('')
 
@@ -143,12 +132,11 @@ const rows = computed<Row[]>(() => {
     .map((s) => ({
       key: s.name,
       name: s.name,
-      sub: s.kind,
       desc: s.description || t('（暂无简介）'),
-      version: s.version || t('未知'),
-      source: s.author || s.via || t('本地'),
+      // 缺失的版本/来源不再写成「未知 / 本地」：那两行是零信息噪声。
+      version: s.version || '',
+      source: s.via === 'local' ? '' : s.author || s.via || '',
       installed: true,
-      color: hashColor(s.name),
       origin: s.origin,
     }))
 })
@@ -177,6 +165,11 @@ async function load() {
     activeTools.value = []
   }
   try {
+    projects.value = await invoke<{ id: string; path: string | null }[]>('projects_list').catch(() => [])
+  } catch {
+    projects.value = []
+  }
+  try {
     expertItems.value = await expertsList()
     if (activeExpert.value && !expertItems.value.some((e) => e.id === activeExpert.value)) {
       activeExpert.value = null
@@ -200,6 +193,18 @@ function pickExpert(id: string) {
 const showCreateExpert = ref(false)
 const newExpertId = ref('')
 const createExpertError = ref('')
+/** 外部专家导入弹窗。 */
+const showImportExpert = ref(false)
+
+function openImportExpert() {
+  showImportExpert.value = true
+}
+
+/** 导入落盘后刷新列表，并选中第一个真正写入的专家。 */
+function onExpertsImported(ids: string[]) {
+  if (ids.length) activeExpert.value = ids[0]
+  void load()
+}
 
 function openCreateExpert() {
   newExpertId.value = ''
@@ -232,6 +237,21 @@ function onExpertSaved() {
 
 function onExpertPublished() {
   void load()
+}
+
+/** 删除后回列表：被删的专家可能是当前选中项，清空选择再刷新。 */
+function onExpertDeleted(id: string) {
+  if (activeExpert.value === id) activeExpert.value = null
+  void load()
+}
+
+/** 最近运行状态：ok / interrupted / error 来自 journal 的 agent_settled。 */
+function lastRunLabel(e: ExpertSummary): string {
+  const status = e.last_run?.status
+  if (!status) return ''
+  if (status === 'ok') return t('最近运行成功')
+  if (status === 'interrupted') return t('最近运行中断')
+  return t('最近运行失败')
 }
 
 function onConnectorNotice(text: string) {
@@ -347,12 +367,12 @@ onMounted(load)
               ? t('草稿 {0} · 已发布 {1}', [expertDraftCount, publishedExpertCount])
               : t('我安装的 {0}', [installedCount]) }}
         </span>
-        <AppButton v-if="!isEmbeddedTab" variant="secondary" class="tool-btn" @click="load">{{ t('刷新') }}</AppButton>
-        <AppButton v-if="tab === 'expert'" variant="primary" class="tool-btn primary" @click="openCreateExpert">{{ t('+ 新建专家') }}</AppButton>
+        <AppButton v-if="!isEmbeddedTab" variant="secondary" @click="load">{{ t('刷新') }}</AppButton>
+        <AppButton v-if="tab === 'expert'" variant="secondary" @click="openImportExpert">{{ t('+ 导入专家') }}</AppButton>
+        <AppButton v-if="tab === 'expert'" variant="primary" @click="openCreateExpert">{{ t('+ 新建专家') }}</AppButton>
         <AppButton
           v-else-if="tab === 'skill'"
           variant="primary"
-          class="tool-btn primary"
           @click="openInstall(subTab === 'hub' ? 'url' : 'path')"
         >
           {{ subTab === 'hub' ? t('+ 从链接安装') : t('+ 添加技能') }}
@@ -434,8 +454,16 @@ onMounted(load)
               <AppIcon v-if="e.published" name="check" :size="13" class="expert-pub" />
             </span>
             <span class="expert-item-desc">{{ e.description || t('（暂无简介）') }}</span>
-            <span class="expert-item-meta">
+            <span v-if="e.role" class="expert-item-role">{{ e.role }}</span>
+            <span class="expert-item-tags">
+              <span class="tag-source" :data-source="e.source">
+                {{ e.source === 'imported' ? t('导入') : t('本地创建') }}
+              </span>
               <span v-if="e.published" class="tag-published">{{ t('已发布') }}</span>
+            </span>
+            <span class="expert-item-stats">
+              <span>{{ e.tool_count ? t('{0} 个工具', [e.tool_count]) : t('不限工具') }}</span>
+              <span v-if="e.last_run" class="expert-run" :data-status="e.last_run.status">{{ lastRunLabel(e) }}</span>
               <span>{{ t('修订 #{0}', [e.draft_revision]) }}</span>
             </span>
           </AppButton>
@@ -447,8 +475,10 @@ onMounted(load)
         <ExpertDraftEditor
           v-if="activeExpert"
           :expert-id="activeExpert"
+          :project-root="expertRoot"
           @saved="onExpertSaved"
           @published="onExpertPublished"
+          @deleted="onExpertDeleted"
         />
         <div v-else class="expert-main-blank">
           <strong>{{ busy ? t('正在读取专家目录…') : t('未选中专家') }}</strong>
@@ -458,8 +488,9 @@ onMounted(load)
     </section>
 
     <template v-else>
-      <div class="market-counts">
-        {{ busy ? t('正在读取能力目录…') : hubNotice || error || t('共 {0} 个技能', [rows.length]) }}
+      <!-- 计数已在 tab 徽标与「我安装的」里，这行只在加载/异常时说事。 -->
+      <div v-if="busy || hubNotice || error" class="market-counts">
+        {{ busy ? t('正在读取能力目录…') : hubNotice || error }}
       </div>
 
       <!-- SkillHub：不内置市场服务端，给一条真实可用的直链安装链路 -->
@@ -467,23 +498,23 @@ onMounted(load)
         <h2>{{ t('从任意 SKILL.md 直链安装') }}</h2>
         <p class="hub-lead">{{ t('本应用不内置远端技能市场服务端：任何能给出 SKILL.md 直链的来源（raw 链接、自建市场、 gist）都能在此一键安装。下载后会与本地导入走同一套校验与落盘规则，装到') }}<code>{{ t('skills/<名称>/SKILL.md') }}</code>{{ t('，内核重启后生效。') }}</p>
         <div class="hub-actions">
-          <AppButton variant="primary" class="tool-btn primary" @click="openInstall('url')">{{ t('+ 从链接安装') }}</AppButton>
+          <AppButton variant="primary" @click="openInstall('url')">{{ t('+ 从链接安装') }}</AppButton>
           <span class="hub-stat">{{ t('已通过链接安装 {0} 个，本地导入 {1} 个', [hubFromUrlCount, skills.filter((s) => s.origin === 'local').length]) }}</span>
         </div>
         <p v-if="hubNotice" class="hub-notice">{{ hubNotice }}</p>
       </section>
 
-      <div v-if="!rows.length" class="market-empty">
-        <div class="empty-icon"><AppIcon name="puzzle" :size="36" /></div>
-        <strong>{{ keyword ? t('没有匹配的结果') : t('还没有技能') }}</strong>
-        <span class="muted">
+      <div v-if="!rows.length" class="empty-state">
+        <div class="empty-icon"><AppIcon name="puzzle" :size="20" /></div>
+        <p class="empty-title">{{ keyword ? t('没有匹配的结果') : t('还没有技能') }}</p>
+        <p class="empty-hint">
           {{ keyword ? t('保留搜索词，可清除后重试。') : t('技能是本地 SKILL.md 文件，可从链接安装或放入用户级技能目录后刷新。') }}
-        </span>
+        </p>
         <div class="empty-actions">
-          <AppButton variant="primary" class="tool-btn primary" @click="openInstall(subTab === 'hub' ? 'url' : 'path')">
+          <AppButton variant="primary" @click="openInstall(subTab === 'hub' ? 'url' : 'path')">
             {{ subTab === 'hub' ? t('从链接安装') : t('添加技能') }}
           </AppButton>
-          <AppButton variant="secondary" class="tool-btn" @click="load">{{ t('刷新') }}</AppButton>
+          <AppButton variant="secondary" @click="load">{{ t('刷新') }}</AppButton>
         </div>
       </div>
 
@@ -506,14 +537,10 @@ onMounted(load)
             <AppIcon name="check" :size="14" />
           </span>
           <div class="card-top">
-            <span class="card-icon">{{ firstChar(r.name) }}</span>
-            <span class="card-title">
-              <strong :title="r.name">{{ r.name }}</strong>
-              <span class="card-sub">{{ r.sub }}</span>
-            </span>
+            <strong class="card-name" :title="r.name">{{ r.name }}</strong>
           </div>
           <p class="card-desc">{{ r.desc }}</p>
-          <div class="card-foot">
+          <div v-if="r.origin === 'url' || r.version || r.source" class="card-foot">
             <span v-if="r.origin === 'url'" class="meta origin-url">{{ t('来自链接') }}</span>
             <span v-if="r.version" class="meta">{{ t('版本 {0}', [r.version]) }}</span>
             <span v-if="r.source" class="meta">{{ t('来源 {0}', [r.source]) }}</span>
@@ -542,15 +569,21 @@ onMounted(load)
         <p class="form-hint">{{ t('只登记 id 并打开编辑器，此时还没有落盘；在编辑器里点「保存草稿」后才会写入， 再走一次显式确认才会发布到 Pi 的角色文件。') }}</p>
       </div>
       <template #footer>
-        <AppButton variant="secondary" class="tool-btn" @click="showCreateExpert = false">{{ t('取消') }}</AppButton>
+        <AppButton variant="secondary" @click="showCreateExpert = false">{{ t('取消') }}</AppButton>
         <AppButton
           variant="primary"
-          class="tool-btn primary"
           :disabled="!newExpertId.trim()"
           @click="confirmCreateExpert"
         >{{ t('打开编辑器') }}</AppButton>
       </template>
     </AppModal>
+
+    <ExpertImportDialog
+      :open="showImportExpert"
+      :existing-ids="expertItems.map((e) => e.id)"
+      @close="showImportExpert = false"
+      @imported="onExpertsImported"
+    />
 
     <AppModal
       v-model:open="showInstallModal"
@@ -582,8 +615,8 @@ onMounted(load)
         </p>
       </div>
       <template #footer>
-        <AppButton variant="secondary" class="tool-btn" @click="showInstallModal = false">{{ t('取消') }}</AppButton>
-        <AppButton variant="primary" class="tool-btn primary" :disabled="installing || !installPath.trim()" @click="installSkill">
+        <AppButton variant="secondary" @click="showInstallModal = false">{{ t('取消') }}</AppButton>
+        <AppButton variant="primary" :disabled="installing || !installPath.trim()" @click="installSkill">
           {{ installing ? t('安装中…') : t('安装') }}
         </AppButton>
       </template>
@@ -598,8 +631,8 @@ onMounted(load)
     >
       <p class="form-hint">{{ t('确定卸载技能「{0}」？将删除其 SKILL.md，内核重启后生效。此操作不可撤销。', [pendingUninstall]) }}</p>
       <template #footer>
-        <AppButton variant="secondary" class="tool-btn" @click="pendingUninstall = null">{{ t('取消') }}</AppButton>
-        <AppButton variant="danger" class="tool-btn danger" @click="confirmUninstall">{{ t('确认卸载') }}</AppButton>
+        <AppButton variant="secondary" @click="pendingUninstall = null">{{ t('取消') }}</AppButton>
+        <AppButton variant="danger" @click="confirmUninstall">{{ t('确认卸载') }}</AppButton>
       </template>
     </AppModal>
   </section>

@@ -74,23 +74,32 @@ describe('校验问题归组', () => {
 })
 
 describe('空定义', () => {
-  it('九个字段齐备，数组字段留空', () => {
+  it('字段齐备，数组字段留空，运行约束有默认值', () => {
     const d: ExpertDefinition = emptyDefinition()
     expect(Object.keys(d).sort()).toEqual(
       [
+        'allowed_tools',
         'boundaries',
         'deliverables',
+        'denied_patterns',
         'description',
         'examples',
+        'max_iterations',
         'methodology',
         'name',
         'role',
         'skill_requirements',
+        'stop_condition',
         'tags',
+        'tool_mapping',
       ].sort(),
     )
     expect(d.tags).toEqual([])
     expect(d.examples).toEqual([])
     expect(d.skill_requirements).toEqual([])
+    expect(d.allowed_tools).toEqual([])
+    expect(d.denied_patterns).toEqual([])
+    expect(d.stop_condition).toBe('')
+    expect(d.max_iterations).toBeNull()
   })
 })

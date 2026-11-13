@@ -29,7 +29,7 @@
 .ed-head-main h3 {
   margin: 0;
   font-size: var(--fs-body);
-  font-weight: 650;
+  font-weight: var(--fw-semibold);
   color: var(--text);
 }
 
@@ -55,9 +55,12 @@
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
-.ed-btn:hover:not(:disabled) {
-  background: var(--bg-active);
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .ed-btn:hover:not(:disabled) {
+    background: var(--bg-active);
+    border-color: var(--border-strong);
+}
 }
 
 .ed-btn.primary {
@@ -67,8 +70,11 @@
   font-weight: 600;
 }
 
-.ed-btn.primary:hover:not(:disabled) {
-  filter: brightness(1.08);
+@media (hover: hover) {
+
+  .ed-btn.primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+}
 }
 
 .ed-btn:disabled {
@@ -149,15 +155,21 @@
   transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
-.ed-mini:hover {
-  background: var(--bg-active);
-  border-color: var(--border-strong);
-  color: var(--text);
+@media (hover: hover) {
+
+  .ed-mini:hover {
+    background: var(--bg-active);
+    border-color: var(--border-strong);
+    color: var(--text);
+}
 }
 
-.ed-mini.danger:hover {
-  border-color: var(--danger);
-  color: var(--danger);
+@media (hover: hover) {
+
+  .ed-mini.danger:hover {
+    border-color: var(--danger);
+    color: var(--danger);
+}
 }
 
 .ed-hint {
@@ -294,6 +306,53 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* 工具勾选清单：两列自适应，长工具名不挤压复选框。 */
+.ed-tools {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-elev);
+}
+
+.ed-tool {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* 来源标记：导入 / 本地创建。只读，避免编辑一次就看不出定义来路。 */
+.ed-source {
+  flex: 0 0 auto;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+  line-height: 20px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ed-source[data-source='imported'] {
+  border-color: var(--border-strong, var(--border));
+  color: var(--text-dim);
+}
+
+.ed-tool-name {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: var(--fs-xs);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ed-create label > span {

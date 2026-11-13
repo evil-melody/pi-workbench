@@ -32,6 +32,30 @@ export interface ExpertDefinition {
   tags: string[]
   examples: ExpertExample[]
   skill_requirements: SkillRequirement[]
+  /** 允许工具集（内核工具名，从 tools_list 取）。空 = 不限制。 */
+  allowed_tools: string[]
+  /** 拒绝模式：bash 命令命中任一子串即拦截。 */
+  denied_patterns: string[]
+  /** 停止条件，发布时写进 persona。 */
+  stop_condition: string
+  /** 单轮最大迭代次数；null = 内核默认。 */
+  max_iterations?: number | null
+  /** 导入时对未映射工具的决策记录（追溯用）。 */
+  tool_mapping?: ToolMappingEntry[]
+}
+
+export interface ToolMappingEntry {
+  /** 外部定义里的原始工具名。 */
+  from: string
+  /** 映射到的内核工具名；缺省 = 主动忽略。 */
+  to?: string | null
+  decision: 'mapped' | 'ignored'
+}
+
+export interface ExpertLastRun {
+  run_id: string
+  status: string
+  at: number
 }
 
 export interface DomainIssue {
@@ -45,16 +69,68 @@ export interface ExpertDraft {
   revision: number
   digest: string
   updated_at: number
+  /** 外层元信息：编辑时原样展示，保存后由后端带回，不会退化成「本地创建」。 */
+  source?: 'local' | 'imported'
+  imported_from?: string
 }
 
 export interface ExpertSummary {
   id: string
   name: string
   description: string
+  role: string
   tags: string[]
   published: boolean
   draft_revision: number
   digest: string
+  /** 允许工具数；0 = 不限制。 */
+  tool_count: number
+  last_run: ExpertLastRun | null
+  /** local = 本应用创建；imported = 外部导入。 */
+  source: 'local' | 'imported'
+}
+
+export interface ImportUnmappedField {
+  field: string
+  reason: string
+}
+
+export interface ImportToolIssue {
+  name: string
+  /** 能唯一落到内核清单的候选；null 表示需要用户自己选。 */
+  suggestion: string | null
+}
+
+export interface ImportExpertPreview {
+  id: string
+  name: string
+  role: string
+  definition: ExpertDefinition
+  source_path: string
+  conflict: boolean
+  unmapped_tools: ImportToolIssue[]
+  unmapped_fields: ImportUnmappedField[]
+  warnings: string[]
+}
+
+export interface ImportPreview {
+  source: string
+  plugin: string | null
+  unmapped_fields: ImportUnmappedField[]
+  experts: ImportExpertPreview[]
+}
+
+export interface ImportApplyItem {
+  id: string
+  definition: ExpertDefinition
+  conflict: 'skip' | 'overwrite' | 'rename'
+  source_path: string
+}
+
+export interface ImportApplyResult {
+  id: string
+  action: 'created' | 'overwritten' | 'skipped'
+  source_path: string
 }
 
 export interface ExpertPublication {
@@ -63,6 +139,7 @@ export interface ExpertPublication {
   digest: string
   revision: number
   persona_path: string
+  policy_path?: string | null
 }
 
 export interface ConfirmationRequest {
@@ -91,7 +168,63 @@ export function emptyDefinition(): ExpertDefinition {
     tags: [],
     examples: [],
     skill_requirements: [],
+    allowed_tools: [],
+    denied_patterns: [],
+    stop_condition: '',
+    max_iterations: null,
+    tool_mapping: [],
   }
+}
+
+/** 删除专家：清草稿 / 已发布 / persona 与指向它的项目策略，不动 journal。 */
+export async function expertDelete(id: string, root?: string | null): Promise<void> {
+  await invoke('expert_delete', { id, root: root ?? null })
+}
+
+/** 预览外部专家：目录（plugin.json）或单个角色 md。 */
+export async function expertImportPreview(
+  path: string,
+  availableTools: string[],
+): Promise<ImportPreview> {
+  return invoke<ImportPreview>('expert_import_preview', {
+    path,
+    available_tools: availableTools,
+  })
+}
+
+/** 落盘导入结果。后端整体校验 + 快照回滚，不会出现导入一半。 */
+export async function expertImportApply(items: ImportApplyItem[]): Promise<ImportApplyResult[]> {
+  return invoke<ImportApplyResult[]>('expert_import_apply', { items })
+}
+
+/**
+ * 应用工具映射：键是外部工具名；null / 空串表示忽略。
+ * 映射后去重，保持原有顺序；同时把决策写进 `tool_mapping` 供日后追溯。
+ */
+export function resolveImportedTools(
+  definition: ExpertDefinition,
+  mappings: Record<string, string | null>,
+): ExpertDefinition {
+  const tools: string[] = []
+  const records = (definition.tool_mapping ?? []).filter((m) => !(m.from in mappings))
+  const decided = new Set(records.map((m) => m.from))
+  for (const name of definition.allowed_tools) {
+    if (!(name in mappings)) {
+      if (!tools.includes(name)) tools.push(name)
+      continue
+    }
+    // 同一外部工具可能重复出现在允许集里：决策只记一条。
+    if (decided.has(name)) continue
+    decided.add(name)
+    const mapped = mappings[name]
+    if (!mapped) {
+      records.push({ from: name, to: null, decision: 'ignored' })
+      continue
+    }
+    records.push({ from: name, to: mapped, decision: 'mapped' })
+    if (!tools.includes(mapped)) tools.push(mapped)
+  }
+  return { ...definition, allowed_tools: tools, tool_mapping: records }
 }
 
 export async function expertsList(): Promise<ExpertSummary[]> {
@@ -110,7 +243,7 @@ export async function expertDraftSave(
   return invoke<ExpertDraft>('expert_draft_save', {
     id,
     definition,
-    expectedRevision: expectedRevision ?? null,
+    expected_revision: expectedRevision ?? null,
   })
 }
 
@@ -125,8 +258,8 @@ export async function expertRequestConfirmation(
 ): Promise<ConfirmationRequest> {
   return invoke<ConfirmationRequest>('expert_request_confirmation', {
     id,
-    draftRevision,
-    definitionDigest,
+    draft_revision: draftRevision,
+    definition_digest: definitionDigest,
   })
 }
 
@@ -154,6 +287,13 @@ function expertErrorTable(): Array<[string, string]> {
   ['experts/invalid-definition', t('定义尚未通过校验，不能发布')],
   ['experts/draft-not-found', t('草稿不存在，请先保存再发布')],
   ['experts/draft-unreadable', t('草稿读取失败，可能被外部改坏了')],
+  ['experts/import-not-found', t('没找到 plugin.json，请选 WorkBuddy 插件目录或角色 md')],
+  ['experts/import-no-agents', t('插件清单里没有可导入的角色文件')],
+  ['experts/import-unreadable', t('文件读取失败或格式无法解析')],
+  ['experts/import-invalid-id', t('专家 id 只能包含小写字母、数字、- 和 _')],
+  ['experts/import-duplicate-id', t('多个导入项生成了同一个 id，请改名')],
+  ['experts/import-invalid', t('有字段超出长度上限，请先在外部文件里精简')],
+  ['experts/import-write-failed', t('写入失败，已回滚到导入前状态')],
   ]
 }
 
