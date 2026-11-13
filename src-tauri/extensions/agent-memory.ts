@@ -21,7 +21,7 @@ type MemEntry = {
   text: string
   tags: string[]
   source?: string
-  jobId?: string
+  job_id?: string
 }
 
 /** 稳定 id：与 Rust `memory_vec::entry_id` 同算法（ts 小端 8 字节 + 文本，取哈希前 4 字节）。
@@ -66,7 +66,7 @@ export function materialize(lines: any[]): MemEntry[] {
         text,
         tags: Array.isArray(v.tags) ? v.tags.map(String) : [],
         source: typeof v.source === 'string' ? v.source : undefined,
-        jobId: typeof v.jobId === 'string' ? v.jobId : undefined,
+        job_id: typeof v.job_id === 'string' ? v.job_id : typeof v.jobId === 'string' ? v.jobId : undefined,
       })
     } else if (op === 'update') {
       const e = map.get(String(v.id ?? ''))
@@ -282,7 +282,7 @@ export default function (pi: any) {
       const entry: MemEntry = { id: entryId(ts, text), ts, text, tags }
       if (activeJobId) {
         entry.source = 'proactive'
-        entry.jobId = activeJobId
+        entry.job_id = activeJobId
         if (!tags.includes('proactive')) entry.tags = [...tags, 'proactive']
       } else {
         entry.source = 'chat'
@@ -293,7 +293,7 @@ export default function (pi: any) {
       if (activeJobId) writesThisTurn++
       return {
         content: `已写入记忆（共 ${loadAll().length} 条）`,
-        details: { total: loadAll().length, source: entry.source, jobId: entry.jobId },
+        details: { total: loadAll().length, source: entry.source, job_id: entry.job_id },
       }
     },
   })
@@ -386,7 +386,7 @@ export default function (pi: any) {
       const now = Date.now()
       appendFileSync(
         memoryFile(),
-        JSON.stringify({ op: 'delete', id, ts: now, purgeAt: now + 86_400_000 }) + '\n',
+        JSON.stringify({ op: 'delete', id, ts: now, purge_at: now + 86_400_000 }) + '\n',
         'utf8',
       )
       return { content: `已遗忘 ${id}，24 小时内可在记忆页恢复`, details: { id } }

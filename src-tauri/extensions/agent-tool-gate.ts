@@ -144,12 +144,12 @@ function isProtectedPath(p: string | undefined): boolean {
 
 export type ActiveJob = {
   id: string
-  startedAt: number
-  expiresAt: number
+  started_at: number
+  expires_at: number
   grant?: {
-    bashAllow?: string[]
-    writeRoots?: string[]
-    maxToolCalls?: number
+    bash_allow?: string[]
+    write_roots?: string[]
+    max_tool_calls?: number
   }
 }
 
@@ -161,9 +161,9 @@ export function readActiveJob(): ActiveJob | null {
   if (!dir) return null
   try {
     const raw = JSON.parse(readFileSync(path.join(dir, 'proactive-policy.json'), 'utf8'))
-    const job = raw?.activeJob
+    const job = raw?.active_job
     if (!job || typeof job.id !== 'string') return null
-    if (typeof job.expiresAt === 'number' && Date.now() > job.expiresAt) return null
+    if (typeof job.expires_at === 'number' && Date.now() > job.expires_at) return null
     return job as ActiveJob
   } catch {
     return null
@@ -190,6 +190,128 @@ export function auditDenial(job: ActiveJob, toolName: string, detail: string): v
   }
 }
 
+// ── 专家策略（项目级 .pi/policy/expert.json，由桥在发起运行前写入） ──
+
+export interface ExpertPolicy {
+  expertId: string
+  name?: string
+  allowedTools?: string[]
+  deniedPatterns?: string[]
+  maxIterations?: number
+}
+
+/** 团队子进程注入的专家：按 PI_EXPERT_ID 从专家定义派生策略，避免并发成员争抢同一份策略文件。 */
+function envExpertPolicy(): ExpertPolicy | null {
+  const expertId = (process.env.PI_EXPERT_ID ?? '').trim()
+  const base = process.env.PI_CODING_AGENT_DIR
+  if (!expertId || !base) return null
+  for (const file of [`${expertId}.draft.json`, `${expertId}.published.json`]) {
+    try {
+      const raw = JSON.parse(readFileSync(path.join(base, 'experts', file), 'utf8'))
+      const def = raw?.definition
+      if (!def || typeof def !== 'object') continue
+      const pick = (value: unknown) =>
+        Array.isArray(value)
+          ? value.filter((v): v is string => typeof v === 'string' && !!v.trim())
+          : []
+      return {
+        expertId,
+        name: typeof def.name === 'string' ? def.name : undefined,
+        allowedTools: pick(def.allowed_tools),
+        deniedPatterns: pick(def.denied_patterns),
+        maxIterations: typeof def.max_iterations === 'number' ? def.max_iterations : undefined,
+      }
+    } catch {
+      /* 换下一个文件 */
+    }
+  }
+  return null
+}
+
+/** 读当前项目的专家策略；没有（或损坏）返回 null = 不按专家限制。 */
+export function readExpertPolicy(cwd: string): ExpertPolicy | null {
+  // 团队调度器给每个成员子进程显式注入 PI_EXPERT_ID（非专家成员注入空串）。
+  // 只要这个变量存在，策略就只由成员身份决定，绝不回落到项目级策略文件——
+  // 否则团队子进程会继承上一次交互运行留下的专家限制。
+  if (process.env.PI_EXPERT_ID !== undefined) return envExpertPolicy()
+  try {
+    const raw = JSON.parse(
+      readFileSync(path.join(cwd, '.pi', 'policy', 'expert.json'), 'utf8'),
+    )
+    if (!raw || typeof raw.expertId !== 'string' || !raw.expertId) return null
+    const allowedTools = Array.isArray(raw.allowedTools)
+      ? raw.allowedTools.filter((v: unknown) => typeof v === 'string' && v.trim())
+      : []
+    const deniedPatterns = Array.isArray(raw.deniedPatterns)
+      ? raw.deniedPatterns.filter((v: unknown) => typeof v === 'string' && v.trim())
+      : []
+    return {
+      expertId: raw.expertId,
+      name: typeof raw.name === 'string' ? raw.name : undefined,
+      allowedTools,
+      deniedPatterns,
+      maxIterations: typeof raw.maxIterations === 'number' ? raw.maxIterations : undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
+/** 派生判定：专家白名单外 / 命中拒绝模式 → block。纯函数，便于单测。 */
+export function expertGateDecision(
+  policy: ExpertPolicy | null,
+  toolName: string,
+  input: unknown,
+): { block: true; reason: string } | null {
+  if (!policy) return null
+  // 守卫自身的只读诊断工具始终放行，否则用户没法确认策略是否生效。
+  if (toolName === 'gate_status') return null
+  const label = policy.name || policy.expertId
+  const allowed = policy.allowedTools ?? []
+  if (allowed.length && !allowed.includes(toolName)) {
+    return {
+      block: true,
+      reason: `专家「${label}」未授权工具 ${toolName}（允许：${allowed.join('、')}）`,
+    }
+  }
+  const patterns = policy.deniedPatterns ?? []
+  if (toolName === 'bash' && patterns.length) {
+    const command = String((input as { command?: unknown } | null)?.command ?? '')
+    const lowered = command.toLowerCase()
+    const hit = patterns.find((pattern) => lowered.includes(pattern.toLowerCase()))
+    if (hit) {
+      return { block: true, reason: `专家「${label}」拒绝模式命中：${hit}` }
+    }
+  }
+  return null
+}
+
+/** 越界审计：按项目追加一行，供事后核对「谁在什么时候被拦了什么」。 */
+export function auditExpertDenial(
+  cwd: string,
+  policy: ExpertPolicy,
+  toolName: string,
+  detail: string,
+): void {
+  try {
+    const dir = path.join(cwd, '.pi', 'policy')
+    mkdirSync(dir, { recursive: true })
+    appendFileSync(
+      path.join(dir, 'expert-audit.jsonl'),
+      JSON.stringify({
+        kind: 'expert_denied',
+        expertId: policy.expertId,
+        expertName: policy.name,
+        tool: toolName,
+        detail: detail.slice(0, 500),
+        at: Date.now(),
+      }) + '\n',
+    )
+  } catch {
+    /* 审计写失败不改变拒绝结论 */
+  }
+}
+
 /** 单次运行的累计风险动作计数：跨工具调用保留，任务切换时归零。 */
 let countedJobId = ''
 let countedCalls = 0
@@ -200,7 +322,7 @@ export function consumeToolBudget(job: ActiveJob): boolean {
     countedJobId = job.id
     countedCalls = 0
   }
-  const cap = job.grant?.maxToolCalls ?? 40
+  const cap = job.grant?.max_tool_calls ?? 40
   const ok = countedCalls < cap
   if (ok) countedCalls += 1
   const dir = agentDir()
@@ -208,7 +330,7 @@ export function consumeToolBudget(job: ActiveJob): boolean {
     try {
       writeFileSync(
         path.join(dir, 'proactive-usage.json'),
-        JSON.stringify({ jobId: job.id, used: countedCalls, max: cap, at: Date.now() }),
+        JSON.stringify({ job_id: job.id, used: countedCalls, max: cap, at: Date.now() }),
       )
     } catch {
       /* 展示用数据，写失败不影响额度判定 */
@@ -230,7 +352,7 @@ export function withinGrant(
     if (/[;&|`$()<>\n\r]/.test(command)) {
       return { ok: false, reason: '命令包含链式分隔符、变量展开或重定向' }
     }
-    const allow = job.grant?.bashAllow ?? []
+    const allow = job.grant?.bash_allow ?? []
     if (!allow.length) return { ok: false, reason: '预授权未允许任何风险命令' }
     const hit = allow.find((prefix) => prefix.trim() && command.startsWith(prefix.trim()))
     return hit
@@ -240,7 +362,7 @@ export function withinGrant(
   if (toolName === 'write' || toolName === 'edit') {
     const target = String(inp.path ?? '')
     const abs = path.isAbsolute(target) ? target : path.resolve(process.cwd(), target)
-    const roots = job.grant?.writeRoots ?? []
+    const roots = job.grant?.write_roots ?? []
     const hit = roots.find((root) => root.trim() && abs.startsWith(root.trim() + path.sep))
     return hit
       ? { ok: true, reason: `落在预授权写入根：${hit}` }
@@ -326,6 +448,18 @@ async function requestApproval(
 export default function (pi: any) {
   pi.on('tool_call', async (event: any, ctx: any) => {
     const toolName: string = event?.toolName ?? ''
+    // 专家白名单先于一切判定：越界直接拦，不给审批弹窗兜底的机会。
+    const expert = readExpertPolicy(process.cwd())
+    const expertVerdict = expertGateDecision(expert, toolName, event?.input)
+    if (expertVerdict && expert) {
+      auditExpertDenial(
+        process.cwd(),
+        expert,
+        toolName,
+        String(event?.input?.command ?? event?.input?.path ?? ''),
+      )
+      return { block: true, reason: expertVerdict.reason, terminate: false }
+    }
     const verdict = classifyToolCall(toolName, event?.input)
     // 只在有无人值守任务时启用预授权判定；否则保留原有的交互审批路径。
     const active = readActiveJob()
@@ -369,7 +503,7 @@ export default function (pi: any) {
         auditDenial(active, toolName, '超出单次运行风险动作额度')
         return {
           block: true,
-          reason: `超出无人值守预授权的风险动作额度（${active.grant?.maxToolCalls ?? 40} 次）`,
+          reason: `超出无人值守预授权的风险动作额度（${active.grant?.max_tool_calls ?? 40} 次）`,
           terminate: false,
         }
       }
@@ -387,7 +521,7 @@ export default function (pi: any) {
     if (toolName === 'bash' && hasReadySandbox(process.cwd())) {
       return {
         block: true,
-        reason: `风险命令已重定向：请调用 sandbox_run(envId=...) 在沙箱内执行（原因：${verdict.reason ?? ''}）`,
+        reason: `风险命令已重定向：请调用 sandbox_run(env_id=...) 在沙箱内执行（原因：${verdict.reason ?? ''}）`,
         terminate: false,
       }
     }

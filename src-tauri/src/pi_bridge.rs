@@ -116,7 +116,11 @@ pub fn resolve_pi_bin(app: &AppHandle) -> Result<PiBin, String> {
     let mut probed: Vec<String> = Vec::new();
 
     let configured = crate::models::settings_load(app.clone()).pi_bin;
-    if let Some(raw) = configured.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+    if let Some(raw) = configured
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
         let p = PathBuf::from(raw);
         probed.push(p.display().to_string());
         if is_executable(&p) {
@@ -268,9 +272,21 @@ pub(crate) fn start_kernel(
         launch.as_ref().map(|l| l.model.as_str()).unwrap_or(""),
     );
     if reuse_child(&state, &sig) {
+        eprintln!("[boot] kernel reuse sig={sig}");
         return Ok(());
     }
+    eprintln!("[boot] kernel (re)start sig={sig}");
+    // 计划内替换（换项目 / 换模型 / 空闲回收后重拉）：先声明重启，
+    // 前端据此把随后的 process_exit 当伴生事件，不弹「内核已退出」。
+    if state.child.lock().unwrap().is_some() {
+        let _ = app.emit(
+            "pi://event",
+            serde_json::json!({ "type": "kernel_restarted", "at": unix_ms() }),
+        );
+    }
     stop_child(&state);
+    // 本进程的停止世代：读线程退出时与它比对，判断是计划内停还是意外崩。
+    let my_epoch = state.stop_epoch.load(Ordering::SeqCst);
 
     // 内核异常退出（如扩展冲突 abort）来不及释放 settings.json.lock（proper-lockfile
     // 式目录锁）；残留会让下次启动 settings 加载失败（EEXIST）→ 默认模型配置落空。
@@ -295,8 +311,12 @@ pub(crate) fn start_kernel(
     let journal_path = journal_dir.join("events.jsonl");
     *state.journal_path.lock().unwrap() = Some(journal_path.clone());
     // G4：会话打开标记（cwd 入 journal），回放据此只重建当前项目的会话。
+    // 同 cwd 的续进程（换模型 / 空闲回收 / 冷启动）不再落新标记：
+    // 运行记录按会话计数，重启一次就多一条记录会让「继续提问」看起来像新开会话。
     if let Some(cwd) = &cwd {
-        append_session_open(&journal_path, cwd);
+        if last_session_cwd(&journal_path).is_none_or(|last| !same_dir(&last, cwd)) {
+            append_session_open(&journal_path, cwd);
+        }
     }
 
     let bin = resolve_pi_bin(app)?;
@@ -318,24 +338,25 @@ pub(crate) fn start_kernel(
     // 文件复制进 `<这里>/turn-<seq>/<镜像路径>`，rewind 时原样还原。
     cmd.env("PI_CHECKPOINT_DIR", checkpoint_base(app));
     if let Some(l) = &launch {
-      cmd.arg("--provider").arg(&l.provider);
-      cmd.arg("--model").arg(&l.model);
-      // 密钥不再走 argv：`ps` 对同机其他用户可见，等于把 key 公开。
-      // 凭据已由 models::write_models_json 写入 models.json（0600），Pi 按 provider 读取；
-      // PI_LAUNCH_* 只给团队子进程继承（子进程同样继承 PI_CODING_AGENT_DIR）。
-      cmd.env("PI_LAUNCH_PROVIDER", &l.provider);
-      cmd.env("PI_LAUNCH_MODEL", &l.model);
-      if !l.api_key.trim().is_empty() {
-        cmd.env("PI_LAUNCH_API_KEY", &l.api_key);
-      }
+        cmd.arg("--provider").arg(&l.provider);
+        cmd.arg("--model").arg(&l.model);
+        // 密钥不再走 argv：`ps` 对同机其他用户可见，等于把 key 公开。
+        // 凭据已由 models::write_models_json 写入 models.json（0600），Pi 按 provider 读取；
+        // PI_LAUNCH_* 只给团队子进程继承（子进程同样继承 PI_CODING_AGENT_DIR）。
+        cmd.env("PI_LAUNCH_PROVIDER", &l.provider);
+        cmd.env("PI_LAUNCH_MODEL", &l.model);
+        if !l.api_key.trim().is_empty() {
+            cmd.env("PI_LAUNCH_API_KEY", &l.api_key);
+        }
     }
     if let Some(cwd) = &cwd {
         cmd.current_dir(cwd);
     }
     // 内置插件随 Pi 一起启动：沙箱接缝 + 角色注入。
     // app_config_dir 下不一定有插件（开发态在源码树里），故按候选路径逐个探测。
-    for ext in find_extensions(app) {
-        cmd.arg("--extension").arg(&ext);
+    let exts = find_extensions(app);
+    for ext in &exts {
+        cmd.arg("--extension").arg(ext);
     }
     cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -343,7 +364,13 @@ pub(crate) fn start_kernel(
         // 被直接丢弃，排障只能靠猜。这里转发到终端，一行不少。
         .stderr(Stdio::piped());
 
+    let spawn_at = std::time::Instant::now();
     let mut child = cmd.spawn().map_err(|e| format!("启动 pi 失败: {e}"))?;
+    let kernel_pid = child.id();
+    eprintln!(
+        "[boot] kernel spawned pid={kernel_pid} {}ms",
+        spawn_at.elapsed().as_millis()
+    );
     let mut stdin = child
         .stdin
         .take()
@@ -385,27 +412,17 @@ pub(crate) fn start_kernel(
         let reader = BufReader::new(stdout);
         // 每条内核连接内单调：长跑会话里事件的到达顺序不可靠，前端排序需要稳定锚点。
         let mut seq: u64 = 0;
-        // 事件 journal 文件句柄：每条事件追加写入，供审计/回放（B2）。
+        // 事件 journal：每条事件追加写入，供审计/回放（B2）。
+        // 不再持长寿句柄——每次追加单独 open + flock，进程内外都只有一个写入者。
         let journal_path = state_ref.journal_path.lock().unwrap().clone();
-        let mut journal = journal_path.and_then(|p| {
-            std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&p)
-                .ok()
-        });
         let mut emit = |raw: Value| {
             // 任意内核记录都算活动：驻留后台的内核空闲 5 分钟后才允许回收。
-            state_ref
-                .last_event_at
-                .store(unix_ms(), Ordering::Relaxed);
+            state_ref.last_event_at.store(unix_ms(), Ordering::Relaxed);
             // 单进程单任务：记录「是否有一轮在跑」。
             // 内核同一时刻只服务一个 agent 轮次，主动任务调度先读这个状态，
             // 避免在第一轮未落定时又发起第二轮把上下文搅在一起。
             match raw.get("type").and_then(|v| v.as_str()) {
-                Some("agent_start") => {
-                    *state_ref.running_since.lock().unwrap() = Some(unix_ms())
-                }
+                Some("agent_start") => *state_ref.running_since.lock().unwrap() = Some(unix_ms()),
                 // agent_end 是单轮结束，agent_settled 是含重试在内的整体落定；
                 // 两者都视为空闲，任一先到即可释放调度位。
                 Some("agent_end") | Some("agent_settled") => {
@@ -423,10 +440,19 @@ pub(crate) fn start_kernel(
                 },
                 &mut batch,
             );
+            // 运行链路信封：补 runId / agentId / spanId / 起止时间。
+            // 纯增量标注，不改事件语义；老消费端忽略新键即可。
+            {
+                let mut tracker = state_ref.run.lock().unwrap();
+                let now = unix_ms();
+                for ev in batch.iter_mut() {
+                    tracker.stamp(ev, now);
+                }
+            }
             for ev in batch {
                 let _ = app2.emit("pi://event", ev.clone());
-                if let Some(f) = journal.as_mut() {
-                    let _ = writeln!(f, "{}", serde_json::to_string(&ev).unwrap_or_default());
+                if let Some(path) = &journal_path {
+                    append_journal_line(path, &ev);
                 }
             }
         };
@@ -472,13 +498,52 @@ pub(crate) fn start_kernel(
             .map(|s| s.code().unwrap_or(-1))
             .unwrap_or(-1);
         *state_ref.last_exit.lock().unwrap() = Some((code, unix_ms()));
+        eprintln!("[boot] kernel exited pid={kernel_pid} code={code}");
         emit(Value::String("process_exit".into()));
+
+        // 意外退出（停止世代没变）自动拉起一次：内核崩了不该让用户手动重启 App。
+        // 60s 内只允许重启一次，挡住「启动即崩 → 无限重启」；launch_sig 已落说明
+        // 本次 spawn 已完成，避免内核秒退时与建子进程的时序打架。
+        let unexpected = state_ref.stop_epoch.load(Ordering::SeqCst) == my_epoch;
+        let spawned = state_ref.launch_sig.lock().unwrap().is_some();
+        if unexpected && spawned {
+            let now = unix_ms();
+            let mut last = state_ref.auto_restart_at.lock().unwrap();
+            if last.is_none_or(|t| now.saturating_sub(t) > 60_000) {
+                *last = Some(now);
+                drop(last);
+                let cwd = state_ref.launch_cwd.lock().unwrap().clone();
+                eprintln!("[pi] 内核意外退出（code={code}），自动重启");
+                let gov = app2.state::<crate::governance::GovernanceState>();
+                if let Err(e) = start_kernel(&app2, cwd, state_ref.inner(), &gov) {
+                    eprintln!("[pi] 自动重启失败: {e}");
+                }
+            }
+        }
     });
 
     *state.child.lock().unwrap() = Some(child);
     state.last_event_at.store(unix_ms(), Ordering::Relaxed);
     *state.stdin_tx.lock().unwrap() = Some(tx);
     *state.launch_sig.lock().unwrap() = Some(sig);
+    // 运行链路：把「内核拉起」也放进事件流（进程号 + 注入的扩展 + 工作目录），
+    // 前端据此在每次请求的链路前展示内核启动段；不是请求的一部分，但缺了它链路断头。
+    let ext_names: Vec<String> = exts
+        .iter()
+        .filter_map(|p| p.file_stem().map(|s| s.to_string_lossy().to_string()))
+        .collect();
+    emit_synthetic(
+        app,
+        state,
+        serde_json::json!({
+            "type": "kernel_start",
+            "agentId": crate::pi_run::AGENT_MAIN,
+            "pid": kernel_pid,
+            "extensions": ext_names,
+            "cwd": cwd.as_deref().unwrap_or(""),
+            "pi_ts": unix_ms(),
+        }),
+    );
     // 记住 cwd：pi_restart 换模型 / 换工具白名单后要原地重建同一工作目录。
     *state.launch_cwd.lock().unwrap() = cwd;
     Ok(())
@@ -506,6 +571,39 @@ pub fn pi_restart(
     );
     stop_child(&state);
     pi_start(app, cwd, state, gov)?;
+    Ok(true)
+}
+
+/// 显式开新会话（侧栏「新会话」）。
+///
+/// 落一条带 `reason:"new"` 的 `session_open` —— 同 cwd 也算会话边界，
+/// 运行记录据此分出一条新记录。内核是 `--no-session` 的内存态，不重启就会
+/// 把上一段对话带进「新会话」，所以存活时一并停掉；下一次发送由对话页
+/// 的 `pi_start` 重新拉起（同 cwd 不会再落标记）。返回是否重启了内核。
+#[tauri::command(async)]
+pub fn pi_new_session(
+    app: AppHandle,
+    cwd: Option<String>,
+    state: State<PiState>,
+) -> Result<bool, String> {
+    let dir = cwd
+        .filter(|d| !d.trim().is_empty())
+        .or_else(|| state.launch_cwd.lock().unwrap().clone());
+    let Some(dir) = dir else {
+        return Ok(false);
+    };
+    if let Some(path) = journal_file(&app) {
+        append_session_open_marked(&path, &dir, true);
+    }
+    if state.child.lock().unwrap().is_none() {
+        return Ok(false);
+    }
+    drain_pending_on_restart(&state);
+    let _ = app.emit(
+        "pi://event",
+        serde_json::json!({ "type": "kernel_restarted", "at": unix_ms() }),
+    );
+    stop_child(&state);
     Ok(true)
 }
 
@@ -537,20 +635,117 @@ fn reuse_child(state: &PiState, sig: &str) -> bool {
 ///
 /// 内核 `agent_start` 事件不带 cwd，回放时无法区分消息属于哪个项目；
 /// 桥在每次 pi_start 补一条 `session_open`，cwd 即当时的工作目录。
-/// 追加写与 reader 线程的 journal 句柄并发，行级写入足够安全（单行 < PIPE_BUF）。
 pub(crate) fn append_session_open(journal_path: &Path, cwd: &str) {
-    use std::io::Write;
-    let line = serde_json::json!({
+    append_session_open_marked(journal_path, cwd, false);
+}
+
+/// 会话标记。`explicit=true` 是用户点「新会话」的显式边界：同 cwd 也新起一段。
+/// 内核重启 / 空闲回收 / 冷启动都只写普通标记（同 cwd 会被跳过，见
+/// `start_kernel` 的 `last_session_cwd` 判断）——换进程不等于换对话。
+pub(crate) fn append_session_open_marked(journal_path: &Path, cwd: &str, explicit: bool) {
+    let mut line = serde_json::json!({
         "type": "session_open",
         "cwd": cwd,
         "pi_ts": unix_ms(),
     });
-    if let Ok(mut f) = std::fs::OpenOptions::new()
+    if explicit {
+        line["reason"] = Value::String("new".into());
+    }
+    append_journal_line(journal_path, &line);
+}
+
+/// journal 最后一条 `session_open` 的 cwd（只扫文件尾 64KB）。
+///
+/// 用于判断本次内核拉起是不是同一对话的续进程：是就不落新标记，
+/// 否则每次重启都会在运行记录里多出一条「新会话」。
+fn last_session_cwd(journal_path: &Path) -> Option<String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = std::fs::File::open(journal_path).ok()?;
+    let len = f.metadata().ok()?.len();
+    f.seek(SeekFrom::Start(len.saturating_sub(64 * 1024))).ok()?;
+    let mut buf = Vec::new();
+    f.read_to_end(&mut buf).ok()?;
+    // 从中间截断可能切在多字节字符上：lossy 后首行解析失败，跳过即可。
+    let text = String::from_utf8_lossy(&buf);
+    for line in text.lines().rev() {
+        let Ok(ev) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        if ev.get("type").and_then(|t| t.as_str()) == Some("session_open") {
+            return ev
+                .get("cwd")
+                .and_then(|c| c.as_str())
+                .map(|c| c.trim_end_matches('/').to_string());
+        }
+    }
+    None
+}
+
+fn same_dir(a: &str, b: &str) -> bool {
+    a.trim_end_matches('/') == b.trim_end_matches('/')
+}
+
+/// 追加一行 journal：单写入者。
+///
+/// 整行序列化成一个 String 后一次写；并在整段「open → 写 → flush」外层加
+/// 跨进程排他锁（flock）。实测坏行来自两个写入者：旧内核读线程写 `process_exit`，
+/// 新内核 `pi_start` 写 `session_open`，同一毫秒交错成半行。
+/// 进程内 Mutex 拦不住第二个 App 实例，flock 才是唯一的串行点。
+pub(crate) fn append_journal_line(path: &Path, ev: &Value) {
+    let Ok(mut line) = serde_json::to_string(ev) else {
+        return;
+    };
+    line.push('\n');
+    let Ok(mut f) = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
-        .open(journal_path)
-    {
-        let _ = writeln!(f, "{}", line);
+        .open(path)
+    else {
+        return;
+    };
+    let _ = f.lock();
+    let _ = f.write_all(line.as_bytes());
+    let _ = f.flush();
+    let _ = f.unlock();
+}
+
+/// 合成一条「用户原文」事件（prompt / follow_up / steer 共用同一形状）。
+///
+/// 三种下发都必须在发送时落 journal：内核回显 `message_end` 只在它真正消费
+/// 这条输入后才出现，排队消息碰上重试 / 进程退出就永远不会回显；回放若没有
+/// 这条合成事件，用户刚说的话就凭空消失。
+pub(crate) fn user_prompt_event(
+    mode: &str,
+    text: &str,
+    attachments: Option<Value>,
+    run_id: Option<String>,
+) -> Value {
+    let mut ev = serde_json::json!({
+        "type": "user_prompt",
+        "text": text,
+        "queued": mode != "prompt",
+        "mode": mode,
+        "pi_ts": unix_ms(),
+    });
+    if let Some(run_id) = run_id {
+        ev["runId"] = Value::String(run_id);
+    }
+    if let Some(attachments) = attachments {
+        ev["attachments"] = attachments;
+    }
+    ev
+}
+
+/// 推送一条桥侧合成事件，并追加进 journal（与内核事件同一条时间线）。
+///
+/// 合成事件不走 reader 线程的写入路径，故单独追加一次；频率只有内核启动、
+/// 请求开始、审批结论三种。串行化由 `append_journal_line` 里的 flock 负责。
+/// 写失败不影响推送。
+pub(crate) fn emit_synthetic(app: &AppHandle, state: &PiState, ev: Value) {
+    let _ = app.emit("pi://event", ev.clone());
+    let path = state.journal_path.lock().unwrap().clone();
+    if let Some(path) = &path {
+        append_journal_line(path, &ev);
     }
 }
 
@@ -575,7 +770,9 @@ pub(crate) fn rpc_roundtrip(
     {
         let stdin_tx = lock_stdin(state)?;
         let sender = stdin_tx.as_ref().ok_or_else(|| "pi 未启动".to_string())?;
-        sender.send(command.to_string()).map_err(|e| e.to_string())?;
+        sender
+            .send(command.to_string())
+            .map_err(|e| e.to_string())?;
     }
 
     {
@@ -605,7 +802,7 @@ pub(crate) fn rpc_roundtrip(
 /// **必须 `async`**：Tauri 的非 async 命令跑在**主线程**上，而这里会阻塞等待
 /// 内核响应。曾经不写 `async`，内核一旦不回应就把整个窗口冻住（换目录、切模型后
 /// 相继触发 `set_thinking_level`，界面「点不动」就是这么来的），直到超时才恢复。
-#[tauri::command(async)]
+#[tauri::command(rename_all = "snake_case", async)]
 pub fn pi_call(
     json: String,
     timeout_ms: Option<u64>,
@@ -617,6 +814,42 @@ pub fn pi_call(
         .map(Duration::from_millis)
         .unwrap_or(DEFAULT_TIMEOUT);
     rpc_roundtrip(&state, command, timeout)
+}
+
+/// 发送前先落一条用户原文（前端乐观气泡出现后立刻调用）。
+///
+/// 下发前还要收集项目上下文（最多 3.5s）。这段窗口内刷新 / 重挂载会杀掉
+/// 尚未 `pi_send` 的消息，journal 里什么都留不下；先落 `user_prompt` 兜住它。
+/// 随后的 `pi_send` 带 `journaled:true`，不再重复合成。
+/// 实时气泡由前端 `pushUser` 画过，事件到达后回放分支不看，不会重复。
+#[tauri::command(async)]
+pub fn pi_note_user(app: AppHandle, json: String, state: State<PiState>) -> Result<(), String> {
+    let v: Value = serde_json::from_str(&json).map_err(|e| format!("参数不是合法 JSON: {e}"))?;
+    let text = v.get("text").and_then(Value::as_str).unwrap_or("").trim();
+    if text.is_empty() {
+        return Ok(());
+    }
+    let mode = match v.get("mode").and_then(Value::as_str).unwrap_or("prompt") {
+        "follow_up" => "follow_up",
+        "steer" => "steer",
+        _ => "prompt",
+    };
+    let attachments = v
+        .get("attachments")
+        .filter(|a| a.as_array().map(|x| !x.is_empty()).unwrap_or(false))
+        .cloned();
+    // prompt 尚未 begin_run，runId 由随后的 run_start 提供；排队/插话才需要挂当前 run。
+    let run_id = if mode == "prompt" {
+        None
+    } else {
+        state.run.lock().unwrap().current_run()
+    };
+    emit_synthetic(
+        &app,
+        &state,
+        user_prompt_event(mode, text, attachments, run_id),
+    );
+    Ok(())
 }
 
 /// 向 Pi 下发一条命令后立刻返回（fire-and-forget），用于不需要结果的场景。
@@ -642,9 +875,116 @@ pub fn pi_send(app: AppHandle, json: String, state: State<PiState>) -> Result<()
     }
     let stdin_tx = lock_stdin(&state)?;
     let sender = stdin_tx.as_ref().ok_or_else(|| "pi 未启动".to_string())?;
+    let is_prompt = command.get("type").and_then(|v| v.as_str()) == Some("prompt");
+    let cmd_type = command
+        .get("type")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    let prompt_text = command
+        .get("message")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_string();
+    // 专家身份：prompt 可携带 expertId / handoffFrom。策略写到内核 cwd 下的
+    // `.pi/policy/expert.json`，工具门每次工具调用前读它；这些键不转发给内核。
+    let expert_id = command
+        .get("expertId")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    let handoff_from = command
+        .get("handoffFrom")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    // 附件元数据（name/size/kind）只用于 journal 回放气泡，内核只读 message 里的路径块。
+    let attachments = command.get("attachments").cloned();
+    // 前端已在乐观气泡出现时先落过 user_prompt（pi_note_user），这里不再重复合成。
+    let journaled = command
+        .get("journaled")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if let Some(obj) = command.as_object_mut() {
+        obj.remove("expertId");
+        obj.remove("handoffFrom");
+        obj.remove("expertQueue");
+        obj.remove("attachments");
+        obj.remove("journaled");
+    }
+    let mut expert_start: Option<Value> = None;
+    if is_prompt {
+        let cwd = state.launch_cwd.lock().unwrap().clone();
+        match expert_id.as_deref().filter(|id| !id.trim().is_empty()) {
+            Some(id) => {
+                let definition = crate::experts::load_expert(&app, id)
+                    .ok_or_else(|| format!("专家不存在: {id}"))?;
+                let root = cwd.ok_or_else(|| "内核未启动，无法写入专家策略".to_string())?;
+                crate::experts::write_expert_policy(&root, id, &definition)?;
+                state
+                    .run
+                    .lock()
+                    .unwrap()
+                    .set_expert(Some(crate::pi_run::ExpertTag {
+                        id: id.to_string(),
+                        name: definition.name.clone(),
+                    }));
+                expert_start = Some(serde_json::json!({
+                    "type": "expert_start",
+                    "expertId": id,
+                    "expertName": definition.name,
+                    "allowedTools": definition.allowed_tools,
+                    "deniedPatterns": definition.denied_patterns,
+                    "handoffFrom": handoff_from,
+                    "pi_ts": unix_ms(),
+                }));
+            }
+            None => {
+                // 不带专家 = 回到全局策略：清掉落盘的专家策略，
+                // 否则上一轮专家的限制会继续生效（fail-open 而非残留）。
+                if let Some(root) = cwd {
+                    let _ = std::fs::remove_file(crate::experts::expert_policy_path(&root));
+                }
+                state.run.lock().unwrap().set_expert(None);
+            }
+        }
+    }
     sender
         .send(command.to_string())
-        .map_err(|e| format!("下发命令失败: {e}"))
+        .map_err(|e| format!("下发命令失败: {e}"))?;
+    // 请求进入：一条 prompt 就是一次运行。先开 run，后续内核事件才有一致的 runId；
+    // run_start 同时落 journal，回放时也能还原「请求进入」这一段的时刻。
+    if is_prompt {
+        let ev = state.run.lock().unwrap().begin_run(&prompt_text);
+        let run_id = ev.get("runId").and_then(|v| v.as_str()).map(str::to_string);
+        emit_synthetic(&app, &state, ev);
+        // 用户原文先落 journal：切会话/刷新时即使内核还没回显 message_end，
+        // 回放也能凭这一条还原气泡（回放侧与内核回显按文本去重）。
+        // 前端已先调用 pi_note_user 时跳过，避免同一句话落两行。
+        if !journaled {
+            emit_synthetic(
+                &app,
+                &state,
+                user_prompt_event("prompt", &prompt_text, attachments.clone(), run_id.clone()),
+            );
+        }
+        if let Some(mut start) = expert_start {
+            if let Some(run_id) = run_id {
+                start["runId"] = Value::String(run_id);
+                start["runStartedAt"] = start.get("pi_ts").cloned().unwrap_or(Value::Null);
+            }
+            emit_synthetic(&app, &state, start);
+        }
+    } else if cmd_type == "follow_up" || cmd_type == "steer" {
+        // 排队/插话的文本只有等内核真正消化时才会回显成 user message；
+        // 消息在此刻先落 journal，页面重载回放才不会把用户刚说的话吞掉。
+        // 内核稍后回显同样文本，回放侧按文本去重（见 piEvents 的 message_end）。
+        let run_id = state.run.lock().unwrap().current_run();
+        emit_synthetic(
+            &app,
+            &state,
+            user_prompt_event(&cmd_type, &prompt_text, attachments, run_id),
+        );
+    }
+    Ok(())
 }
 
 /// 无人值守下发一条 prompt（主动任务调度器用）。
@@ -672,20 +1012,33 @@ pub(crate) fn send_prompt(state: &PiState, message: &str) -> Result<(), String> 
 /// 只读 `confirmed`（`cancelled:true` 等价于拒绝），因此这里无需额外字段。
 /// fire-and-forget：内核不回应，超时兜底由扩展侧 fail-closed 负责。
 #[tauri::command(async)]
-pub fn pi_ui_response(json: String, state: State<PiState>) -> Result<(), String> {
+pub fn pi_ui_response(app: AppHandle, json: String, state: State<PiState>) -> Result<(), String> {
     let command: Value =
         serde_json::from_str(&json).map_err(|e| format!("审批回应不是合法 JSON: {e}"))?;
     if command.get("type").and_then(|v| v.as_str()) != Some("extension_ui_response") {
         return Err("缺少 type=extension_ui_response".into());
     }
-    if command.get("id").and_then(|v| v.as_str()).is_none() {
+    let Some(id) = command
+        .get("id")
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+    else {
         return Err("缺少 id（对应 extension_ui_request 的 id）".into());
-    }
+    };
+    let confirmed = command
+        .get("confirmed")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     let stdin_tx = lock_stdin(&state)?;
     let sender = stdin_tx.as_ref().ok_or_else(|| "pi 未启动".to_string())?;
     sender
         .send(command.to_string())
-        .map_err(|e| format!("回送审批回应失败: {e}"))
+        .map_err(|e| format!("回送审批回应失败: {e}"))?;
+    // 门禁结论也是链路的一段：配对此前的 gate span，结束时刻 = 用户点按钮的时刻。
+    if let Some(ev) = state.run.lock().unwrap().gate_decision(&id, confirmed) {
+        emit_synthetic(&app, &state, ev);
+    }
+    Ok(())
 }
 
 /// G3 checkpoint 根目录：`<app_config_dir>/checkpoints`。
@@ -699,7 +1052,7 @@ fn checkpoint_base(app: &AppHandle) -> PathBuf {
 
 /// G3：轮次开始。先取会话树当前叶子（该轮 prompt 的父节点）写进 marker，
 /// 再落盘返回 seq。取树失败不阻断发送：leaf_id=None 时 rewind 只还原文件、不 fork。
-#[tauri::command(async)]
+#[tauri::command(rename_all = "snake_case", async)]
 pub fn checkpoint_begin_turn(
     app: AppHandle,
     state: State<'_, PiState>,
@@ -816,11 +1169,9 @@ fn locate_turn_entry(state: &PiState, marker: &crate::checkpoint::TurnMarker) ->
 /// A4 消息重放：读取事件 journal（B2 落盘的 `pi://event` 审计流）。
 /// `last_n` 指定取末尾多少条（None = 全量），前端据此重建崩溃前的会话转写。
 /// 返回按时间顺序的事件数组（含 enrich 后的 seq/ts_ms 锚点）。
-#[tauri::command(async)]
-pub fn pi_journal_read(
-    last_n: Option<usize>,
-    state: State<PiState>,
-) -> Result<Vec<Value>, String> {
+#[tauri::command(rename_all = "snake_case", async)]
+pub fn pi_journal_read(last_n: Option<usize>, state: State<PiState>) -> Result<Vec<Value>, String> {
+    let t0 = std::time::Instant::now();
     let path = state
         .journal_path
         .lock()
@@ -838,12 +1189,20 @@ pub fn pi_journal_read(
         let start = events.len().saturating_sub(n);
         events = events.split_off(start);
     }
+    eprintln!(
+        "[boot] journal_read {}KB lastN={:?} -> {} events {}ms",
+        content.len() / 1024,
+        last_n,
+        events.len(),
+        t0.elapsed().as_millis()
+    );
     Ok(events)
 }
 
-/// 运行记录（WorkDSH「之前的运行记录」对位）：把 journal 按 `session_open`
-/// 分段汇总成历史会话列表，新→旧排序由前端做。每段一条：cwd、起止时间、
-/// 事件数、任务数与标题（段内第一条用户消息）。
+/// 运行记录（WorkDSH「之前的运行记录」对位）：把 journal 按会话汇总——
+/// 连续同 cwd 的 `session_open` 段并成一条（内核重启不是新会话），
+/// 显式 `reason:"new"` 或 cwd 变化才分条。每条：cwd、起止时间、事件数、
+/// 任务数与标题（会话首条用户消息）。
 /// 路径按 app_config_dir **确定性解析**——不依赖 state.journal_path（那要等
 /// pi_start 才有），App 刚打开、内核未启动时也能看历史。
 /// **必须 async**：读 journal 是磁盘 IO（与 IO_WATCHED 守卫同一约定）。
@@ -868,10 +1227,14 @@ pub struct JournalSessionSummary {
     pub archived: bool,
     /// 标题是否被 run_meta 重写（前端据此显示「已重命名」标识）。
     pub renamed: bool,
+    /// 组内全部 journal 段号（含 `index` 自己）。运行记录按会话分组，
+    /// 段号只用作回放锚点；`run_meta` 的置顶/重命名可能落在组内任一段上。
+    #[serde(skip)]
+    pub members: Vec<usize>,
 }
 
 /// journal 路径：与 pi_start 的落盘处完全一致（agent_dir = app_config_dir）。
-fn journal_file(app: &AppHandle) -> Option<std::path::PathBuf> {
+pub(crate) fn journal_file(app: &AppHandle) -> Option<std::path::PathBuf> {
     app.path()
         .app_config_dir()
         .ok()
@@ -905,15 +1268,16 @@ fn user_message_text(ev: &Value) -> Option<String> {
     }
 }
 
-/// 合并 run_meta sidecar 到 journal 分段（纯函数，便于单测）。
+/// 合并 run_meta sidecar 到会话分组（纯函数，便于单测）。
 ///
 /// 语义（对齐 WorkBuddy 运行记录菜单）：
-/// - `deleted` 段永久过滤（软删除，journal 原文不动、段号不错位）；
-/// - `archived` 段仅在 `include_archived` 时保留；
-/// - 非空 `title` 覆盖段标题并置 `renamed`；
-/// - `pinned` 段置顶，组内保持起止时间倒序（段号随时间递增，倒序即时间倒序）。
+/// - `deleted` 会话永久过滤（软删除，journal 原文不动、段号不错位）；
+/// - `archived` 会话仅在 `include_archived` 时保留；
+/// - 非空 `title` 覆盖会话标题并置 `renamed`（组内最近一次改名生效）；
+/// - `pinned` 会话置顶，组间保持起止时间倒序（段号随时间递增，倒序即时间倒序）。
 ///
-/// `index` 始终是 journal 全局段号：前端回放按段号取数
+/// 会话可能由多个连续段组成（内核重启续段），元数据按 `members` 任一命中即算；
+/// `index` 始终是组内首段的 journal 全局段号：前端回放按段号取整组
 /// （`selectSessionByIndex`），过滤/排序都不得重排段号。
 pub(crate) fn merge_run_meta(
     sessions: Vec<JournalSessionSummary>,
@@ -922,27 +1286,34 @@ pub(crate) fn merge_run_meta(
 ) -> Vec<JournalSessionSummary> {
     let mut out: Vec<JournalSessionSummary> = Vec::with_capacity(sessions.len());
     for mut session in sessions {
-        let meta = entries
+        let members = if session.members.is_empty() {
+            vec![session.index]
+        } else {
+            session.members.clone()
+        };
+        let metas: Vec<&RunMetaEntry> = entries
             .iter()
-            .find(|e| e.cwd == session.cwd && e.index as usize == session.index);
-        if let Some(meta) = meta {
-            if meta.deleted {
-                continue;
-            }
-            if meta.archived && !include_archived {
-                continue;
-            }
-            session.pinned = meta.pinned;
-            session.archived = meta.archived;
-            if let Some(title) = meta
-                .title
-                .as_deref()
-                .map(str::trim)
-                .filter(|t| !t.is_empty())
-            {
-                session.title = title.to_string();
-                session.renamed = true;
-            }
+            .filter(|e| e.cwd == session.cwd && members.contains(&(e.index as usize)))
+            .collect();
+        if metas.iter().any(|m| m.deleted) {
+            continue;
+        }
+        let archived = metas.iter().any(|m| m.archived);
+        if archived && !include_archived {
+            continue;
+        }
+        session.pinned = metas.iter().any(|m| m.pinned);
+        session.archived = archived;
+        // 组内最近一次改名生效（用户最后一次意图）；组内没有改名则用会话首条消息。
+        if let Some(title) = metas
+            .iter()
+            .rev()
+            .filter_map(|m| m.title.as_deref())
+            .map(str::trim)
+            .find(|t| !t.is_empty())
+        {
+            session.title = title.to_string();
+            session.renamed = true;
         }
         out.push(session);
     }
@@ -955,14 +1326,13 @@ pub(crate) fn merge_run_meta(
 /// 列运行记录。journal 不存在/尚未产生返回空列表（首次使用不是错误，
 /// 前端拿到空列表整体隐藏，不弹错打扰）。
 ///
-/// `includeArchived`：是否连归档段一起返回（默认 false，由前端显式传）。
-/// 段级置顶/重命名/归档/删除来自 run_meta sidecar（`run_meta.json`），
-/// 按 `(cwd, index)` 合并；`index` 保持 journal 段号不变（回放锚点）。
-#[tauri::command(async)]
-#[allow(non_snake_case)]
+/// `include_archived`：是否连归档会话一起返回（默认 false，由前端显式传）。
+/// 会话级置顶/重命名/归档/删除来自 run_meta sidecar（`run_meta.json`），
+/// 按 `(cwd, 组内段号)` 合并；`index` 取组内首段，保持 journal 回放锚点不变。
+#[tauri::command(rename_all = "snake_case", async)]
 pub fn pi_journal_sessions(
     app: AppHandle,
-    includeArchived: bool,
+    include_archived: bool,
     meta: State<'_, RunMetaState>,
 ) -> Result<Vec<JournalSessionSummary>, String> {
     let Some(path) = journal_file(&app) else {
@@ -972,14 +1342,14 @@ pub fn pi_journal_sessions(
         Ok(c) => c,
         Err(_) => return Ok(Vec::new()),
     };
-    let mut sessions: Vec<JournalSessionSummary> = Vec::new();
+    let mut raw: Vec<RawSegment> = Vec::new();
     for line in content.lines() {
         let Ok(ev) = serde_json::from_str::<Value>(line) else {
             continue;
         };
         if ev.get("type").and_then(|t| t.as_str()) == Some("session_open") {
-            sessions.push(JournalSessionSummary {
-                index: sessions.len(),
+            raw.push(RawSegment {
+                index: raw.len(),
                 cwd: ev
                     .get("cwd")
                     .and_then(|c| c.as_str())
@@ -990,14 +1360,12 @@ pub fn pi_journal_sessions(
                 events: 0,
                 prompts: 0,
                 title: String::new(),
-                pinned: false,
-                archived: false,
-                renamed: false,
+                explicit: ev.get("reason").and_then(|r| r.as_str()) == Some("new"),
             });
             continue;
         }
         // 首个 session_open 之前的孤儿事件（legacy journal）归不进任何段，跳过。
-        let Some(cur) = sessions.last_mut() else {
+        let Some(cur) = raw.last_mut() else {
             continue;
         };
         cur.events += 1;
@@ -1012,7 +1380,64 @@ pub fn pi_journal_sessions(
         }
     }
     let entries = meta.store.lock().unwrap().entries.clone();
-    Ok(merge_run_meta(sessions, &entries, includeArchived))
+    Ok(merge_run_meta(
+        group_journal_segments(raw),
+        &entries,
+        include_archived,
+    ))
+}
+
+/// journal 原始段：一条 `session_open` 到下一个标记之间的事件。
+struct RawSegment {
+    index: usize,
+    cwd: String,
+    started_at_ms: Option<u64>,
+    ended_at_ms: Option<u64>,
+    events: usize,
+    prompts: usize,
+    title: String,
+    explicit: bool,
+}
+
+/// 连续同 cwd 的段并成一次会话。
+///
+/// 内核重启 / 空闲回收 / 冷启动都会换进程，对话没换；只有 cwd 变化或
+/// 显式 `reason:"new"`（点「新会话」）才是新会话。`index` 取组内首段：
+/// 组只会向后延长，回放锚点稳定。标题取组内首条用户消息，不随每条提问变化。
+fn group_journal_segments(raw: Vec<RawSegment>) -> Vec<JournalSessionSummary> {
+    let mut out: Vec<JournalSessionSummary> = Vec::new();
+    for seg in raw {
+        let continues = out
+            .last()
+            .is_some_and(|g: &JournalSessionSummary| !seg.explicit && g.cwd == seg.cwd);
+        if continues {
+            let g = out.last_mut().unwrap();
+            g.members.push(seg.index);
+            g.events += seg.events;
+            g.prompts += seg.prompts;
+            if seg.ended_at_ms.is_some() {
+                g.ended_at_ms = seg.ended_at_ms;
+            }
+            if g.title.is_empty() {
+                g.title = seg.title;
+            }
+            continue;
+        }
+        out.push(JournalSessionSummary {
+            index: seg.index,
+            cwd: seg.cwd,
+            started_at_ms: seg.started_at_ms,
+            ended_at_ms: seg.ended_at_ms,
+            events: seg.events,
+            prompts: seg.prompts,
+            title: seg.title,
+            pinned: false,
+            archived: false,
+            renamed: false,
+            members: vec![seg.index],
+        });
+    }
+    out
 }
 
 /// 停止内核：kill + wait 回收子进程。wait 是阻塞调用，必须 async 防主线程冻结。
@@ -1152,10 +1577,7 @@ pub fn ok_data(resp: &Value) -> Result<Value, String> {
 }
 
 fn lock_pending(state: &PiState) -> MutexGuard<'_, HashMap<String, Sender<Value>>> {
-    state
-        .pending
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
+    state.pending.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 fn lock_stdin(state: &PiState) -> Result<MutexGuard<'_, Option<Sender<String>>>, String> {
@@ -1258,6 +1680,9 @@ fn find_extensions(app: &AppHandle) -> Vec<std::path::PathBuf> {
 }
 
 fn stop_child(state: &PiState) {
+    // 世代自增先于 kill：读线程据此判定「这次退出是计划内的」，
+    // 不会把换项目 / 换模型 / 空闲回收当成崩溃去自动重启。
+    state.stop_epoch.fetch_add(1, Ordering::SeqCst);
     if let Some(mut child) = state.child.lock().unwrap().take() {
         let _ = child.kill();
         let _ = child.wait();
@@ -1266,6 +1691,8 @@ fn stop_child(state: &PiState) {
     *state.running_since.lock().unwrap() = None;
     // 清掉签名：下次 pi_start 必须重新拉起，不能复用已停的进程。
     *state.launch_sig.lock().unwrap() = None;
+    // 旧进程的 span 不会再有收尾事件，跟着内核一起清掉，避免新 run 继承陈旧环。
+    *state.run.lock().unwrap() = Default::default();
 }
 
 /// 把进行中的 RPC 响应通道全部以失败响应唤醒（A5 / G1）。
@@ -1324,9 +1751,14 @@ mod tests {
     #[test]
     fn blocking_commands_must_be_declared_async() {
         const WATCHED: [&str; 9] = [
-            "pi_call", "mcp_call", "skills_list",
+            "pi_call",
+            "mcp_call",
+            "skills_list",
             // 发消息主链路：用户报「输入完成后整窗卡死」后全部收编（见 2026-10-05 修复）。
-            "pi_start", "pi_restart", "pi_send", "pi_stop",
+            "pi_start",
+            "pi_restart",
+            "pi_send",
+            "pi_stop",
             "project_task_context",
             // 目录遍历 + stat，同样不落主线程。
             "pi_doctor",
@@ -1373,42 +1805,98 @@ mod tests {
     #[test]
     fn io_commands_must_be_declared_async() {
         const IO_WATCHED: [(&str, &[&str]); 18] = [
-            ("fs.rs", &["fs_read_dir", "fs_read_file", "fs_write_file", "reveal_path"]),
+            (
+                "fs.rs",
+                &[
+                    "fs_read_dir",
+                    "fs_read_file",
+                    "fs_write_file",
+                    "reveal_path",
+                ],
+            ),
             ("pi_bridge.rs", &["pi_journal_read", "pi_journal_sessions"]),
-            ("artifacts.rs", &["artifacts_scan", "artifacts_read", "artifacts_open"]),
+            (
+                "artifacts.rs",
+                &["artifacts_scan", "artifacts_read", "artifacts_open"],
+            ),
             ("browser.rs", &["browser_open"]),
-            ("conversation.rs", &["conversation_export", "conversation_import"]),
+            (
+                "conversation.rs",
+                &["conversation_export", "conversation_import"],
+            ),
             ("attachments.rs", &["attachment_add"]),
             ("mcp.rs", &["mcp_connect", "mcp_disconnect"]),
             (
                 "agent_ops.rs",
                 &[
-                    "agent_teams_list", "agent_team_create", "agent_memory_list",
-                    "agent_memory_store", "agent_skillpool_list", "agent_skill_publish",
-                    "agent_browser_status", "agent_browser_open",
+                    "agent_teams_list",
+                    "agent_team_create",
+                    "agent_team_update",
+                    "agent_team_delete",
+                    "agent_team_cancel",
+                    "agent_memory_list",
+                    "agent_memory_store",
+                    "agent_skillpool_list",
+                    "agent_skill_publish",
+                    "agent_browser_status",
+                    "agent_browser_open",
                 ],
             ),
             (
                 "library.rs",
                 &[
-                    "library_tree", "library_read", "library_write", "library_create",
-                    "library_import", "library_rename", "library_move", "library_remove",
-                    "library_publish", "library_rollback", "library_search", "library_open",
+                    "library_tree",
+                    "library_read",
+                    "library_write",
+                    "library_create",
+                    "library_import",
+                    "library_rename",
+                    "library_move",
+                    "library_remove",
+                    "library_publish",
+                    "library_rollback",
+                    "library_search",
+                    "library_open",
                     "library_set_enabled",
                 ],
             ),
-            ("experts.rs", &["experts_list", "expert_draft_load", "expert_draft_save", "expert_publish"]),
+            (
+                "experts.rs",
+                &[
+                    "experts_list",
+                    "expert_draft_load",
+                    "expert_draft_save",
+                    "expert_publish",
+                ],
+            ),
             ("roles.rs", &["role_list", "role_set", "role_current"]),
-            ("skills.rs", &["skills_install", "skills_install_from_url", "skills_uninstall"]),
+            (
+                "skills.rs",
+                &[
+                    "skills_install",
+                    "skills_install_from_url",
+                    "skills_uninstall",
+                ],
+            ),
             ("models.rs", &["settings_load", "settings_save"]),
             (
                 "projects.rs",
                 &[
-                    "project_add", "project_update_config", "project_add_work_item",
-                    "project_update_work_item", "project_remove_work_item", "project_add_asset",
-                    "project_remove_asset", "project_link_task", "project_remove",
-                    "project_rename", "project_reveal",
-                    "project_set_path", "project_archive", "project_unarchive", "billing_status",
+                    "project_add",
+                    "project_update_config",
+                    "project_add_work_item",
+                    "project_update_work_item",
+                    "project_remove_work_item",
+                    "project_add_asset",
+                    "project_remove_asset",
+                    "project_link_task",
+                    "project_remove",
+                    "project_rename",
+                    "project_reveal",
+                    "project_set_path",
+                    "project_archive",
+                    "project_unarchive",
+                    "billing_status",
                 ],
             ),
             (
@@ -1418,8 +1906,12 @@ mod tests {
             (
                 "connectors.rs",
                 &[
-                    "connectors_config", "connectors_create", "connectors_update",
-                    "connectors_remove", "connectors_set_enabled", "connectors_set_selection",
+                    "connectors_config",
+                    "connectors_create",
+                    "connectors_update",
+                    "connectors_remove",
+                    "connectors_set_enabled",
+                    "connectors_set_selection",
                     "connectors_apply_scope",
                 ],
             ),
@@ -1452,10 +1944,10 @@ mod tests {
             };
             let lines: Vec<&str> = src.lines().collect();
             for name in names {
-                let Some(i) = lines
-                    .iter()
-                    .position(|l| l.trim_start().starts_with(&format!("pub fn {name}(")) || l.trim_start().starts_with(&format!("pub async fn {name}(")))
-                else {
+                let Some(i) = lines.iter().position(|l| {
+                    l.trim_start().starts_with(&format!("pub fn {name}("))
+                        || l.trim_start().starts_with(&format!("pub async fn {name}("))
+                }) else {
                     panic!("{file}: 找不到命令 {name}（改名了？同步更新 IO_WATCHED）");
                 };
                 let attr = lines[..i]
@@ -1507,14 +1999,20 @@ mod tests {
         // （桌面进程没有用户 PATH）。只要求「确实探测到一个可执行的 pi」。
         let found = probe_pi()
             .unwrap_or_else(|| panic!("PATH 里有 pi，探测却没找到：{}", expected.display()));
-        assert!(is_executable(&found), "探测结果不可执行：{}", found.display());
+        assert!(
+            is_executable(&found),
+            "探测结果不可执行：{}",
+            found.display()
+        );
         assert_eq!(found.file_name().and_then(|n| n.to_str()), Some("pi"));
     }
 
     /// 探测判据：目录与不存在的路径都不能被当成 pi。
     #[test]
     fn is_executable_rejects_missing_and_dirs() {
-        assert!(!is_executable(std::path::Path::new("/definitely/not/here/pi")));
+        assert!(!is_executable(std::path::Path::new(
+            "/definitely/not/here/pi"
+        )));
         assert!(!is_executable(std::path::Path::new("/tmp")));
     }
 
@@ -1606,8 +2104,16 @@ mod tests {
     #[test]
     fn seq_is_monotonic() {
         let state = PiState::default();
-        let first = { let mut a = lock_seq(&state); *a += 1; *a };
-        let second = { let mut b = lock_seq(&state); *b += 1; *b };
+        let first = {
+            let mut a = lock_seq(&state);
+            *a += 1;
+            *a
+        };
+        let second = {
+            let mut b = lock_seq(&state);
+            *b += 1;
+            *b
+        };
         assert!(first < second);
 
         // 并发自增不丢步：两个线程各加 50 次，最终必须是 100。
@@ -1629,11 +2135,7 @@ mod tests {
     fn restart_drains_pending_with_error() {
         let state = PiState::default();
         let (tx, rx) = mpsc::channel();
-        state
-            .pending
-            .lock()
-            .unwrap()
-            .insert("pi1".into(), tx);
+        state.pending.lock().unwrap().insert("pi1".into(), tx);
         drain_pending_on_restart(&state);
         // pending 表已清空
         assert!(state.pending.lock().unwrap().is_empty());
@@ -1655,11 +2157,7 @@ mod tests {
     fn stop_drains_pending_with_error() {
         let state = PiState::default();
         let (tx, rx) = mpsc::channel();
-        state
-            .pending
-            .lock()
-            .unwrap()
-            .insert("pi1".into(), tx);
+        state.pending.lock().unwrap().insert("pi1".into(), tx);
         drain_pending(&state, "stop", "内核已停止，进行中的请求已丢弃");
         assert!(state.pending.lock().unwrap().is_empty());
         let resp = rx.recv().expect("等待方应被唤醒");
@@ -1742,6 +2240,146 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
+    /// 续进程不落新标记：同一 cwd 的内核重启 / 空闲回收不是新会话。
+    #[test]
+    fn last_session_cwd_drives_continuation() {
+        let dir = std::env::temp_dir().join(format!("pi-last-session-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("events.jsonl");
+        assert_eq!(last_session_cwd(&path), None);
+        append_session_open(&path, "/repo/a");
+        assert_eq!(last_session_cwd(&path).as_deref(), Some("/repo/a"));
+        assert!(same_dir("/repo/a/", "/repo/a"));
+        append_session_open_marked(&path, "/repo/a", true);
+        assert_eq!(last_session_cwd(&path).as_deref(), Some("/repo/a"));
+        append_session_open(&path, "/repo/b");
+        assert_eq!(last_session_cwd(&path).as_deref(), Some("/repo/b"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 运行记录按会话分组：同 cwd 连续段并一条，显式新会话 / 换项目才分条。
+    #[test]
+    fn groups_continuations_into_one_session() {
+        let seg = |index: usize, cwd: &str, explicit: bool, title: &str| RawSegment {
+            index,
+            cwd: cwd.into(),
+            started_at_ms: Some(1_000 + index as u64),
+            ended_at_ms: Some(1_500 + index as u64),
+            events: 2,
+            prompts: 1,
+            title: title.into(),
+            explicit,
+        };
+        let groups = group_journal_segments(vec![
+            seg(0, "/repo/a", false, "第一问"),
+            seg(1, "/repo/a", false, ""),
+            seg(2, "/repo/a", false, "第二问"),
+            seg(3, "/repo/a", true, "新会话"),
+            seg(4, "/repo/b", false, "换项目"),
+        ]);
+        assert_eq!(groups.len(), 3);
+        // 前三次提问同属一段会话：一条记录、标题固定为首问。
+        assert_eq!(groups[0].index, 0);
+        assert_eq!(groups[0].members, vec![0, 1, 2]);
+        assert_eq!(groups[0].prompts, 3);
+        assert_eq!(groups[0].title, "第一问");
+        assert_eq!(groups[1].index, 3);
+        assert_eq!(groups[2].cwd, "/repo/b");
+    }
+
+    /// 用户原文合成事件的形状：三种下发都要能落 journal，排队/插话带 queued，
+    /// 有 runId 时挂上；prompt 不该被误标成排队消息。
+    #[test]
+    fn user_prompt_event_covers_all_dispatch_modes() {
+        let prompt = user_prompt_event("prompt", "你好", None, Some("run-1".into()));
+        assert_eq!(prompt["type"], "user_prompt");
+        assert_eq!(prompt["text"], "你好");
+        assert_eq!(prompt["mode"], "prompt");
+        assert_eq!(prompt["queued"], false);
+        assert_eq!(prompt["runId"], "run-1");
+
+        for mode in ["follow_up", "steer"] {
+            let ev = user_prompt_event(mode, "排队的话", None, None);
+            assert_eq!(ev["mode"], mode);
+            assert_eq!(ev["queued"], true);
+            assert!(ev.get("runId").is_none(), "没有在飞运行时不能编 runId");
+        }
+
+        let atts = serde_json::json!([{ "id": "a1", "name": "shot.png", "kind": "image", "path": "/tmp/shot.png", "size": 2048 }]);
+        let with_att = user_prompt_event("prompt", "看图", Some(atts.clone()), None);
+        assert_eq!(with_att["attachments"], atts);
+    }
+
+    /// journal 一行一次 write_all：整行可解析、以换行结尾，不会与相邻行交错。
+    #[test]
+    fn journal_line_is_written_atomically() {
+        let dir = std::env::temp_dir().join(format!("pi-journal-line-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("events.jsonl");
+        let ev = user_prompt_event("steer", "插个话", None, Some("run-9".into()));
+        append_journal_line(&path, &ev);
+        append_journal_line(&path, &ev);
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.ends_with('\n'));
+        let lines: Vec<&str> = content.lines().collect();
+        assert_eq!(lines.len(), 2, "每条事件恰好一行");
+        for l in lines {
+            let parsed: Value = serde_json::from_str(l).expect("整行必须是合法 JSON");
+            assert_eq!(parsed["text"], "插个话");
+            assert_eq!(parsed["runId"], "run-9");
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// 并发压测：8 线程 × 5000 行同时追加同一 journal，要求零坏行、零丢失。
+    /// 坏行的历史成因是两个写入者共持句柄交错；flock 覆盖「open→写→flush」后，
+    /// 任一时刻文件里都不该出现半行。
+    #[test]
+    fn journal_concurrent_appends_never_interleave() {
+        const THREADS: usize = 8;
+        const PER_THREAD: usize = 5000;
+        let dir = std::env::temp_dir().join(format!("pi-journal-concurrent-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("events.jsonl");
+
+        let mut handles = Vec::new();
+        for t in 0..THREADS {
+            let p = path.clone();
+            handles.push(std::thread::spawn(move || {
+                for i in 0..PER_THREAD {
+                    let ev = serde_json::json!({
+                        "type": "stress",
+                        "thread": t,
+                        "seq": i,
+                        "pi_ts": unix_ms(),
+                        "pad": "x".repeat(64),
+                    });
+                    append_journal_line(&p, &ev);
+                }
+            }));
+        }
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.ends_with('\n'), "末尾必须是完整行");
+        let lines: Vec<&str> = content.lines().collect();
+        assert_eq!(lines.len(), THREADS * PER_THREAD, "行数必须与写入次数一致");
+        let mut seen = std::collections::HashSet::new();
+        for (i, l) in lines.iter().enumerate() {
+            let v: Value = serde_json::from_str(l)
+                .unwrap_or_else(|e| panic!("第 {} 行坏 JSON: {e} | {l}", i + 1));
+            assert_eq!(v["type"], "stress");
+            let key = (
+                v["thread"].as_u64().unwrap(),
+                v["seq"].as_u64().unwrap(),
+            );
+            assert!(seen.insert(key), "第 {} 行重复: {key:?}", i + 1);
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// 回归守卫：同一扩展名不得被多个候选目录重复选入，否则内核工具名冲突启动即崩
     /// （首页「有日志却无反应」的根因——dev 态 src-tauri/extensions 与
     /// target/debug/extensions 两份同源文件同时被 --extension 加载）。
@@ -1765,7 +2403,10 @@ mod tests {
 
         // 每个扩展名恰好一个来源，绝不重复选入
         assert_eq!(picked.len(), 2, "不应重复选入同名扩展");
-        assert!(picked.contains(&src.join("sandbox-env.ts")), "src 优先级更高");
+        assert!(
+            picked.contains(&src.join("sandbox-env.ts")),
+            "src 优先级更高"
+        );
         assert!(picked.contains(&out.join("role-inject.ts")));
         for p in &picked {
             assert!(p.exists(), "选中的扩展必须真实存在: {}", p.display());
@@ -1784,10 +2425,7 @@ mod tests {
         std::fs::create_dir_all(&agent).unwrap();
         std::fs::write(agent.join("sandbox-env.ts"), "export {}").unwrap();
 
-        let names = vec![
-            "sandbox-env.ts".to_string(),
-            "role-inject.ts".to_string(),
-        ];
+        let names = vec!["sandbox-env.ts".to_string(), "role-inject.ts".to_string()];
         // agent 目录已有的 → 跳过；缺失的 → 保留
         assert_eq!(
             names_missing_in(Some(&agent), &names),
@@ -1813,6 +2451,7 @@ mod tests {
             pinned: false,
             archived: false,
             renamed: false,
+            members: vec![index],
         }
     }
 

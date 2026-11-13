@@ -114,8 +114,8 @@ fn tool_block(block: &Value) -> Option<(String, String, Option<Value>)> {
     // 名字先取块顶层，再取嵌套 toolCall 对象——toolcall_start/end 把名字
     // 与入参都放在 toolCall 里，只查顶层永远落空。
     let tc = first_object(block, &["toolCall", "tool_call"]);
-    let name = first_string(block, NAME_KEYS)
-        .or_else(|| tc.and_then(|tc| first_string(tc, NAME_KEYS)))?;
+    let name =
+        first_string(block, NAME_KEYS).or_else(|| tc.and_then(|tc| first_string(tc, NAME_KEYS)))?;
     // 有输出字段 → 这是一次执行的结果；否则按调用处理。
     let has_out = OUT_KEYS
         .iter()

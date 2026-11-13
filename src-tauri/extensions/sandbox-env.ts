@@ -70,9 +70,9 @@ function nixAvailable(): boolean {
 type ProfileCheck = { dir: string } | { error: string };
 
 /**
- * 把 envId 解析成已构建的 profile。
+ * 把 env_id 解析成已构建的 profile。
  *
- * fail-closed：envId 缺失、未声明、未构建，一律返回错误；绝不回退宿主环境。
+ * fail-closed：env_id 缺失、未声明、未构建，一律返回错误；绝不回退宿主环境。
  * 走到这里的命令都是被判定为「风险」的，宿主执行正是要避免的那条路。
  */
 function requireProfile(cwd: string, rawEnvId: unknown): ProfileCheck {
@@ -81,7 +81,7 @@ function requireProfile(cwd: string, rawEnvId: unknown): ProfileCheck {
     const ids = listEnvs(cwd).map((e) => e.id);
     return {
       error:
-        `sandbox_run 已改为 fail-closed，必须显式传 envId。` +
+        `sandbox_run 已改为 fail-closed，必须显式传 env_id。` +
         `可用环境：${ids.length ? ids.join(", ") : "无（先在 .pi/sandboxes 下声明并用 nix develop --profile 构建）"}`,
     };
   }
@@ -152,31 +152,31 @@ export default function (pi: any) {
   pi.registerTool({
     name: "sandbox_run",
     label: "沙箱内执行命令",
-    description: "在指定 Nix 沙箱环境内执行一条 shell 命令（环境由 flake 声明，可复现）；须显式传 envId，无可用环境时拒绝执行",
+    description: "在指定 Nix 沙箱环境内执行一条 shell 命令（环境由 flake 声明，可复现）；须显式传 env_id，无可用环境时拒绝执行",
     parameters: {
       type: "object",
       properties: {
-        envId: {
+        env_id: {
           type: "string",
           description: "必填：sandbox_list 返回且已构建的 env id（不传则拒绝执行）",
         },
         command: { type: "string", description: "要执行的 shell 命令" },
         cwd: { type: "string", description: "工作目录，默认项目根" },
       },
-      required: ["command", "envId"],
+      required: ["command", "env_id"],
       additionalProperties: false,
     },
     execute: async (_toolCallId: string, args: any): Promise<ToolResult> => {
       const cwd = args?.cwd ?? process.cwd();
-      const check = requireProfile(cwd, args?.envId);
+      const check = requireProfile(cwd, args?.env_id);
       if ("error" in check) {
-        return { content: check.error, details: { envId: args?.envId ?? null, failed: true, refused: true } };
+        return { content: check.error, details: { env_id: args?.env_id ?? null, failed: true, refused: true } };
       }
       const env = { ...process.env };
       env.PATH = `${path.join(check.dir, "bin")}:${env.PATH ?? ""}`;
       // D7 环境隔离：HOME/TMPDIR 指向 profile 内，避免沙箱进程写宿主目录。
       const home = path.join(check.dir, "home");
-      const tmp = path.join(cwd, ".pi", "tmp", String(args?.envId));
+      const tmp = path.join(cwd, ".pi", "tmp", String(args?.env_id));
       mkdirSync(home, { recursive: true });
       mkdirSync(tmp, { recursive: true });
       env.HOME = home;
@@ -188,10 +188,10 @@ export default function (pi: any) {
           encoding: "utf8",
           stdio: ["ignore", "pipe", "pipe"],
         });
-        return { content: out ?? "(ok)", details: { envId: args?.envId ?? null } };
+        return { content: out ?? "(ok)", details: { env_id: args?.env_id ?? null } };
       } catch (e: any) {
         const msg = e?.stdout ? `${e.stdout}${e.stderr ?? ""}` : String(e?.message ?? e);
-        return { content: msg, details: { envId: args?.envId ?? null, failed: true } };
+        return { content: msg, details: { env_id: args?.env_id ?? null, failed: true } };
       }
     },
   });

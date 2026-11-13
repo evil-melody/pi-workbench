@@ -6,6 +6,7 @@ import { flattenTree, type FlatNode, type PiTreeNode } from '@/composables/useSe
 import { applyEvent, emptyUsageState, type EventCtx, type PiUsage, type QueueState, type UsageState, emptyQueueState, readQueueUpdate } from '@/composables/piEvents'
 import type { PiFileChange } from '@/utils/fileChanges'
 import { stripPlanInstruction } from '@/utils/planMode'
+import { traceLog } from '@/composables/useWebLog'
 
 /**
  * 浏览器模式（`npm run app:dev:web`）下没有 Tauri IPC，内核通道不可用。
@@ -16,6 +17,21 @@ export const IN_TAURI =
 
 const noKernel = () =>
   t('当前是浏览器模式，Pi 内核未接入。请用 npm run app:dev 启动桌面 App 后再对话。')
+
+/**
+ * 内核退出要不要惊动用户。
+ *
+ * 三条同时成立才算「本轮真有内容可能丢失」：有请求在飞、不是计划内停止的伴生退出、
+ * 且不是同一次退出被重复订阅推来的第二条。
+ * 空闲时退出（未发消息）一律不提示——后端会自动拉起，提示只会制造恐慌。
+ */
+export function shouldWarnKernelExit(input: {
+  inFlight: boolean
+  sinceStop: number
+  sinceNotice: number
+}): boolean {
+  return input.inFlight && input.sinceStop > 5_000 && input.sinceNotice >= 2_000
+}
 
 export interface PiMsg {
   id: string
@@ -33,6 +49,16 @@ export interface PiMsg {
   usage?: PiUsage
   /** 用户消息附带的图片/文件（已落盘到 app_config_dir/attachments）。 */
   attachments?: PiAttachment[]
+  /**
+   * 回放重建的「排队/插话」用户消息：已落 journal，但内核尚未把它回显成正式消息。
+   * 内核消费后会推同样文本的 message_end，届时清掉此标记而不是再插一条。
+   */
+  queued?: boolean
+  /**
+   * 回放时由 `user_prompt` 合成事件重建的用户消息（任何模式）。
+   * 内核稍后回显同一文本时按此标记去重，而不是凭 `queued`——普通 prompt 也要去重。
+   */
+  synth?: boolean
   /** G2：本条 assistant 消息涉及的文件改动（edit/write 工具调用，按调用顺序）。 */
   fileChanges?: PiFileChange[]
   /** G3：本条 user 消息对应的 checkpoint turn seq（>0 才可「回到此处」）。 */
@@ -81,6 +107,8 @@ export interface PiAttachment {
   kind: 'image' | 'file'
   /** 绝对路径（已由后端 attachment_add 落盘）。 */
   path: string
+  /** 字节数；旧 journal 无此字段，卡片按未知处理。 */
+  size?: number
 }
 
 /**
@@ -160,13 +188,26 @@ export function usePi() {
    */
   const queue = ref<QueueState>(emptyQueueState())
   let un: UnlistenFn | null = null
+  /** 订阅并发保护：`un` 在 await 之后才赋值，两次并发 ensure 会各挂一条监听。 */
+  let ensuring: Promise<void> | null = null
   let seq = 0
   /** 最近一次内核主动停止/重启时刻（ms）：抑制伴生的 process_exit 系统消息。 */
   let lastKernelStoppedAt = 0
+  /** 最近一次弹出「内核已退出」的时刻：同一退出被多个订阅者各推一条时去重。 */
+  let lastExitNoticeAt = 0
 
   async function ensure() {
     if (un || !IN_TAURI) return
-    un = await listen<any>('pi://event', (e) => handle(e.payload))
+    if (!ensuring) {
+      ensuring = listen<any>('pi://event', (e) => handle(e.payload))
+        .then((fn) => {
+          un = fn
+        })
+        .finally(() => {
+          ensuring = null
+        })
+    }
+    await ensuring
   }
 
   function start(cwd?: string) {
@@ -198,7 +239,7 @@ export function usePi() {
     if (!IN_TAURI) return Promise.reject(new Error(noKernel()))
     return invoke<T>('pi_call', {
       json: JSON.stringify({ ...payload, type }),
-      ...(timeoutMs ? { timeoutMs } : {}),
+      ...(timeoutMs ? { timeout_ms: timeoutMs } : {}),
     })
   }
 
@@ -224,7 +265,7 @@ export function usePi() {
     if (!IN_TAURI) return 0
     try {
       return await invoke<number>('checkpoint_begin_turn', {
-        promptHead: promptHead.slice(0, 80),
+        prompt_head: promptHead.slice(0, 80),
       })
     } catch {
       return 0
@@ -256,19 +297,65 @@ export function usePi() {
     messages.value.push({ id: `s${seq++}`, role: 'system', text })
   }
 
-  function send(text: string, attachments?: PiAttachment[]) {
+  /**
+   * 发送前先把用户原文落 journal（在乐观气泡出现后立刻调用）。
+   *
+   * 下发前还要收集项目上下文（最多 3.5s）；这段窗口内刷新 / 重挂载会丢掉
+   * 尚未下发的消息。先落一条 `user_prompt`，回放即可还原；
+   * 随后的 `send(..., journaled=true)` 不再重复合成。
+   */
+  function noteUser(text: string, attachments?: PiAttachment[]): Promise<boolean> {
+    if (!IN_TAURI) return Promise.resolve(false)
+    const payload = {
+      text,
+      mode: 'prompt',
+      ...(attachments?.length ? { attachments } : {}),
+    }
+    return invoke('pi_note_user', { json: JSON.stringify(payload) }).then(
+      () => true,
+      () => false,
+    )
+  }
+
+  /**
+   * `expert`：本次运行的专家身份。桥侧据此把白名单写进项目策略文件，
+   * 并在链路里落 `expert_start`（带 handoffFrom 时标成交接）。
+   */
+  function send(
+    text: string,
+    attachments?: PiAttachment[],
+    expert?: { id: string; handoffFrom?: string },
+    journaled = false,
+  ) {
     if (!IN_TAURI) return Promise.reject(new Error(noKernel()))
     // message 必须是字符串（Pi 协议约束）；附件以路径引用块追加进文本。
     const cmd = {
       id: `c${Date.now()}`,
       type: 'prompt',
       message: buildPrompt(text, attachments),
+      ...(attachments?.length ? { attachments } : {}),
+      ...(journaled ? { journaled: true } : {}),
+      ...(expert
+        ? { expertId: expert.id, ...(expert.handoffFrom ? { handoffFrom: expert.handoffFrom } : {}) }
+        : {}),
     }
     streaming.value = true
     return invoke('pi_send', { json: JSON.stringify(cmd) }).catch((e) => {
       streaming.value = false
       throw e
     })
+  }
+
+  /** 排队/插话也必须走 pi_send：只有它会把 user_prompt 落 journal（pi_call 不会）。 */
+  function sendQueued(type: 'follow_up' | 'steer', text: string, attachments?: PiAttachment[]) {
+    if (!IN_TAURI) return Promise.reject(new Error(noKernel()))
+    const cmd = {
+      id: `c${Date.now()}`,
+      type,
+      message: buildPrompt(text, attachments),
+      ...(attachments?.length ? { attachments } : {}),
+    }
+    return invoke('pi_send', { json: JSON.stringify(cmd) })
   }
 
   /** 只消费流式事件。`pi://event` 里已不含命令响应（响应由 pi_call 路由）。 */
@@ -337,8 +424,16 @@ export function usePi() {
       // 主动重启（pi_restart）会先发 kernel_restarted，5 秒内的 process_exit 视为重启伴生，不打扰。
       if (rec?.type === 'process_exit') {
         const sinceStop = Date.now() - lastKernelStoppedAt
-        if (sinceStop > 5_000) {
-          pushSystem(t('Pi 内核进程已退出，本条消息可能没有送达。请重开会话页或重启 App 重新拉起内核。'))
+        // 只在「有请求在飞」时提示：未发消息就退出，用户没有可能丢失的内容，
+        // 提示只会制造恐慌。计划内停止与意外退出由后端按停止世代区分并自动拉起。
+        const inFlight = streaming.value
+        const sinceNotice = Date.now() - lastExitNoticeAt
+        traceLog('kernel:exit-event', `sinceStop=${sinceStop}ms inFlight=${inFlight}`)
+        if (shouldWarnKernelExit({ inFlight, sinceStop, sinceNotice })) {
+          lastExitNoticeAt = Date.now()
+          pushSystem(
+            t('Pi 内核进程已退出，本条消息可能没有送达。请重开会话页或重启 App 重新拉起内核。'),
+          )
         }
       }
       applyNow(rec)
@@ -386,7 +481,7 @@ export function usePi() {
    * 消息）后自动执行为新 prompt。附件走 buildPrompt 路径引用块，与 send 一致。
    */
   async function followUp(text: string, attachments?: PiAttachment[]) {
-    await rpc('follow_up', { message: buildPrompt(text, attachments) })
+    await sendQueued('follow_up', text, attachments)
   }
 
   /**
@@ -394,7 +489,7 @@ export function usePi() {
    * 用来把跑偏的 agent 拽回当前输入（对齐 Cursor 的 mid-turn 引导）。
    */
   async function steerTurn(text: string, attachments?: PiAttachment[]) {
-    await rpc('steer', { message: buildPrompt(text, attachments) })
+    await sendQueued('steer', text, attachments)
   }
 
   /**
@@ -427,6 +522,7 @@ export function usePi() {
     stop,
     restart,
     send,
+    noteUser,
     pushUser,
     pushSystem,
     rpc,

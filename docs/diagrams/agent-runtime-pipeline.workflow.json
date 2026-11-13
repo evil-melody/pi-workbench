@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "pi-workbench Agent Runtime Pipeline",
+    "subtitle": "One user turn: spawn, tool gate, execution, event fan-out",
+    "output": "agent-runtime-pipeline.html",
+    "viewBox": [720, 940]
+  },
+  "lanes": [
+    { "id": "ui", "label": "用户与外壳 (Vue)" },
+    { "id": "tauri", "label": "宿主 (Tauri / Rust)" },
+    { "id": "kernel", "label": "内核 pi" },
+    { "id": "gate", "label": "执行门禁" },
+    { "id": "tools", "label": "工具与外部能力" },
+    { "id": "data", "label": "观测与数据面" }
+  ],
+  "phases": [
+    { "id": "intake", "label": "输入", "fromCol": 0, "toCol": 1 },
+    { "id": "spawn", "label": "拉起内核", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "execute", "label": "轮次 + 工具", "fromCol": 3, "toCol": 4, "variant": "emphasis" },
+    { "id": "report", "label": "事件回传", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "loop", "label": "单轮 agent loop", "lane": "kernel", "fromCol": 3, "toCol": 4, "variant": "emphasis" },
+    { "id": "policy", "label": "风险判定 + 落盘", "lane": "gate", "fromCol": 4, "toCol": 5, "variant": "security" }
+  ],
+  "mainPath": ["user", "chat", "send", "bridge", "turn", "gate", "tool", "enrich", "journal", "render"],
+  "nodes": [
+    { "id": "user", "lane": "ui", "col": 0, "type": "external", "label": "用户输入", "sublabel": "一句话任务" },
+    { "id": "chat", "lane": "ui", "col": 1, "type": "frontend", "label": "ChatView", "sublabel": "发送 + 渲染", "width": 72 },
+    { "id": "render", "lane": "ui", "col": 5, "type": "frontend", "label": "消息流 / 轨迹", "sublabel": "流式增量渲染" },
+
+    { "id": "send", "lane": "tauri", "col": 2, "type": "backend", "label": "pi_send", "sublabel": "Tauri command", "width": 72 },
+    { "id": "bridge", "lane": "tauri", "col": 3, "type": "backend", "label": "pi_bridge", "sublabel": "JSONL 收发 + 复用进程" },
+
+    { "id": "turn", "lane": "kernel", "col": 3, "type": "backend", "label": "agent 轮次", "sublabel": "turn_start → turn_end", "width": 66 },
+    { "id": "teams", "lane": "kernel", "col": 5, "type": "messagebus", "label": "teams", "sublabel": "N × pi --mode chat", "tag": "仅 stdout 文本", "width": 66 },
+
+    { "id": "gate", "lane": "gate", "col": 4, "type": "security", "label": "tool-gate", "sublabel": "风险档 / 拦截 / 审批", "width": 66 },
+    { "id": "checkpoint", "lane": "gate", "col": 5, "type": "database", "label": "checkpoint", "sublabel": "改动快照 / 回滚" },
+
+    { "id": "tool", "lane": "tools", "col": 4, "type": "cloud", "label": "工具执行", "sublabel": "read / bash / edit / write · MCP · 浏览器", "tag": "结构化结果" },
+
+    { "id": "enrich", "lane": "data", "col": 4, "type": "messagebus", "label": "pi://event", "sublabel": "enrich：补 kind / 摘要" },
+    { "id": "journal", "lane": "data", "col": 5, "type": "database", "label": "journal", "sublabel": "events.jsonl 按行落盘" }
+  ],
+  "edges": [
+    { "from": "user", "to": "chat", "variant": "default" },
+    { "from": "chat", "to": "send", "label": "invoke", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "drop" },
+    { "from": "send", "to": "bridge", "variant": "default" },
+    { "from": "bridge", "to": "turn", "label": "stdin JSONL", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [436, 283] },
+    { "from": "turn", "to": "gate", "variant": "security", "fromSide": "bottom", "toSide": "top", "route": "drop" },
+    { "from": "gate", "to": "tool", "label": "放行", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [514, 531] },
+    { "from": "gate", "to": "checkpoint", "variant": "dashed", "role": "branch" },
+    { "from": "turn", "to": "teams", "variant": "dashed", "role": "branch" },
+    { "from": "tool", "to": "enrich", "label": "tool 结果", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [520, 663] },
+    { "from": "enrich", "to": "journal", "label": "append", "variant": "dashed", "labelAt": [563, 779] },
+    { "from": "journal", "to": "render", "label": "流式事件", "variant": "emphasis", "role": "return", "fromSide": "right", "toSide": "right", "route": "outside-right", "width": 1.2 }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "内核事实",
+      "items": [
+        "常驻单进程，pid 由 pi_status 管理",
+        "--no-session：不写内核会话历史",
+        "journal 是逐行 JSON，可回放",
+        "事件里有工具名与状态，没有 agent 身份"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "两条任务路径",
+      "items": [
+        "代码：edit/write/bash + checkpoint + 审批",
+        "办公：暂无专用工具集，bash 调脚本",
+        "办公产物由资料库解析 pdf/docx/pptx",
+        "skills 目录为空，办公技能未安装"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "团队分支现状",
+      "items": [
+        "每个成员一条独立 pi --mode chat 子进程",
+        "只回收 stdout 文本，无结构化事件",
+        "无 handoff、无共享上下文、无重试",
+        "可视化只能做到成员起止与产出"
+      ]
+    }
+  ]
+}

@@ -1,12 +1,12 @@
 mod agent_ops;
-mod attachments;
 mod artifacts;
+mod attachments;
 mod background;
 mod browser;
 mod capabilities;
 mod checkpoint;
-mod connectors;
 mod codebase;
+mod connectors;
 mod conversation;
 mod diag;
 mod experts;
@@ -14,14 +14,16 @@ mod extensions;
 mod fs;
 mod governance;
 mod i18n;
+mod journal_audit;
 mod library;
 mod mcp;
-mod memory_vec;
 mod memory_store;
+mod memory_vec;
 mod models;
 mod net;
 mod pi_bridge;
 mod pi_events;
+mod pi_run;
 mod proactive;
 pub mod projects;
 mod roles;
@@ -35,6 +37,47 @@ use connectors::ConnectorRuntimeState;
 use library::LibraryState;
 use state::{McpState, PiState, ProjectsState, RolesState};
 use tauri::{Emitter, Manager};
+
+/// 原生窗口底色：WebView 提交 HTML 前露出的那一帧。
+///
+/// 主题存 `app_config_dir/window-theme`（`dark` / `light`），启动时在 show 之前
+/// 套用；前端切换主题时经 `window_set_theme` 同步并落盘。默认暗色。
+const WINDOW_THEME_FILE: &str = "window-theme";
+
+/// 与 `index.html` 内联首帧底色、`base.css` 的 `--bg` 一一对应。
+fn window_bg_color(theme: &str) -> tauri::utils::config::Color {
+    match theme.trim() {
+        "light" => tauri::utils::config::Color(0xec, 0xef, 0xf3, 0xff),
+        _ => tauri::utils::config::Color(0x12, 0x12, 0x12, 0xff),
+    }
+}
+
+pub(crate) fn read_window_theme(app: &tauri::AppHandle) -> String {
+    app.path()
+        .app_config_dir()
+        .ok()
+        .and_then(|dir| std::fs::read_to_string(dir.join(WINDOW_THEME_FILE)).ok())
+        .unwrap_or_default()
+}
+
+/// 前端切换主题时同步原生窗口底色，并落盘供下次启动在 show 前套用。
+#[tauri::command(async)]
+fn window_set_theme(app: tauri::AppHandle, theme: String) {
+    if theme != "light" && theme != "dark" {
+        return;
+    }
+    if let Ok(dir) = app.path().app_config_dir() {
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join(WINDOW_THEME_FILE);
+        if std::fs::read_to_string(&path).unwrap_or_default() != theme {
+            let _ = std::fs::write(&path, &theme);
+        }
+    }
+    let color = window_bg_color(&theme);
+    for (_, window) in app.webview_windows() {
+        let _ = window.set_background_color(Some(color));
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -64,6 +107,9 @@ pub fn run() {
         .manage(governance::GovernanceState::default())
         .setup(|app| {
             let handle = app.handle().clone();
+            // 启动阶段打点：卡顿出在磁盘读取、连接器握手还是能力扫描，靠毫秒数定位。
+            let boot = std::time::Instant::now();
+            let mark = |stage: &str| eprintln!("[boot] {stage} {}ms", boot.elapsed().as_millis());
             governance::load(&handle, &app.state::<governance::GovernanceState>());
             projects::load(&handle, &app.state::<ProjectsState>());
             // 运行记录元数据（置顶/重命名/归档/删除）在磁盘上，启动时读回，
@@ -75,9 +121,14 @@ pub fn run() {
             // 后台偏好先于调度线程：托盘状态行与暂停开关要用到它。
             background::load(&handle, &app.state::<background::BackgroundState>());
             background::setup_tray(&handle)?;
+            mark("store+tray");
             // 窗口默认不可见：登录项启动只驻留托盘；手动启动在 setup 里显式 show，
             // 两条路径都不会出现「先闪一下再隐藏」。
             if let Some(window) = handle.get_webview_window("main") {
+                // 创建时的底色来自 tauri.conf.json（暗色）；上次主题是亮色时在 show
+                // 之前换成亮底，WebView 接管前的那一帧不再是默认白。
+                let _ =
+                    window.set_background_color(Some(window_bg_color(&read_window_theme(&handle))));
                 if std::env::args().any(|a| a == "--autostart") {
                     let _ = window.hide();
                 } else {
@@ -85,56 +136,70 @@ pub fn run() {
                 }
             }
             proactive::start(handle.clone());
+            mark("proactive-start");
             mcp::load(&handle, &app.state::<McpState>());
             // 连接器定义在磁盘上，但运行时（进程 + 握手结果）只存在于内存，
             // 不恢复的话每次重启应用，列表里明明在的连接器都停在 Disabled。
             let connector_state = app.state::<ConnectorRuntimeState>();
             *connector_state.store.lock().unwrap() = connectors::load_store(&handle);
             connectors::restore(&handle, &connector_state, &app.state::<McpState>());
+            mark("connectors-restore");
             // 资料库的资产表在磁盘上，启动时读回来；
             // 检索文本不恢复（它是产物，用到时按原件重算）。
-            *app.state::<LibraryState>().store.lock().unwrap() =
-                library::load_store(&handle);
+            *app.state::<LibraryState>().store.lock().unwrap() = library::load_store(&handle);
             // 扩展默认文件从资源/源码同步到可写的 app_config_dir，
             // 这样 dev 和 prod 的读取位置一致，也不会因应用包只读导致安装失败。
             if let Err(e) = extensions::seed_defaults(&handle) {
                 eprintln!("扩展默认文件同步失败: {}", e);
             }
-            match capabilities::CapabilityManifest::discover() {
-                Some(m) => {
-                    println!(
-                        "能力清单已加载：技能目录 {} 个，内置工具 {} 个，扩展 {} 个",
-                        m.skills.dirs.len(),
-                        m.tools.builtin.len(),
-                        m.extensions.len()
-                    );
-                    if let Some(pinned) = m
-                        .kernel
-                        .as_ref()
-                        .and_then(|k| k.pi_version.as_deref())
-                        .map(|v| v.to_string())
-                    {
-                        check_pi_version(&pinned);
+            mark("library+ext-seed");
+            // 能力清单与版本自检只产出日志，不参与任何运行时决策。
+            // discover 要遍历目录，check_pi_version 还要起一次 `pi --version` 子进程
+            // （实测 ~170ms），放在 setup 里就是白等首帧。挪到后台线程。
+            std::thread::spawn(move || {
+                match capabilities::CapabilityManifest::discover() {
+                    Some(m) => {
+                        println!(
+                            "能力清单已加载：技能目录 {} 个，内置工具 {} 个，扩展 {} 个",
+                            m.skills.dirs.len(),
+                            m.tools.builtin.len(),
+                            m.extensions.len()
+                        );
+                        if let Some(pinned) = m
+                            .kernel
+                            .as_ref()
+                            .and_then(|k| k.pi_version.as_deref())
+                            .map(|v| v.to_string())
+                        {
+                            check_pi_version(&pinned);
+                        }
+                    }
+                    None => {
+                        // 清单缺失只影响「能力 → 提供方」的可追溯性，不阻塞启动。
+                        println!("提示：未找到 pi-manifest.json，能力清单退化为内置默认值");
                     }
                 }
-                None => {
-                    // 清单缺失只影响「能力 → 提供方」的可追溯性，不阻塞启动。
-                    println!("提示：未找到 pi-manifest.json，能力清单退化为内置默认值");
-                }
-            }
+                eprintln!("[boot] capabilities(background) done");
+            });
+            mark("setup-done");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             pi_bridge::pi_start,
             pi_bridge::pi_restart,
+            pi_bridge::pi_new_session,
             pi_bridge::pi_call,
             pi_bridge::pi_send,
+            pi_bridge::pi_note_user,
             pi_bridge::pi_stop,
             pi_bridge::pi_status,
             pi_bridge::pi_doctor,
             pi_bridge::pi_ui_response,
             pi_bridge::pi_journal_read,
             pi_bridge::pi_journal_sessions,
+            journal_audit::journal_check,
+            journal_audit::journal_repair_preview,
+            journal_audit::journal_repair_apply,
             pi_bridge::checkpoint_begin_turn,
             pi_bridge::checkpoint_rewind,
             governance::governance_get,
@@ -209,6 +274,10 @@ pub fn run() {
             library::library_search,
             library::library_open,
             library::library_bytes,
+            library::library_archive_session,
+            library::library_archive_retry,
+            library::library_archive_failures,
+            library::library_archive_dismiss,
             experts::experts_list,
             experts::expert_draft_load,
             experts::expert_draft_save,
@@ -216,6 +285,9 @@ pub fn run() {
             experts::expert_request_confirmation,
             experts::expert_confirm,
             experts::expert_publish,
+            experts::expert_delete,
+            experts::expert_import_preview,
+            experts::expert_import_apply,
             roles::role_list,
             roles::role_set,
             roles::role_current,
@@ -231,6 +303,7 @@ pub fn run() {
             models::settings_save,
             models::settings_test_model,
             agent_ops::agent_teams_list,
+            agent_ops::agent_team_runs,
             agent_ops::agent_memory_list,
             agent_ops::agent_memory_trash,
             agent_ops::agent_memory_forget,
@@ -241,6 +314,9 @@ pub fn run() {
             agent_ops::agent_skillpool_list,
             agent_ops::agent_browser_status,
             agent_ops::agent_team_create,
+            agent_ops::agent_team_update,
+            agent_ops::agent_team_delete,
+            agent_ops::agent_team_cancel,
             agent_ops::agent_memory_store,
             agent_ops::agent_skill_publish,
             agent_ops::agent_browser_open,
@@ -262,6 +338,7 @@ pub fn run() {
             background::background_set_paused,
             background::background_resolve_close,
             background::tray_relocalize,
+            window_set_theme,
         ])
         .on_window_event(|window, event| {
             let tauri::WindowEvent::CloseRequested { api, .. } = event else {
