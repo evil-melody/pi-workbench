@@ -9,7 +9,7 @@ import AppModal from '@/components/ui/AppModal.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import RunBulkBar from './RunBulkBar.vue'
 import RunHistoryMenu from './RunHistoryMenu.vue'
-import { listRunHistory, type RunRecord } from '@/composables/useReplay'
+import { activeReplayIndex, listRunHistory, type RunRecord } from '@/composables/useReplay'
 import { useRunActivity } from '@/composables/useRunActivity'
 import { useRunMeta, type RunMetaPatch } from '@/composables/useRunMeta'
 import { allSelected, selectAll, toggleSelected } from '@/utils/runSelection'
@@ -329,9 +329,11 @@ function openMenu(r: RunRecord, el: Event) {
             pinned: r.pinned,
             archived: r.archived,
             checked: bulkMode && selected.includes(r.index),
+            selected: activeReplayIndex === r.index,
           }"
           role="button"
           tabindex="0"
+          :aria-current="activeReplayIndex === r.index ? 'true' : undefined"
           :title="titleOf(r)"
           @click="onRowClick(r)"
           @keydown.enter="onRowClick(r)"
@@ -343,7 +345,9 @@ function openMenu(r: RunRecord, el: Event) {
             label=""
             @update:model-value="toggleSelect(r.index)"
           />
-          <AppIcon v-if="r.pinned" class="rh-pin" name="star" :size="12" />
+          <span class="rh-lead">
+            <AppIcon v-if="r.pinned" class="rh-pin" name="star" :size="12" />
+          </span>
           <span class="rh-title">{{ titleOf(r) }}</span>
           <span class="rh-meta">
             <span
@@ -355,7 +359,6 @@ function openMenu(r: RunRecord, el: Event) {
             >
               <AppIcon name="spinner" :size="12" />
             </span>
-            <span v-if="r.prompts" class="rh-prompts">{{ t('{0} 轮', [r.prompts]) }}</span>
             <span class="rh-time">{{ timeOf(r) }}</span>
           </span>
           <AppButton

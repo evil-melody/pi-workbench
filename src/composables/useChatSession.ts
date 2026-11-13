@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { activeReplayIndex } from './useReplay'
 
 /**
  * 对话轮次计数。
@@ -10,5 +11,7 @@ import { ref } from 'vue'
 export const chatEpoch = ref(0)
 
 export function startNewSession() {
+  // 新会话不再指向任何历史段，侧栏的选中高亮随之清掉。
+  activeReplayIndex.value = null
   chatEpoch.value += 1
 }

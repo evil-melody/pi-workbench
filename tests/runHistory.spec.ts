@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, h, nextTick, type App } from 'vue'
 import RunHistory from '@/components/chat/RunHistory.vue'
+import { activeReplayIndex } from '@/composables/useReplay'
 
 /**
  * 运行记录列表的真实挂载用例：
@@ -153,11 +154,29 @@ describe('RunHistory', () => {
     expect(list[0].querySelector('.rh-title')!.textContent).toBe('修复登录页样式')
     expect(list[0].querySelector('.rh-pin')).not.toBeNull()
     expect(list[1].querySelector('.rh-pin')).toBeNull()
-    expect(list[0].textContent).toContain('3 轮')
+    // 行内只留标题 + 相对时间：轮数不再作为第二处次级信息挤占标题宽度
+    expect(list[0].textContent).not.toContain('轮')
     const archivedBtn = [...host.querySelectorAll<HTMLButtonElement>('.rh-more')].find((b) =>
       b.textContent?.includes('查看归档'),
     )
     expect(archivedBtn?.textContent).toContain('1')
+  })
+
+  it('当前会话行：selected 标记与 aria-current 只落在对应段', async () => {
+    const { host } = mountRunHistory()
+    await flush()
+
+    activeReplayIndex.value = 1
+    await nextTick()
+    const list = rows(host)
+    expect(list[1].classList.contains('selected')).toBe(true)
+    expect(list[1].getAttribute('aria-current')).toBe('true')
+    expect(list[0].classList.contains('selected')).toBe(false)
+    expect(list[0].getAttribute('aria-current')).toBeNull()
+
+    activeReplayIndex.value = null
+    await nextTick()
+    expect(rows(host).some((r) => r.classList.contains('selected'))).toBe(false)
   })
 
   it('「···」菜单全量项与顺序（对齐 WorkBuddy），删除是危险项', async () => {

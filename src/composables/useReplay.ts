@@ -13,6 +13,13 @@ import { applyEvent, emptyUsageState, type EventCtx } from '@/composables/piEven
 export const pendingReplayIndex = ref<number | null>(null)
 
 /**
+ * 侧栏会话行的「当前会话」标记：点开哪条回放就记哪条。
+ * 段号来自 journal（全局唯一），列表按目录过滤后不会误命中别的项目。
+ * 新会话开始（useChatSession.startNewSession）时清空。
+ */
+export const activeReplayIndex = ref<number | null>(null)
+
+/**
  * A4/G4 崩溃重放与会话持久化：从 B2 journal（`pi_journal_read` 读回的
  * `pi://event` 审计流）重建会话转写。journal 每条事件都带 enrich 后的
  * seq/ts 锚点，按序喂给与实时通道同一套 `applyEvent` 折算——重放与实况

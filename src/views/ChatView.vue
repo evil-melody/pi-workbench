@@ -318,7 +318,12 @@ import {
   importConversation,
   type ConvMessage,
 } from '@/composables/useConversationIO'
-import { loadReplay, parseReplayQuery, pendingReplayIndex } from '@/composables/useReplay'
+import {
+  activeReplayIndex,
+  loadReplay,
+  parseReplayQuery,
+  pendingReplayIndex,
+} from '@/composables/useReplay'
 import { buildExecPrompt, withPlanInstruction } from '@/utils/planMode'
 import { attachmentIcon, attachmentMeta } from '@/utils/attachmentMeta'
 import { useRunFocus } from '@/composables/useRunFocus'
@@ -1152,6 +1157,7 @@ async function openRunRecord(index: number) {
     }
     replayDone = true
     messages.value = rep.messages
+    activeReplayIndex.value = index
     traceLog('history:open', String(index))
   } finally {
     loadingHistory.value = false
