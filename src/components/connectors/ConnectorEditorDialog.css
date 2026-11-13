@@ -67,8 +67,11 @@
   cursor: pointer;
 }
 
-.ce-btn:hover {
-  border-color: var(--fg-dim, var(--text-dim));
+@media (hover: hover) {
+
+  .ce-btn:hover {
+    border-color: var(--fg-dim, var(--text-dim));
+}
 }
 
 .ce-btn.primary {
@@ -77,6 +80,9 @@
   color: var(--accent-ink);
 }
 
-.ce-btn.primary:hover {
-  filter: brightness(0.92);
+@media (hover: hover) {
+
+  .ce-btn.primary:hover {
+    filter: brightness(0.92);
+}
 }

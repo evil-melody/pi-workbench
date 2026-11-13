@@ -106,10 +106,10 @@ onMounted(refresh)
       </li>
     </ul>
 
-    <div v-else class="aops-empty">
-      <AppIcon name="layers" :size="36" />
-      <strong>{{ t('市场池还是空的') }}</strong>
-      <span class="muted">{{ t('点「发布技能」沉淀第一个可复用能力，或在对话里用') }}<code>/skills-market</code>{{ t('查看。') }}</span>
+    <div v-else class="empty-state">
+      <div class="empty-icon"><AppIcon name="layers" :size="20" /></div>
+      <p class="empty-title">{{ t('市场池还是空的') }}</p>
+      <p class="empty-hint">{{ t('点「发布技能」沉淀第一个可复用能力，或在对话里用') }}<code>/skills-market</code>{{ t('查看。') }}</p>
     </div>
 
     <AppModal :open="dialog" :title="t('发布技能')" size="md" @close="dialog = false">

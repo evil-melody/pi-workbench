@@ -56,8 +56,11 @@
   font-size: var(--fs-meta);
 }
 
-.tinput:hover:not(:disabled) {
-  border-color: transparent;
+@media (hover: hover) {
+
+  .tinput:hover:not(:disabled) {
+    border-color: transparent;
+}
 }
 
 .tinput:focus {
@@ -104,9 +107,12 @@
   cursor: pointer;
 }
 
-.term-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .term-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 .out-empty {

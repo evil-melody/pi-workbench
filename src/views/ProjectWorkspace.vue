@@ -396,7 +396,8 @@ onMounted(refresh)
       <span class="pw-icon"><AppIcon name="folder" :size="20" /></span>
       <div class="pw-title">
         <strong :title="app.name">{{ app.name }}</strong>
-        <small :title="app.description || t('暂无描述')">{{ app.description || t('暂无描述') }}</small>
+        <!-- 没有描述就不占一行：空项目不再显示「暂无描述」这句填充文案。 -->
+        <small v-if="app.description" :title="app.description">{{ app.description }}</small>
       </div>
       <!-- 模式切换器常驻头部：进入工作台不消失，与对话页共用同一份档位。 -->
       <ModeSwitcher :model-value="thinkingLevel" width="auto" @update:model-value="setThinkingMode" />
@@ -413,7 +414,7 @@ onMounted(refresh)
           {{ pickingDir ? t('选择中…') : t('选择目录') }}
         </AppButton>
       </span>
-      <span class="pw-chip pw-chip-muted">{{ t('更新于 {0}', [stamp(app.updated_at)]) }}</span>
+      <span v-if="stamp(app.updated_at)" class="pw-chip pw-chip-muted">{{ t('更新于 {0}', [stamp(app.updated_at)]) }}</span>
     </div>
 
     <p v-if="errorText" class="pw-error">{{ errorText }}</p>
@@ -442,7 +443,7 @@ onMounted(refresh)
       <div v-if="tab === 'config'" class="pw-pane">
         <div class="pw-budget" :class="usageLevel">
           <div class="pw-budget-head">
-            <b>{{ t('项目指令') }}</b>
+            <b>{{ t('指令预算') }}</b>
             <span>{{ usage?.tokens ?? 0 }} / {{ usage?.budget ?? 0 }} tokens</span>
           </div>
           <div class="pw-bar"><i :style="{ '--budget-w': usagePercent + '%' }" /></div>

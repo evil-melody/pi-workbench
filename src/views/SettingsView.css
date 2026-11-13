@@ -3,7 +3,9 @@
 .settings-body {
   flex: 1;
   display: flex;
-  min-height: 0;
+  /* 各分区内容长短差很大；定个下限，切页时对话框不再上下跳。
+     420 在「通用」页只剩一个字段时留下过半空白，收到 360。 */
+  min-height: min(360px, calc(100dvh - 160px));
   color: var(--text);
 }
 
@@ -12,9 +14,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-  padding: var(--sp-4);
+  padding: var(--pad-card);
   border: 1px solid var(--border);
-  border-radius: var(--r);
+  border-radius: var(--r-lg);
   background: var(--bg-panel);
   max-width: 640px;
 }
@@ -73,15 +75,18 @@
   transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
-.settings-tabs button:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .settings-tabs button:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
+/* 选中只换填充与墨色：改字重会改变标签宽度，切换时整排横向跳动。 */
 .settings-tabs button.active {
   background: var(--bg-active);
   color: var(--text);
-  font-weight: var(--fw-semibold);
 }
 
 .settings-main {
@@ -99,7 +104,7 @@
 }
 
 .section-desc {
-  margin: 0 0 var(--sp-5);
+  margin: 0 0 var(--sp-4);
   font-size: var(--fs-md);
   color: var(--text-dim);
   line-height: var(--lh-body);
@@ -111,6 +116,7 @@
   padding: var(--pad-card);
   border: var(--stroke);
   border-radius: var(--r-lg);
+  background: var(--bg-panel);
 }
 
 .kernel-head {
@@ -120,17 +126,14 @@
   margin-bottom: var(--sp-3);
 }
 
-/* 表单型选择器：与输入框同高同圆角（头部内联的 28px 紧凑档不受影响）。 */
+/* 表单型选择器：宽度跟随所在列，与同列输入框同宽，不再单独卡 420。 */
 .settings-main :deep(.app-select) {
   width: 100%;
-  max-width: 420px;
 }
 
+/* 基座（高 / 内衬 / 圆角）由 AppSelect 统一提供；这里只放宽宽度与字号。 */
 .settings-main :deep(.app-select .trigger) {
   width: 100%;
-  height: var(--row-h);
-  padding: 0 var(--sp-3);
-  border-radius: var(--r);
   font-size: var(--fs-md);
 }
 
@@ -146,15 +149,15 @@
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 18px;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
 }
 
 .field {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: var(--sp-1);
 }
 
 .field > span:first-child {
@@ -167,20 +170,42 @@
   grid-column: span 2;
 }
 
+/* 通用页的两个单行字段直接挂在 section 下（不在 form-grid 里），
+   补上与网格一致的 16 节奏，避免上一行的控件和下一行复选框贴成 0。 */
+.settings-section > .field + .field {
+  margin-top: var(--sp-4);
+}
+
+/* 单字段分区（通用 → 界面语言）：标签与控件同一行，不再竖向撑高一行只放一个下拉。 */
+.field.inline {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  max-width: 640px;
+}
+
+/* 标签列不参与收缩：「界面语言」在 496px 行里被挤成两行（36px 高），控件仍是 36px。 */
+.field.inline > span:first-child {
+  white-space: nowrap;
+}
+
 .password-row {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 
 .password-row .app-input {
   flex: 1;
 }
 
+/* 与并排输入框同高：34px 会让这一行比上面的输入框矮 2px，右缘也跟着错位。 */
 .eye-btn {
-  width: 34px;
-  height: 34px;
+  width: var(--row-h);
+  height: var(--row-h);
+  padding: 0;
   display: grid;
   place-items: center;
   flex-shrink: 0;
@@ -192,54 +217,29 @@
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
-.eye-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .eye-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+    border-color: var(--border-strong);
+}
 }
 
 .form-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
 }
 
-.tool-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  background: var(--bg-elev);
-  color: var(--text);
-  font-size: var(--fs-ui);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+/* 内核卡里按钮紧贴输入框下边框（间距 0）：补 8，模型卡不受影响。 */
+.kernel-card .form-actions {
+  margin-top: var(--sp-2);
 }
 
-.tool-btn:hover {
-  background: var(--bg-hover);
-  border-color: var(--border-strong);
-}
+/* 工具条按钮统一由 AppButton 变体决定，页面不再重定义 .tool-btn。 */
 
-.tool-btn.primary {
-  background: var(--accent);
-  border-color: transparent;
-  color: var(--accent-ink);
-}
-
-.tool-btn.primary:hover {
-  filter: brightness(1.06);
-}
-
-.tool-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
 
 .form-message {
   margin: 0;
@@ -258,8 +258,8 @@
 .models-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 16px;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
 }
 
 .model-card {
@@ -270,8 +270,11 @@
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
-.model-card:hover {
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .model-card:hover {
+    border-color: var(--border-strong);
+}
 }
 
 .model-card.default {
@@ -279,13 +282,27 @@
   box-shadow: 0 0 0 2px var(--accent-dim);
 }
 
+/* 表头与折叠区的左右内衬对齐内核卡片（16），卡片内文字列才不会与上方错 2px。 */
 .model-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--pad-card);
   cursor: pointer;
   user-select: none;
+  /* 可展开的表头：hover 一档、按下再一档，键盘焦点用全局外环。 */
+  transition: background-color var(--dur-fast) var(--ease);
+}
+
+@media (hover: hover) {
+
+  .model-header:hover {
+    background: var(--bg-hover);
+}
+}
+
+.model-header:active {
+  background: var(--bg-active);
 }
 
 .model-title {
@@ -315,7 +332,7 @@
 .model-badges {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--sp-2);
   flex-shrink: 0;
 }
 
@@ -363,16 +380,22 @@
   justify-content: center;
 }
 
-.icon-btn:hover:not(:disabled) {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) {
+
+  .icon-btn:hover:not(:disabled) {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+}
 }
 
-.icon-btn.danger:hover:not(:disabled) {
-  background: var(--danger-soft);
-  border-color: var(--danger);
-  color: var(--danger);
+@media (hover: hover) {
+
+  .icon-btn.danger:hover:not(:disabled) {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+    color: var(--danger);
+}
 }
 
 .icon-btn:disabled {
@@ -381,57 +404,24 @@
 }
 
 .model-body {
-  padding: 4px 14px 14px;
+  padding: var(--sp-1) var(--pad-card) var(--sp-4);
   border-top: 1px solid var(--border);
 }
 
-/* Empty state */
-.market-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 32px 20px;
-  margin-bottom: 16px;
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--r-lg);
-  background: var(--bg-elev);
-  text-align: center;
-}
-
-.market-empty .empty-icon {
-  display: grid;
-  place-items: center;
-  width: 56px;
-  height: 56px;
-  border-radius: var(--r-xl);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.market-empty strong {
-  font-size: var(--fs-body);
-  color: var(--text);
-}
-
-.market-empty .muted {
-  font-size: var(--fs-meta);
-  color: var(--text-dim);
-}
+/* 空态统一由 ui-kit.css 的 .empty-state 提供（唯一实现）。 */
 
 /* Tools */
 .tools-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 
 .tool-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
   border-radius: var(--r);
   border: 1px solid var(--border);
   background: var(--bg-panel);
@@ -442,26 +432,33 @@
   color: var(--text-dim);
 }
 
-/* About */
+/* About: 四项版本信息收进一个容器，行间 hairline */
 .about-cards {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  max-width: 640px;
+  border: var(--stroke);
+  border-radius: var(--r-lg);
+  background: var(--bg-panel);
+  overflow: hidden;
 }
 
 .about-card {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 14px;
-  border-radius: var(--r-lg);
-  border: 1px solid var(--border);
-  background: var(--bg-panel);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+}
+
+.about-card + .about-card {
+  border-top: 1px solid var(--border-soft);
 }
 
 .about-label {
-  font-size: var(--fs-micro);
-  color: var(--text-faint);
+  flex-shrink: 0;
+  font-size: var(--fs-meta);
+  color: var(--text-dim);
   font-weight: 600;
 }
 

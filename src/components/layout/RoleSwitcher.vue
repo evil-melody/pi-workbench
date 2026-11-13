@@ -4,7 +4,7 @@
       :model-value="currentId"
       :options="options"
       :disabled="applying"
-      :placeholder="t('选择专家角色')"
+      :placeholder="t('角色')"
       :width="width ?? '180px'"
       @update:model-value="onPick"
     />

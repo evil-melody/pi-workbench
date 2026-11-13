@@ -81,9 +81,12 @@
   transition: opacity var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
-.collapse:hover {
-  color: var(--text);
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .collapse:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+}
 }
 
 /* ── New Chat ───────────────────────────────────────────────── */
@@ -105,9 +108,12 @@
   transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
-.new-chat:hover {
-  background: var(--bg-active);
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .new-chat:hover {
+    background: var(--bg-active);
+    border-color: var(--border-strong);
+}
 }
 
 .sidebar.collapsed .new-chat {
@@ -162,9 +168,17 @@
   flex: 0 0 auto;
 }
 
-.nav-item:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .nav-item:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+}
+
+/* 按下与选中同色：整站可点行只有 hover（浅一档）/ selected（深一档）两级填充。 */
+.nav-item:active {
+  background: var(--bg-active);
 }
 
 .nav-item.active {
@@ -243,9 +257,12 @@
   border-radius: var(--r-sm);
 }
 
-.ws-actions button:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .ws-actions button:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 .ws-list {
@@ -270,9 +287,16 @@
   transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
-.ws-list li:not(.ws-runs):hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .ws-list li:not(.ws-runs):hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+}
+
+.ws-list li:not(.ws-runs):active {
+  background: var(--bg-active);
 }
 
 .ws-list li.active {
@@ -295,9 +319,12 @@
   cursor: pointer;
 }
 
-.ws-caret:hover {
-  color: var(--text);
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .ws-caret:hover {
+    color: var(--text);
+    background: var(--bg-hover);
+}
 }
 
 .ws-caret :deep(svg),
@@ -372,21 +399,38 @@
   transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
 }
 
-.ws-list li:hover .ws-more,
 .ws-more:focus-visible {
   opacity: 1;
 }
 
-.ws-more:hover {
-  background: var(--bg-elev);
-  color: var(--text);
+@media (hover: hover) {
+
+  .ws-list li:hover .ws-more {
+    opacity: 1;
+}
 }
 
-.ws-open:hover,
+@media (hover: hover) {
+
+  .ws-more:hover {
+    background: var(--bg-elev);
+    color: var(--text);
+}
+}
+
 .ws-open:focus-visible {
   opacity: 1;
   background: var(--bg-elev);
   color: var(--text);
+}
+
+@media (hover: hover) {
+
+  .ws-open:hover {
+    opacity: 1;
+    background: var(--bg-elev);
+    color: var(--text);
+}
 }
 
 .ws-list li.ws-empty {
@@ -411,9 +455,12 @@
   border-radius: var(--r);
 }
 
-.main-nav.compact button:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .main-nav.compact button:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 /* ── Footer ─────────────────────────────────────────────────── */
@@ -471,9 +518,16 @@
   padding: 8px;
 }
 
-.settings:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .settings:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+}
+
+.settings:active {
+  background: var(--bg-active);
 }
 
 /* ── 项目菜单配套：弹窗内表单与按钮（AppModal footer 用）────── */
@@ -508,9 +562,12 @@
   transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 
-.ws-btn:hover {
-  color: var(--text);
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .ws-btn:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+}
 }
 
 .ws-btn.primary {
@@ -520,9 +577,12 @@
   font-weight: 600;
 }
 
-.ws-btn.primary:hover {
-  background: color-mix(in srgb, var(--accent) 85%, black);
-  color: var(--accent-ink);
+@media (hover: hover) {
+
+  .ws-btn.primary:hover {
+    background: color-mix(in srgb, var(--accent) 85%, black);
+    color: var(--accent-ink);
+}
 }
 
 .ws-btn.danger {
@@ -532,9 +592,12 @@
   font-weight: 600;
 }
 
-.ws-btn.danger:hover {
-  background: color-mix(in srgb, var(--danger) 85%, black);
-  color: #fff;
+@media (hover: hover) {
+
+  .ws-btn.danger:hover {
+    background: color-mix(in srgb, var(--danger) 85%, black);
+    color: #fff;
+}
 }
 
 /* ── 关于弹窗内的键值表 ────────────────────────────────────── */

@@ -7,8 +7,11 @@
   cursor: pointer;
 }
 
-.node:hover {
-  background: var(--bg-elev);
+@media (hover: hover) {
+
+  .node:hover {
+    background: var(--bg-elev);
+}
 }
 
 .tw {

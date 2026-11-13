@@ -91,8 +91,8 @@ const CAP_OPTIONS = computed(() =>
 function apply(s: ProactiveSnapshot) {
   jobs.value = s.jobs
   inbox.value = s.inbox
-  runningJob.value = s.runningJob
-  grantUsage.value = s.grantUsage ?? null
+  runningJob.value = s.running_job
+  grantUsage.value = s.grant_usage ?? null
 }
 
 async function refresh() {
@@ -164,7 +164,7 @@ async function submitCreate() {
         title: draftTitle.value.trim(),
         prompt: draftPrompt.value.trim(),
         cwd: project.path,
-        intervalSecs: Number(draftInterval.value),
+        interval_secs: Number(draftInterval.value),
       }),
     )
     createOpen.value = false
@@ -206,8 +206,8 @@ const grantError = ref('')
 
 function openGrant(job: ProactiveJob) {
   grantJob.value = job
-  grantBash.value = job.grant.bashAllow.join('\n')
-  grantCap.value = String(job.grant.maxToolCalls)
+  grantBash.value = job.grant.bash_allow.join('\n')
+  grantCap.value = String(job.grant.max_tool_calls)
   grantError.value = ''
   grantOpen.value = true
 }
@@ -215,7 +215,7 @@ function openGrant(job: ProactiveJob) {
 /** 当前任务的风险动作额度用量（只在该任务有一次运行记录时展示）。 */
 function usageFor(job: ProactiveJob): GrantUsage | null {
   const usage = grantUsage.value
-  return usage && usage.jobId === job.id ? usage : null
+  return usage && usage.job_id === job.id ? usage : null
 }
 
 const grantUsageNow = computed(() =>
@@ -278,11 +278,11 @@ async function openItem(item: InboxItem) {
   if (!item.read) {
     await act(`read-${item.id}`, () => markRead(item.id, true))
   }
-  highlightJob.value = item.jobId
-  const el = document.querySelector(`[data-job="${item.jobId}"]`)
+  highlightJob.value = item.job_id
+  const el = document.querySelector(`[data-job="${item.job_id}"]`)
   el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   window.setTimeout(() => {
-    if (highlightJob.value === item.jobId) highlightJob.value = ''
+    if (highlightJob.value === item.job_id) highlightJob.value = ''
   }, 2400)
 }
 
@@ -293,7 +293,7 @@ function intervalLabel(secs: number) {
 /** 下次触发是未来时间，不能用「N 分钟前」，这里单独算正向差值。 */
 function nextLabel(job: ProactiveJob) {
   if (!job.enabled) return t('已暂停')
-  const diff = job.nextAt - Date.now()
+  const diff = job.next_at - Date.now()
   if (diff <= 0) return t('即将执行')
   const min = Math.round(diff / 60_000)
   if (min < 1) return t('不到 1 分钟后')
@@ -304,10 +304,10 @@ function nextLabel(job: ProactiveJob) {
 }
 
 function grantLabel(job: ProactiveJob) {
-  const bash = job.grant.bashAllow.length
-    ? t('bash 白名单 {0} 条', [job.grant.bashAllow.length])
+  const bash = job.grant.bash_allow.length
+    ? t('bash 白名单 {0} 条', [job.grant.bash_allow.length])
     : t('bash 风险命令默认拒绝')
-  return t('{0} · 写入限于项目目录 · 单次 ≤ {1} 次风险动作', [bash, job.grant.maxToolCalls])
+  return t('{0} · 写入限于项目目录 · 单次 ≤ {1} 次风险动作', [bash, job.grant.max_tool_calls])
 }
 
 /** 通知点击或被跳转过来时，定位到 `?job=` 指定的任务，并顺带把对应收件条目标已读。 */
@@ -350,7 +350,7 @@ onMounted(() => {
     <header class="ib-head">
       <div>
         <h1>{{ t('收件箱') }}</h1>
-        <p>{{ t('定时任务产出的结论与失败告警都落在这里。未读 {0} 条。', [unread]) }}</p>
+        <p>{{ t('定时任务产出的结论与失败告警都落在这里。') }}</p>
       </div>
       <div class="ib-head-actions">
         <AppButton variant="secondary" class="ib-btn" :disabled="!unread || busy !== ''" @click="act('read-all', markAllRead)">
@@ -367,36 +367,50 @@ onMounted(() => {
     <p v-if="loadError" class="ib-error" role="alert">{{ loadError }}</p>
     <p v-if="notice" class="ib-ok" role="status">{{ notice }}</p>
 
-    <section class="ib-section">
-      <h2>{{ t('收件箱') }}</h2>
-      <p v-if="loading" class="load-state">{{ t('正在加载收件箱…') }}</p>
+    <section class="ib-panel">
+      <header class="ib-panel-head">
+        <h2>{{ t('全部产物') }}</h2>
+        <span v-if="inbox.length" class="ib-panel-count">
+          {{ unread ? t('未读 {0} / 共 {1}', [unread, inbox.length]) : t('共 {0} 条', [inbox.length]) }}
+        </span>
+      </header>
+      <p v-if="loading" class="load-state ib-panel-body">{{ t('正在加载收件箱…') }}</p>
       <ul v-else-if="inbox.length" class="ib-list">
         <li
           v-for="item in inbox"
           :key="item.id"
           class="ib-item"
           :class="{ unread: !item.read, failure: item.kind === 'failure' }"
+          role="button"
+          tabindex="0"
           @click="openItem(item)"
+          @keydown.enter="openItem(item)"
+          @keydown.space.prevent="openItem(item)"
         >
           <span class="ib-dot" aria-hidden="true"></span>
           <div class="ib-item-main">
             <div class="ib-item-top">
               <span class="ib-item-title" :title="item.title">{{ item.title }}</span>
-              <span class="ib-item-time">{{ timeAgo(item.createdAt) }}</span>
+              <span class="ib-item-time">{{ timeAgo(item.created_at) }}</span>
             </div>
             <p class="ib-item-body" :title="item.body">{{ item.body }}</p>
           </div>
         </li>
       </ul>
       <div v-else-if="!loading" class="ib-empty">
-        <span class="empty-icon"><AppIcon name="inbox" :size="18" /></span>
-        <p class="empty-title">{{ t('还没有产物') }}</p>
-        <p class="empty-hint">{{ t('新建一个定时任务，跑完后结果会自动进这里。') }}</p>
+        <span class="ib-empty-icon"><AppIcon name="inbox" :size="16" /></span>
+        <p>
+          <strong>{{ t('还没有产物') }}</strong>
+          <span>{{ t('新建定时任务，跑完自动归档到这里。') }}</span>
+        </p>
       </div>
     </section>
 
-    <section class="ib-section">
-      <h2>{{ t('定时任务') }}</h2>
+    <section class="ib-panel">
+      <header class="ib-panel-head">
+        <h2>{{ t('定时任务') }}</h2>
+        <span v-if="jobs.length" class="ib-panel-count">{{ t('{0} 个', [jobs.length]) }}</span>
+      </header>
       <ul v-if="jobs.length" class="ib-jobs">
         <li
           v-for="job in jobs"
@@ -413,7 +427,7 @@ onMounted(() => {
               <span v-if="job.status === 'running'" class="ib-chip st-locked">{{ t('预授权已锁') }}</span>
             </div>
             <div class="ib-job-meta">
-              <span>{{ intervalLabel(job.intervalSecs) }}</span>
+              <span>{{ intervalLabel(job.interval_secs) }}</span>
               <span>{{ nextLabel(job) }}</span>
               <span :title="job.cwd">{{ job.cwd }}</span>
             </div>
@@ -432,7 +446,7 @@ onMounted(() => {
                 ></div>
               </div>
             </div>
-            <p v-if="job.lastError" class="ib-job-error">{{ job.lastError }}</p>
+            <p v-if="job.last_error" class="ib-job-error">{{ job.last_error }}</p>
           </div>
           <div class="ib-job-actions">
             <AppButton
@@ -480,9 +494,11 @@ onMounted(() => {
         </li>
       </ul>
       <div v-else-if="!loading" class="ib-empty">
-        <span class="empty-icon"><AppIcon name="clock" :size="18" /></span>
-        <p class="empty-title">{{ t('还没有定时任务') }}</p>
-        <p class="empty-hint">{{ t('主动服务的第一条闭环从这里开始。') }}</p>
+        <span class="ib-empty-icon"><AppIcon name="clock" :size="16" /></span>
+        <p>
+          <strong>{{ t('还没有定时任务') }}</strong>
+          <span>{{ t('让 PI 按周期自己跑一轮，结果回到上方产物。') }}</span>
+        </p>
       </div>
     </section>
 
@@ -534,7 +550,7 @@ onMounted(() => {
         </label>
         <div class="ib-grant-root">
           <span>{{ t('写入根（固定为项目目录）') }}</span>
-          <code>{{ grantJob?.grant.writeRoots.join('、') || t('无') }}</code>
+          <code>{{ grantJob?.grant.write_roots.join('、') || t('无') }}</code>
         </div>
         <p class="ib-note">{{ t('越界命令和越界写入会直接 block 并记入审计日志；授权文件 15 分钟过期，任务结束即清除。') }}</p>
         <div v-if="grantUsageNow" class="ib-usage">

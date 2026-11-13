@@ -34,85 +34,55 @@
 }
 
 .wd-p-load-error {
-  margin: 0 0 16px;
-  padding: 12px 14px;
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
   border-radius: var(--r);
-  background: var(--danger-soft, rgba(229, 72, 77, 0.12));
+  background: var(--danger-soft);
   color: var(--danger);
   font-size: var(--fs-ui);
 }
 
-/* ── 页头（hero） ───────────────────────────────────────────── */
-.wd-p-hero {
+/* ── 页头（单行） ───────────────────────────────────────────── */
+/* 标题、说明、筛选、新建同处一行：原先 h1 → h2 两层标题堆在 168px hero 里，
+   筛选被推到列表前另起一行，内容首屏只剩重复的「项目」二字。 */
+.wd-p-head {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: var(--sp-8);
-  /* 插画与文案收在同一个阅读宽度里，宽屏下不再被甩到窗口最右 */
-  max-width: 980px;
-  min-height: 168px;
-  padding: var(--sp-5) 0 var(--sp-6);
+  flex-wrap: wrap;
+  gap: var(--sp-4) var(--sp-6);
+  padding: var(--sp-6) 0 var(--sp-5);
 }
 
-.wd-p-hero-copy h1 {
-  margin: 0 0 10px;
+.wd-p-head-copy {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.wd-p-head-copy h1 {
+  margin: 0 0 var(--sp-2);
   font-size: var(--fs-page);
   line-height: var(--lh-page);
   font-weight: var(--fw-page);
   color: var(--p-strong);
 }
 
-.wd-p-hero-copy p {
+.wd-p-head-copy p {
   max-width: 560px;
-  margin: 0 0 var(--sp-5);
+  margin: 0;
   color: var(--p-muted);
   font-size: var(--fs-body);
   line-height: var(--lh-body);
 }
 
-.wd-p-hero-art {
+.wd-p-head-actions {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 340px;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
   flex-shrink: 0;
-  color: var(--text-dim);
 }
 
-.wd-p-hero-art i {
-  width: 34px;
-  border-top: 1px dashed var(--text-faint);
-}
-
-.wd-p-art-node,
-.wd-p-art-hub {
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--p-line);
-  background: var(--p-surface);
-  border-radius: var(--r-xl);
-  width: 68px;
-  height: 68px;
-  transform: rotate(-7deg);
-}
-
-.wd-p-art-hub {
-  width: 90px;
-  height: 90px;
-  transform: rotate(5deg);
-  border-radius: var(--r-xl);
-  color: var(--p-strong);
-}
-
-.wd-p-art-node svg {
-  width: 28px;
-  height: 28px;
-}
-
-.wd-p-art-hub svg {
-  width: 38px;
-  height: 38px;
-}
 
 /* ── 按钮 ───────────────────────────────────────────────────── */
 .wd-p-primary,
@@ -120,7 +90,7 @@
 .wd-p-create {
   border: 1px solid var(--border-strong);
   border-radius: var(--r);
-  padding: 9px 16px;
+  padding: 0 var(--sp-4);
   background: var(--bg-elev);
   color: var(--text);
   font-size: var(--fs-ui);
@@ -130,16 +100,19 @@
 .wd-projects .wd-p-create {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--sp-2);
   background: var(--bg-elev);
   border-color: var(--border-strong);
   color: var(--text);
   font-weight: 500;
 }
 
-.wd-projects .wd-p-create:hover {
-  background: var(--bg-hover);
-  border-color: var(--border);
+@media (hover: hover) {
+
+  .wd-projects .wd-p-create:hover {
+    background: var(--bg-hover);
+    border-color: var(--border);
+}
 }
 
 .wd-projects .wd-p-primary {
@@ -149,8 +122,11 @@
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
-.wd-projects .wd-p-primary:hover:not(:disabled) {
-  filter: brightness(1.08);
+@media (hover: hover) {
+
+  .wd-projects .wd-p-primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+}
 }
 
 .wd-projects .wd-p-primary:disabled {
@@ -165,179 +141,146 @@
   cursor: pointer;
 }
 
-.wd-p-outline:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .wd-p-outline:hover {
+    background: var(--bg-hover);
+}
 }
 
-/* ── 小节标题 ───────────────────────────────────────────────── */
-.wd-p-section-head {
+/* ── 列表容器 ───────────────────────────────────────────────── */
+/* 一页两块容器（项目 / 模板），容器内是行 + hairline；每行一张卡会让 6 个项目
+   变成 6 个独立圆角框，视线被边框反复切断。 */
+.wd-p-panel {
+  margin-bottom: var(--sp-6);
+  border: var(--stroke);
+  border-radius: var(--r-lg);
+  background: var(--bg-elev);
+  overflow: hidden;
+}
+
+.wd-p-panel-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin: var(--gap-section) 0 var(--gap-head);
-  gap: var(--sp-4);
+  gap: var(--sp-2);
+  height: 44px;
+  padding: 0 var(--sp-4);
+  border-bottom: 1px solid var(--border);
 }
 
-.wd-p-section-head h2 {
+.wd-p-panel-head h2 {
   margin: 0;
-  font-size: var(--fs-section);
-  line-height: var(--lh-section);
+  font-size: var(--fs-ui);
   font-weight: var(--fw-semibold);
   color: var(--p-strong);
 }
 
-.wd-p-center-filters {
+.wd-p-panel-count {
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.wd-p-row {
   display: flex;
   align-items: center;
-  gap: 9px;
-}
-
-.wd-p-center-filters :deep(.app-input) {
-  width: 220px;
   min-width: 0;
-  padding: 0 var(--sp-3);
-  font-size: var(--fs-ui);
+  background: transparent;
 }
 
-.wd-p-center-filters :deep(.app-input:focus) {
-  border-color: var(--accent);
+.wd-p-row + .wd-p-row {
+  border-top: 1px solid var(--border-soft);
 }
 
-/* ── 卡片网格 ───────────────────────────────────────────────── */
-.wd-p-grid {
-  display: grid;
-  /* 与能力中心卡片同宽：280 起跳，1116 宽下三列各 361，不再挤成 267 宽。 */
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: var(--gap-card);
+/* 当前活动项目：左侧 3px 强调条 + 浅底，不换整行边框。 */
+.wd-p-row.active {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 var(--accent);
 }
 
-.wd-p-card {
+.wd-p-row-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
   text-align: left;
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  border: var(--stroke);
-  background: var(--p-surface);
-  border-radius: var(--r-lg);
-  padding: var(--pad-card);
-  min-height: 96px;
-  min-width: 0;
-  box-shadow: none;
-  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
   cursor: pointer;
 }
 
-.wd-p-card:hover {
-  background: var(--p-hover);
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .wd-p-row-open:hover {
+    background: var(--bg-hover);
+}
 }
 
-.wd-p-card strong {
-  display: block;
+/* 图标只做 15px 行首标记，不再是一枚 40px 的字头方块。 */
+.wd-p-row-icon {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.wd-p-row-open strong {
+  flex: 0 1 auto;
+  min-width: 96px;
+  max-width: 40%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--p-strong);
   font-size: var(--fs-body);
   font-weight: 600;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
-/* 标题与两行元信息各占一行：路径单独截断，时间永不参与挤宽。 */
-.wd-p-card-body {
-  display: block;
+.wd-p-row-path {
+  flex: 1 1 0;
   min-width: 0;
-  flex: 1;
-}
-
-.wd-p-card small {
-  display: block;
-  margin-top: 4px;
-  font-size: var(--fs-meta);
-  line-height: 18px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  color: var(--text-dim);
-}
-
-.wd-p-card-path {
   font-family: var(--mono);
   font-size: var(--fs-micro);
   color: var(--text-faint);
 }
 
-.wd-p-card-time {
-  margin-top: 2px;
-}
-
-.wd-p-card > span:last-child,
-.wd-p-card-open > span:last-child {
-  min-width: 0;
-  flex: 1;
-}
-
-.wd-p-card-icon {
-  width: 38px;
-  height: 38px;
-  flex: 0 0 38px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r);
-  background: var(--p-card);
-  font-size: var(--fs-xl);
-  color: var(--p-strong);
-}
-
-.wd-p-card-icon svg {
-  width: 21px;
-  height: 21px;
-}
-
-.wd-p-project-card {
-  position: relative;
-  padding: 0;
-}
-
-.wd-p-card-open {
-  min-width: 0;
-  flex: 1;
-  align-self: stretch;
-  text-align: left;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  border: 0;
-  background: transparent;
-  padding: 18px 12px 18px 18px;
-  color: inherit;
-  cursor: pointer;
-}
-
-/* 卡片唯一动作（参考 .wd-p-card-menu：常显、12px、padding 6、右侧 8px 让位）。
-   卡片只留一个动作按钮是标题不再被挤成 17px 的直接原因（D-01）。 */
-.wd-p-card-menu {
-  align-self: center;
-  margin: 0 8px 0 0;
-  padding: 6px;
+.wd-p-row-time {
   flex-shrink: 0;
-  border: 0;
-  border-radius: var(--r-sm);
-  background: transparent;
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* 行尾唯一动作：常显但压到最轻权重。 */
+.wd-p-row-action {
+  flex-shrink: 0;
+  margin-right: var(--sp-2);
   color: var(--text-faint);
   font-size: var(--fs-meta);
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
-.wd-p-card-menu:hover {
-  background: var(--p-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .wd-p-row-action:hover {
+    color: var(--text);
 }
+}
+
+.wd-p-template {
+  padding: var(--sp-3) var(--sp-4);
+}
+
+.wd-p-template + .wd-p-template {
+  border-top: 1px solid var(--border-soft);
+}
+
 
 /* 空态样式统一由 ui-kit.css 的 .empty-state 提供（唯一实现）。 */
-.wd-p-empty {
-  min-height: 220px;
-}
 
 /* ── 弹窗 ───────────────────────────────────────────────────── */
 .wd-p-modal-backdrop {
@@ -365,7 +308,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 18px;
+  padding: var(--sp-4);
   border-bottom: 1px solid var(--border);
 }
 
@@ -384,26 +327,29 @@
   border-radius: var(--r-sm);
 }
 
-.wd-p-modal > header button:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .wd-p-modal > header button:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 .wd-p-modal-body {
-  padding: 18px;
+  padding: var(--sp-4);
   overflow: auto;
 }
 
 .wd-p-modal-body p {
-  margin: 0 0 8px;
+  margin: 0 0 var(--sp-2);
   color: var(--text-dim);
 }
 
 .wd-p-modal > footer {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 14px 18px;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
   border-top: 1px solid var(--border);
 }
 
@@ -419,12 +365,12 @@
 
 .wd-p-create-label {
   display: block;
-  margin-bottom: 14px;
+  margin-bottom: var(--sp-4);
 }
 
 .wd-p-create-label b {
   display: block;
-  margin-bottom: 6px;
+  margin-bottom: var(--sp-2);
   font-size: var(--fs-ui);
 }
 
@@ -439,8 +385,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
 }
 
 .wd-p-create-instruction-head b {
@@ -451,9 +397,22 @@
 .wd-p-create-instruction :deep(.app-textarea) {
   min-height: 132px;
   border-radius: var(--r);
-  padding: 10px 13px;
+  padding: var(--sp-3);
   font-size: var(--fs-ui);
   line-height: 1.6;
+}
+
+/* 搜索框与同排下拉 / 主按钮同高（class 落在 AppInput 根节点上） */
+.wd-p-search {
+  width: 220px;
+  flex-shrink: 0;
+  height: var(--row-h);
+  padding: 0 var(--sp-3);
+  font-size: var(--fs-ui);
+}
+
+.wd-p-search:focus {
+  border-color: var(--accent);
 }
 
 /* ── 容器查询（对齐容器断点） ───────────────────────────── */
@@ -462,38 +421,47 @@
     padding: 24px 20px 40px;
   }
 
-  .wd-p-hero {
-    min-height: 176px;
+  .wd-p-head {
+    align-items: flex-start;
   }
 
-  .wd-p-hero-art {
-    display: none;
+  .wd-p-head-actions {
+    width: 100%;
   }
 
-  .wd-p-section-head {
+  .wd-p-search {
+    flex: 1 1 100%;
+    width: auto;
+  }
+
+  /* 窄屏行内：名称独占一行，路径与时间落到第二行。 */
+  .wd-p-row-open {
     flex-wrap: wrap;
+    row-gap: 2px;
   }
 
-  .wd-p-center-filters {
-    width: 100%;
+  .wd-p-row-open strong {
+    flex: 1 1 0;
+    max-width: none;
   }
 
-  .wd-p-center-filters :deep(.app-input) {
-    width: 100%;
+  .wd-p-row-path {
+    flex: 1 1 100%;
+    order: 3;
   }
 
-  .wd-p-grid {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  .wd-p-row-time {
+    order: 2;
   }
 }
 
 @container (max-width: 420px) {
-  .wd-p-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .wd-p-center {
     padding: 20px 16px 32px;
+  }
+
+  .wd-p-row-path {
+    display: none;
   }
 }
 
@@ -501,27 +469,33 @@
 .wd-p-dir {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
 }
 
 .wd-p-dir :deep(.app-input) {
   flex: 1;
   min-width: 0;
-  border: 1px solid var(--border);
+  height: var(--row-h);
+  border: var(--stroke-field);
   border-radius: var(--r);
-  padding: 9px 12px;
-  background: var(--bg-panel);
+  padding: 0 var(--sp-3);
+  background: var(--bg-field);
   color: var(--text);
   outline: none;
   font-size: var(--fs-ui);
 }
 
+/* 与筛选栏的输入框同一焦点表达：描边转 accent。 */
+.wd-p-dir :deep(.app-input:focus) {
+  border-color: var(--accent);
+}
+
 .wd-p-dir-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--sp-2);
   flex-shrink: 0;
-  padding: 8px 12px;
+  padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--r);
   background: var(--bg-elev);
@@ -530,8 +504,11 @@
   cursor: pointer;
 }
 
-.wd-p-dir-btn:hover:not(:disabled) {
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .wd-p-dir-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+}
 }
 
 .wd-p-dir-btn:disabled {
@@ -541,7 +518,7 @@
 
 .wd-p-dir-btn.ghost {
   border-color: transparent;
-  padding: 8px 9px;
+  padding: var(--sp-2);
   color: var(--text-faint);
 }
 

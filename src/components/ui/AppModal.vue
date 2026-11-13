@@ -23,6 +23,16 @@ let restoreFocus: HTMLElement | null = null
 
 const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
 
+/**
+ * 遮罩期间锁住页面滚动。计数挂在根元素上，嵌套弹窗各自进退不会互相解锁。
+ */
+function setScrollLock(on: boolean) {
+  const el = document.documentElement
+  const n = Number(el.dataset.scrollLocks ?? '0') + (on ? 1 : -1)
+  if (n > 0) el.dataset.scrollLocks = String(n)
+  else delete el.dataset.scrollLocks
+}
+
 /** 面板内可聚焦元素（过滤禁用与隐藏）。 */
 function focusables(): HTMLElement[] {
   if (!panel.value) return []
@@ -85,12 +95,14 @@ watch(
   async (open) => {
     if (open) {
       restoreFocus = document.activeElement as HTMLElement | null
+      setScrollLock(true)
       document.addEventListener('keydown', onKeydown)
       await nextTick()
       // 打开即聚焦面板本身（tabindex=-1）。聚焦首个可聚焦元素会给关闭键画一圈
       // 只有键盘用户才该看到的焦点环，鼠标打开时看起来像误触高亮。
       panel.value?.focus({ preventScroll: true })
     } else {
+      setScrollLock(false)
       document.removeEventListener('keydown', onKeydown)
       restoreFocus?.focus()
       restoreFocus = null
@@ -100,7 +112,11 @@ watch(
   { immediate: true },
 )
 
-onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKeydown)
+  // 打开状态下被卸载（路由切换）：把锁还回去，避免整页永久不可滚动。
+  if (props.open) setScrollLock(false)
+})
 </script>
 
 <template>

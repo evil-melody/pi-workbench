@@ -29,7 +29,8 @@
 }
 
 .ib-head h1 {
-  margin: 0 0 var(--sp-1);
+  /* 与项目页同一套页头节奏：标题→副标题 12。 */
+  margin: 0 0 var(--sp-3);
   font-size: var(--fs-page);
   line-height: var(--lh-page);
   font-weight: var(--fw-page);
@@ -53,6 +54,7 @@
 .ib-btn {
   display: inline-flex;
   align-items: center;
+  /* 与 AppButton 基座同值（4），不再单独写 6。 */
   gap: var(--sp-1);
   height: var(--row-h);
   padding: 0 var(--sp-4);
@@ -66,9 +68,12 @@
   transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
-.ib-btn:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .ib-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 .ib-btn:focus-visible {
@@ -87,9 +92,12 @@
   color: var(--accent-ink);
 }
 
-.ib-btn.primary:hover:not(:disabled) {
-  background: var(--accent);
-  filter: brightness(1.08);
+@media (hover: hover) {
+
+  .ib-btn.primary:hover:not(:disabled) {
+    background: var(--accent);
+    filter: brightness(1.08);
+}
 }
 
 .ib-btn.danger {
@@ -107,22 +115,46 @@
   font-size: var(--fs-base);
 }
 
-.ib-section {
-  margin-bottom: var(--sp-7);
+/* 一屏两块面板：列表是容器内的行，不再逐行套卡片；空态收成一行，不再撑满 180px。 */
+.ib-panel {
+  margin-bottom: var(--sp-6);
+  border: var(--stroke);
+  border-radius: var(--r-lg);
+  background: var(--bg-elev);
+  overflow: hidden;
 }
 
-.ib-section h2 {
-  margin: 0 0 var(--gap-head);
-  font-size: var(--fs-section);
-  line-height: var(--lh-section);
+.ib-panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 44px;
+  padding: 0 var(--sp-4);
+  border-bottom: 1px solid var(--border);
+}
+
+.ib-panel-head h2 {
+  margin: 0;
+  font-size: var(--fs-ui);
   font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+
+.ib-panel-count {
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.ib-panel-body {
+  margin: 0;
+  padding: var(--sp-4);
 }
 
 .ib-list,
 .ib-jobs {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -131,27 +163,39 @@
 .ib-item {
   display: flex;
   gap: var(--sp-2);
-  padding: var(--sp-3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--bg-panel);
+  padding: var(--sp-3) var(--sp-4);
+  background: transparent;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease);
 }
 
-.ib-item:hover {
-  background: var(--bg-hover);
+.ib-item + .ib-item,
+.ib-job + .ib-job {
+  border-top: 1px solid var(--border-soft);
 }
 
-.ib-item.unread {
-  border-color: var(--accent-dim);
-  background: var(--bg-elev);
+@media (hover: hover) {
+
+  .ib-item:hover {
+    background: var(--bg-hover);
+}
+}
+
+/* 行是自定义可点元素：键盘焦点由全局 :focus-visible 外环兜底，只补按下反馈。 */
+.ib-item:active {
+  background: var(--bg-active);
+}
+
+/* 未读只靠圆点与标题字重，不再整行换底：列表里一排强调色块会抢走页头的焦点。 */
+.ib-item.unread .ib-item-title {
+  font-weight: var(--fw-semibold);
 }
 
 .ib-dot {
   width: 7px;
   height: 7px;
-  margin-top: 7px;
+  /* 8 + 3.5 = 11.5，距标题行中心 10.9 只差 0.6px。 */
+  margin-top: var(--sp-2);
   border-radius: var(--r-full);
   background: transparent;
   flex-shrink: 0;
@@ -195,7 +239,7 @@
 
 .ib-item-body {
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   margin: var(--sp-1) 0 0;
@@ -203,8 +247,8 @@
   font-size: var(--fs-base);
   line-height: var(--lh-body);
   white-space: pre-wrap;
-  /* 正文按 3 行封顶，同时占满 3 行：短摘要与长摘要的卡片同高。 */
-  min-height: calc(3em * var(--lh-body));
+  /* 摘要两行封顶且占满两行：同一列表里行高恒定，视线可以顺着左缘扫。 */
+  min-height: calc(2em * var(--lh-body));
 }
 
 .ib-job {
@@ -212,15 +256,13 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--sp-4);
-  padding: var(--sp-3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--bg-panel);
+  padding: var(--sp-3) var(--sp-4);
+  background: transparent;
 }
 
 .ib-job.highlight {
-  border-color: var(--accent);
   background: var(--accent-soft);
+  box-shadow: inset 3px 0 var(--accent);
 }
 
 .ib-job-main {
@@ -246,7 +288,7 @@
 
 .ib-chip {
   flex-shrink: 0;
-  padding: 1px var(--sp-2);
+  padding: 2px var(--sp-2);
   border-radius: var(--r-full);
   background: var(--bg-hover);
   color: var(--text-dim);
@@ -312,20 +354,24 @@
 .ib-grant-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 28px;
+  gap: var(--sp-1);
+  /* 28 会被 AppButton 基座 min-height 顶回 36：直接声明实际高度。 */
+  height: var(--row-h);
   padding: 0 var(--sp-2);
   border: 1px solid var(--border);
-  border-radius: var(--r-sm);
+  border-radius: var(--r);
   background: transparent;
   color: var(--text-dim);
   font-size: var(--fs-xs);
   cursor: pointer;
 }
 
-.ib-grant-btn:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .ib-grant-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 .ib-grant-btn:disabled {
@@ -419,23 +465,30 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  /* 28×28 被 min-height 拉成 28×36 竖椭圆；取 36 正圆方。 */
+  width: var(--row-h);
+  height: var(--row-h);
   border: 1px solid transparent;
-  border-radius: var(--r-sm);
+  border-radius: var(--r);
   background: transparent;
   color: var(--text-dim);
   cursor: pointer;
 }
 
-.ib-icon-btn:hover:not(:disabled) {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .ib-icon-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
-.ib-icon-btn.danger:hover:not(:disabled) {
-  background: var(--danger-soft);
-  color: var(--danger);
+@media (hover: hover) {
+
+  .ib-icon-btn.danger:hover:not(:disabled) {
+    background: var(--danger-soft);
+    color: var(--danger);
+}
 }
 
 .ib-icon-btn:disabled {
@@ -443,20 +496,42 @@
   cursor: default;
 }
 
-/* 空态与 ui-kit 的 .empty-state 同构：图标 + 一句主文案 + 一句去向。
-   宽度不铺满 1116，避免一句话悬在一条巨型虚线里。 */
+/* 空态收成面板内的一行：图标、一句标题、一句补充，右侧留白。 */
 .ib-empty {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+}
+
+.ib-empty-icon {
   display: grid;
   place-items: center;
-  align-content: center;
-  gap: var(--sp-2);
-  min-height: 140px;
-  max-width: 720px;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: var(--r);
+  background: var(--bg-hover);
+  color: var(--text-faint);
+}
+
+.ib-empty p {
   margin: 0;
-  padding: var(--sp-6) var(--sp-5);
-  border: 1px dashed var(--border);
-  border-radius: var(--r-lg);
-  text-align: center;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  font-size: var(--fs-base);
+}
+
+.ib-empty strong {
+  color: var(--text);
+  font-weight: var(--fw-medium);
+}
+
+.ib-empty span {
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
 }
 
 .ib-form {

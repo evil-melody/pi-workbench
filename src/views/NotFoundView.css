@@ -23,7 +23,7 @@
   color: var(--accent);
   font-family: var(--mono);
   font-size: var(--fs-display);
-  font-weight: 700;
+  font-weight: var(--fw-page);
   letter-spacing: 2px;
 }
 
@@ -52,6 +52,9 @@
   transition: opacity var(--dur-fast) var(--ease);
 }
 
-.nf-btn:hover {
-  opacity: 0.88;
+@media (hover: hover) {
+
+  .nf-btn:hover {
+    opacity: 0.88;
+}
 }

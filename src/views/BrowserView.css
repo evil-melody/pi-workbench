@@ -93,8 +93,11 @@
   text-decoration: none;
 }
 
-.sess-url a:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+
+  .sess-url a:hover {
+    text-decoration: underline;
+}
 }
 
 .sess-meta {

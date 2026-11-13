@@ -99,6 +99,14 @@
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --dur-fast: 120ms;
   --dur: 180ms;
+  /* 循环动画时长：骨架扫光/脉冲/节拍/流光/慢扫/闪烁/旋转，组件只引用令牌 */
+  --loop-sweep: 1.4s;
+  --loop-pulse: 1.4s;
+  --loop-beat: 1.6s;
+  --loop-shimmer: 1.8s;
+  --loop-slow: 2.6s;
+  --loop-blink: 1s;
+  --loop-spin: 1.1s;
 
   /* 对话窄栏宽（Open WebUI 式居中列）：消息列、顶栏、步骤行、composer 共用一个值 */
   --chat-col: 720px;
@@ -145,16 +153,19 @@
   --pad-card-lg: 20px;
   --gap-card: 16px;
   --gap-section: 32px;
-  --gap-head: 14px;
+  --gap-head: 16px;
   --row-h: 36px;
   --row-h-lg: 44px;
+  /* 图标按钮基本尺寸：顶栏操作组统一用这个边长，避免 26/34 混排 */
+  --row-h-mini: 28px;
 
   /* 描边与焦点：所有可聚焦元素共用一条焦点环，键盘可见性统一 */
   --stroke: 1px solid var(--border);
   --stroke-strong: 1px solid var(--border-strong);
   --focus-ring: 0 0 0 3px var(--accent-soft);
   --focus-ring-danger: 0 0 0 3px var(--danger-soft);
-
+  /* 铺满容器、无描边可加深的编辑区（预览编辑器）：焦点用内描环，不撑破布局。 */
+  --focus-ring-inset: inset 0 0 0 2px var(--accent);
   /* 输入井 / 代码块的凹陷层，与页面底区分（暗色更深、亮色更灰） */
   --bg-sunken: #1a1a1a;
 
@@ -165,9 +176,12 @@
   --bg-field: #1c1c1c;
   --stroke-field: 1px solid var(--border);
 
-  /* 阴影只给浮层 */
+  /*
+   * 阴影只给浮层。--sh-2 内含一圈 1px 中性 hairline：
+   * 浮层用阴影表态，就不再另叠 border（参考仓 shadow/material：不叠双描边）。
+   */
   --sh-1: 0 1px 2px rgba(0, 0, 0, 0.32);
-  --sh-2: 0 12px 32px rgba(0, 0, 0, 0.42);
+  --sh-2: 0 0 0 1px var(--border), 0 12px 32px rgba(0, 0, 0, 0.42);
   /* 大输入容器 / 吉祥物投影：组件里不再手写 rgba */
   --sh-card: 0 6px 22px rgba(0, 0, 0, 0.3);
   --sh-mascot: 0 14px 26px rgba(0, 0, 0, 0.38);
@@ -227,13 +241,18 @@
   --stroke-field: 1px solid var(--border-strong);
 
   --sh-1: 0 1px 2px rgba(16, 24, 40, 0.06);
-  --sh-2: 0 12px 32px rgba(16, 24, 40, 0.12);
+  --sh-2: 0 0 0 1px var(--border), 0 12px 32px rgba(16, 24, 40, 0.12);
   --sh-card: 0 6px 22px rgba(16, 24, 40, 0.07);
   --sh-mascot: 0 14px 26px rgba(16, 24, 40, 0.12);
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* 弹窗遮罩打开时锁页面滚动（AppModal 维护计数属性）。 */
+html[data-scroll-locks] {
+  overflow: hidden;
 }
 
 html,
@@ -263,6 +282,13 @@ h4 {
   letter-spacing: 0.2px;
 }
 
+/* 语义加粗走同一档（600）：UA 默认的 700 是全站字重的第四个隐式档位。 */
+strong,
+b,
+th {
+  font-weight: var(--fw-semibold);
+}
+
 button {
   font-family: inherit;
   font-size: var(--fs-ui);
@@ -279,9 +305,12 @@ button {
     color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 
-button:hover:not(:disabled) {
-  background: var(--bg-hover);
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  button:hover:not(:disabled) {
+    background: var(--bg-hover);
+    border-color: var(--border-strong);
+}
 }
 
 button:active:not(:disabled) {
@@ -327,6 +356,36 @@ textarea::placeholder {
   color: var(--text-faint);
 }
 
+/*
+ * 只读：底色退到凹陷层、文字降一档，描边保持原样（填充/描边几何在状态间不变）。
+ * 放在 :disabled 之前 —— 禁用元素也命中 :read-only，禁用态要保留自己的表达。
+ */
+input:read-only,
+textarea:read-only {
+  background: var(--bg-sunken);
+  color: var(--text-dim);
+  cursor: default;
+}
+
+/*
+ * 校验失败：只换语义色（描边 + 焦点环），不叠加第二层中性描边，
+ * 也不改尺寸/圆角，与 default 共用同一套几何。
+ */
+input[aria-invalid='true'],
+textarea[aria-invalid='true'],
+button[aria-invalid='true'],
+select[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+input[aria-invalid='true']:focus,
+textarea[aria-invalid='true']:focus,
+button[aria-invalid='true']:focus-visible {
+  border-color: var(--danger);
+  box-shadow: var(--focus-ring-danger);
+  outline: none;
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -354,9 +413,12 @@ pre {
   border-radius: var(--r-full);
 }
 
-*::-webkit-scrollbar-thumb:hover {
-  background: var(--text-faint);
-  background-clip: content-box;
+@media (hover: hover) {
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--text-faint);
+    background-clip: content-box;
+}
 }
 
 *::-webkit-scrollbar-track {
@@ -369,6 +431,23 @@ pre {
   text-align: center;
   color: var(--text-faint);
   font-size: var(--fs-sm);
+}
+
+/*
+ * 自定义可点元素（div / li / article，不是 button / a）的按下态。
+ * hover 由各组件按本地材质给；按下统一退到 bg-active，与按钮的按下一致。
+ * 键盘焦点由全局 :focus-visible 外环兜底，组件不必各写一份。
+ */
+.row:active,
+.todo:active,
+.tool-row:active,
+.hit-node:active,
+.node:active,
+.market-tag:active,
+.chip.closeable:active,
+.cp-chip:active,
+.use-btn:active {
+  background: var(--bg-active);
 }
 
 /* D-16：交互元素命中区下限 44×44。视觉尺寸不变，用透明伪元素把可点区域

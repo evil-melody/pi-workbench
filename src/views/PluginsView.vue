@@ -201,43 +201,18 @@ onMounted(load)
 
 <template>
   <section class="wd-community">
-    <header class="community-head">
-      <AppButton variant="text" class="back-link" @click="tab = 'discover'">
-        <AppIcon name="arrow-left" :size="14" />
-        <span>{{ t('插件列表') }}</span>
-      </AppButton>
-    </header>
-
     <div class="community-hero">
-      <span class="hero-icon"><AppIcon name="puzzle" :size="28" /></span>
       <div>
         <h1>{{ t('发现社区插件') }}</h1>
-        <p>{{ t('已装 {0} 个扩展', [installedCount]) }}<AppButton variant="text" class="hero-link" @click="showInstallModal = true">{{ t('从链接安装扩展') }}<AppIcon name="arrow-right" :size="12" />
+        <p>
+          {{ t('已装 {0} 个扩展 · 列表只含本机已声明的扩展', [installedCount]) }}
+          <AppButton variant="text" class="hero-link" @click="showInstallModal = true">{{ t('从链接安装扩展') }}<AppIcon name="arrow-right" :size="12" />
           </AppButton>
         </p>
       </div>
     </div>
 
-    <div class="market-section">
-      <div class="market-section-head">
-        <div class="market-section-title">
-          <AppIcon name="grid" :size="16" />
-          <strong>{{ t('插件市场') }}</strong>
-          <AppButton
-            variant="text"
-            class="text-btn"
-            :disabled="!disabledCount"
-            :title="disabledCount ? t('把所有扩展的工具重新写进 defaultTools') : t('已全部启用')"
-            @click="enableAll"
-          >{{ t('全部启用 ({0})', [disabledCount]) }}</AppButton>
-        </div>
-        <AppButton variant="secondary" class="tool-btn" :title="t('复制内核与扩展诊断信息')" @click="copyDiagnostics">
-          <AppIcon name="copy" :size="13" />
-          <span>{{ t('诊断信息') }}</span>
-        </AppButton>
-      </div>
-      <p class="market-section-desc">{{ t('远端社区市场没有服务端，列表只展示本机已声明的扩展；需要新扩展请从直链安装。') }}</p>
-
+    <div class="market-toolbar">
       <nav class="market-tabs" role="tablist" :aria-label="t('插件视图')" @keydown="onTablistKeydown">
         <AppButton
           v-for="t in TABS"
@@ -255,91 +230,103 @@ onMounted(load)
         </AppButton>
       </nav>
 
-      <div class="market-tags">
+      <div class="market-tools">
+        <div class="market-tags">
+          <AppButton
+            v-for="t in TAGS"
+            :key="t.key"
+            variant="chip"
+            class="market-tag"
+            :class="{ active: tag === t.key }"
+            :aria-pressed="tag === t.key"
+            @click="tag = t.key"
+          >
+            {{ t.label }}{{ t.key === 'all' ? ` (${tagCount(t.key)})` : '' }}
+          </AppButton>
+        </div>
+
+        <div class="market-search">
+          <AppIcon name="search" :size="14" />
+          <AppInput v-model="keyword" :placeholder="t('搜索插件')" />
+        </div>
+
         <AppButton
-          v-for="t in TAGS"
-          :key="t.key"
-          variant="chip"
-          class="market-tag"
-          :class="{ active: tag === t.key }"
-          :aria-pressed="tag === t.key"
-          @click="tag = t.key"
-        >
-          {{ t.label }}{{ t.key === 'all' ? ` (${tagCount(t.key)})` : '' }}
+          variant="text"
+          class="text-btn"
+          :disabled="!disabledCount"
+          :title="disabledCount ? t('把所有扩展的工具重新写进 defaultTools') : t('已全部启用')"
+          @click="enableAll"
+        >{{ t('全部启用 ({0})', [disabledCount]) }}</AppButton>
+
+        <AppButton variant="secondary"  :title="t('复制内核与扩展诊断信息')" @click="copyDiagnostics">
+          <AppIcon name="copy" :size="13" />
+          <span>{{ t('诊断信息') }}</span>
         </AppButton>
       </div>
-
-      <div class="market-search">
-        <AppIcon name="search" :size="14" />
-        <AppInput v-model="keyword" :placeholder="t('搜索插件，例如：通知、终端、记忆')" />
-      </div>
+    </div>
 
       <p v-if="marketNote" class="market-note" role="status">{{ marketNote }}</p>
       <p v-if="error" class="market-note" role="alert">{{ error }}</p>
       <div v-if="busy" class="load-state" role="status">{{ t('正在读取插件清单…') }}</div>
 
-      <div v-else-if="tab === 'themes'" class="market-empty">
-        <strong>{{ t('主题') }}</strong>
-        <span class="muted">{{ t('外观主题由应用侧管理，即时切换，无需重启。') }}</span>
-        <AppButton variant="secondary" class="tool-btn theme-pick" @click="pickTheme">
+      <div v-else-if="tab === 'themes'" class="empty-state">
+        <p class="empty-title">{{ t('主题') }}</p>
+        <p class="empty-hint">{{ t('外观主题由应用侧管理，即时切换，无需重启。') }}</p>
+        <AppButton variant="secondary" class="theme-pick" @click="pickTheme">
           <AppIcon :name="themeNow === 'dark' ? 'moon' : 'sun'" :size="14" />
           {{ themeNow === 'dark' ? t('切到浅色') : t('切到深色') }}
         </AppButton>
       </div>
 
-      <div v-else-if="tab === 'favorites'" class="market-empty">
-        <strong>{{ t('还没有收藏') }}</strong>
-        <span class="muted">{{ t('收藏需要账号体系，当前版本尚未接入登录。') }}</span>
+      <div v-else-if="tab === 'favorites'" class="empty-state">
+        <p class="empty-title">{{ t('还没有收藏') }}</p>
+        <p class="empty-hint">{{ t('收藏需要账号体系，当前版本尚未接入登录。') }}</p>
       </div>
 
-      <div v-else-if="tab === 'advanced'" class="market-empty">
-        <strong>{{ t('高级设置') }}</strong>
-        <span class="muted">{{ t('pi {0} · 扩展 {1} 个 · 扩展目录 {2}', [PI_VERSION, installed.length, installed[0]?.path.split('/').slice(0, -1).join('/') || t('未知')]) }}
-        </span>
+      <div v-else-if="tab === 'advanced'" class="empty-state">
+        <p class="empty-title">{{ t('高级设置') }}</p>
+        <p class="empty-hint">{{ t('pi {0} · 扩展 {1} 个 · 扩展目录 {2}', [PI_VERSION, installed.length, installed[0]?.path.split('/').slice(0, -1).join('/') || t('未知')]) }}
+        </p>
       </div>
 
-      <div v-else-if="!rows.length" class="market-empty">
-        <strong>{{ keyword ? t('没有匹配的插件') : t('暂无插件') }}</strong>
-        <span class="muted">{{ keyword ? t('保留搜索词，可清除后重试。') : t('切换标签或稍后再试。') }}</span>
+      <div v-else-if="!rows.length" class="empty-state">
+        <p class="empty-title">{{ keyword ? t('没有匹配的插件') : t('暂无插件') }}</p>
+        <p class="empty-hint">{{ keyword ? t('保留搜索词，可清除后重试。') : t('切换标签或稍后再试。') }}</p>
       </div>
 
-      <div v-else class="market-list">
-        <article v-for="p in rows" :key="p.id" class="market-row">
-          <span class="row-icon">{{ (p.name || '?').slice(0, 1).toUpperCase() }}</span>
-          <div class="row-body">
-            <div class="row-title">
-              <strong :title="p.name">{{ p.name }}</strong>
-              <span class="row-meta">
-                <i v-if="p.author && p.author !== t('未知')">@{{ p.author }}</i>
-                <i v-if="p.version && p.version !== t('未知')">{{ p.version }}</i>
-              </span>
-            </div>
-            <p class="row-desc" :title="p.description">{{ p.description }}</p>
-            <div class="row-tags">
-              <span v-for="(t, idx) in p.tags" :key="idx" class="row-tag">{{ t }}</span>
-            </div>
-            <p v-if="p.hasTools" class="row-tools" :title="t('工具：{0}', [p.tools.join('、')])">{{ t('工具：{0}', [p.tools.join('、')]) }}</p>
+    <div v-else class="market-list">
+      <article v-for="p in rows" :key="p.id" class="market-row">
+        <div class="row-body">
+          <div class="row-title">
+            <strong :title="p.name">{{ p.name }}</strong>
+            <span class="row-meta">
+              <i v-if="p.author && p.author !== t('未知')">@{{ p.author }}</i>
+              <i v-if="p.version && p.version !== t('未知')">{{ p.version }}</i>
+            </span>
+            <span v-for="(tag, idx) in p.tags" :key="idx" class="row-tag">{{ tag }}</span>
           </div>
-          <div class="row-actions">
-            <AppButton
-              variant="secondary"
-              class="row-install"
-              :class="{ installed: p.enabled }"
-              :disabled="!p.hasTools"
-              :title="
-                p.hasTools
-                  ? p.enabled
-                    ? t('从内核默认工具里移除')
-                    : t('把工具写进内核默认工具')
-                  : t('该扩展不提供工具')
-              "
-              @click="setExtensionEnabled(p.tools, !p.enabled, p.name)"
-            >
-              {{ p.hasTools ? (p.enabled ? t('已启用') : t('启用')) : t('无工具') }}
-            </AppButton>
-          </div>
-        </article>
-      </div>
+          <p class="row-desc" :title="p.description">{{ p.description }}</p>
+          <p v-if="p.hasTools" class="row-tools" :title="t('工具：{0}', [p.tools.join('、')])">{{ t('工具：{0}', [p.tools.join('、')]) }}</p>
+        </div>
+        <div class="row-actions">
+          <AppButton
+            variant="secondary"
+            class="row-install"
+            :class="{ installed: p.enabled }"
+            :disabled="!p.hasTools"
+            :title="
+              p.hasTools
+                ? p.enabled
+                  ? t('从内核默认工具里移除')
+                  : t('把工具写进内核默认工具')
+                : t('该扩展不提供工具')
+            "
+            @click="setExtensionEnabled(p.tools, !p.enabled, p.name)"
+          >
+            {{ p.hasTools ? (p.enabled ? t('已启用') : t('启用')) : t('无工具') }}
+          </AppButton>
+        </div>
+      </article>
     </div>
 
     <!-- AUDIT-013：手搓 modal-mask/modal-card → UI Kit AppModal -->
@@ -355,7 +342,6 @@ onMounted(load)
       <template #footer>
         <AppButton
           variant="primary"
-          class="tool-btn primary"
           :disabled="!installUrl.trim() || installing"
           @click="installExtension"
         >

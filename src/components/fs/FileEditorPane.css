@@ -42,9 +42,12 @@
   cursor: pointer;
 }
 
-.fbar-action:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .fbar-action:hover:not(:disabled) {
+    border-color: var(--border-strong);
+    background: var(--bg-hover);
+}
 }
 
 .fbar-action.primary {

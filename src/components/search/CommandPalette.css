@@ -76,7 +76,18 @@
   cursor: pointer;
 }
 
+/* 键盘高亮用 bg-active；鼠标悬停退一档用 bg-hover，两者不互相覆盖。 */
+@media (hover: hover) {
+  .palette-row:hover:not(.active) {
+    background: var(--bg-hover);
+}
+}
+
 .palette-row.active {
+  background: var(--bg-active);
+}
+
+.palette-row:active {
   background: var(--bg-active);
 }
 

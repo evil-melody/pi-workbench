@@ -5,9 +5,21 @@
  * 组件样式无需感知切换。选择项存 localStorage；用户没显式选过时跟随系统。
  */
 
+import { invoke } from '@tauri-apps/api/core'
+import { isTauriRuntime } from '@/composables/useRuntime'
+
 export type Theme = 'dark' | 'light'
 
 const KEY = 'pi-workbench:theme'
+
+/**
+ * 把主题同步给原生窗口底色（WebView 提交 HTML 前的那一帧由 Rust 侧绘制）。
+ * 纯浏览器预览没有 Tauri 通道，调用直接跳过。
+ */
+function syncWindowTheme(theme: Theme): void {
+  if (!isTauriRuntime()) return
+  void invoke('window_set_theme', { theme }).catch(() => undefined)
+}
 
 function systemTheme(): Theme {
   return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
@@ -18,6 +30,7 @@ export function initTheme(): Theme {
   const saved = localStorage.getItem(KEY)
   const theme: Theme = saved === 'light' || saved === 'dark' ? saved : systemTheme()
   document.documentElement.dataset.theme = theme
+  syncWindowTheme(theme)
   return theme
 }
 
@@ -28,6 +41,7 @@ export function currentTheme(): Theme {
 export function setTheme(theme: Theme): void {
   document.documentElement.dataset.theme = theme
   localStorage.setItem(KEY, theme)
+  syncWindowTheme(theme)
 }
 
 export function toggleTheme(): Theme {
@@ -43,6 +57,7 @@ export function watchSystemTheme(cb: (theme: Theme) => void): () => void {
     if (localStorage.getItem(KEY)) return // 已有显式选择，不被系统覆盖
     const theme = e.matches ? 'light' : 'dark'
     document.documentElement.dataset.theme = theme
+    syncWindowTheme(theme)
     cb(theme)
   }
   mq.addEventListener('change', onChange)

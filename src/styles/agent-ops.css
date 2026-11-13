@@ -27,7 +27,7 @@
  * 内嵌进「能力中心 / 资料库」时：外层已有页面 padding 与标题层级，
  * 这里只保留内容本身的节奏，避免双层留白与空态过度下沉。
  */
-.agent-ops.embedded .aops-empty {
+.agent-ops.embedded .empty-state {
   margin-top: 0;
 }
 
@@ -85,27 +85,32 @@
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--r-full);
-  padding: 3px 10px;
+  padding: 2px var(--sp-2);
   white-space: nowrap;
 }
 
 .agent-ops .tool-btn {
-  width: 30px;
-  height: 30px;
+  /* 图标按钮统一 28：与 AppButton 的 v-icon 一致；--row-h 是 36 的文字按钮基座，
+     拿来做图标会把这排工具压成方块。 */
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
   padding: 0;
   border-radius: var(--r);
-  border: 1px solid var(--border);
+  border: var(--stroke);
   background: var(--bg-elev);
   color: var(--text-dim);
   transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
-.agent-ops .tool-btn:hover:not(:disabled) {
-  color: var(--text);
-  background: var(--bg-hover);
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .agent-ops .tool-btn:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--bg-hover);
+    border-color: var(--border-strong);
+}
 }
 
 .aops-toolbar {
@@ -131,7 +136,7 @@
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
-  padding: 1px 5px;
+  padding: 2px var(--sp-1);
   color: var(--accent);
 }
 
@@ -139,29 +144,7 @@
   color: var(--text-dim);
 }
 
-.aops-empty {
-  margin-top: var(--sp-7);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: var(--sp-2);
-  color: var(--text-dim);
-  padding: var(--sp-7) var(--sp-4);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--r-lg);
-  background: var(--bg-panel);
-}
-
-.aops-empty .app-icon {
-  color: var(--text-faint);
-}
-
-.aops-empty strong {
-  color: var(--text);
-  font-size: var(--fs-section);
-  font-weight: 600;
-}
+/* 空态统一走 ui-kit 的 .empty-state；本层不再保留第三套空态。 */
 
 /**
  * 对话框内表单栅格：标签 + 控件两列。
@@ -191,7 +174,8 @@
 
 /* 对话框内的次要按钮（取消）：`.agent-ops .tool-btn` 不覆盖 teleport 内容，故单列一个专属名。 */
 .aops-plain {
-  padding: 7px 12px;
+  height: var(--row-h);
+  padding: 0 var(--sp-3);
   border-radius: var(--r);
   border: 1px solid var(--border);
   background: var(--bg-elev);
@@ -201,7 +185,10 @@
   transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
-.aops-plain:hover {
-  background: var(--bg-hover);
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .aops-plain:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-strong);
+}
 }

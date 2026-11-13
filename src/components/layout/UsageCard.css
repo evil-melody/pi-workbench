@@ -39,7 +39,7 @@
   background: var(--ok-soft);
   color: var(--ok);
   font-size: var(--fs-xs);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
 }
 
 /* F11 动画收敛：侧栏用量点的脉冲删掉（本轮只静态化，卡片形态归批 3）。 */
@@ -78,7 +78,7 @@
 .uc-v {
   color: var(--text);
   font-size: var(--fs-base);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -151,7 +151,7 @@
 .uc-link {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   align-self: flex-start;
   padding: 2px 0;
   border: 0;
@@ -162,6 +162,9 @@
   transition: color var(--dur-fast) var(--ease);
 }
 
-.uc-link:hover {
-  color: var(--accent);
+@media (hover: hover) {
+
+  .uc-link:hover {
+    color: var(--accent);
+}
 }

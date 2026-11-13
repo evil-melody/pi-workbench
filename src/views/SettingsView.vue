@@ -38,6 +38,8 @@ interface AppSettings {
   language?: string | null
   /** Pi 可执行文件绝对路径；null/空 = 后端自动探测。 */
   pi_bin?: string | null
+  /** 会话产物自动归档；null/缺省 = 开启。 */
+  auto_archive_artifacts?: boolean | null
 }
 
 const tab = ref<Tab>('general')
@@ -57,6 +59,8 @@ const toolError = ref('')
 
 /* ── 语言 ────────────────────────────────────────────────── */
 const language = ref<LanguageChoice>('system')
+/** 会话产物自动归档：默认开启，关闭后后端也不再接收归档任务。 */
+const autoArchive = ref(true)
 const rawSettings = ref<AppSettings | null>(null)
 
 const languageOptions = computed<SelectOption[]>(() => [
@@ -73,6 +77,20 @@ function fullSettings(): AppSettings {
     default_model_id: defaultModelId.value,
     pi_bin: piBin.value.trim() || null,
     language: language.value === 'system' ? null : language.value,
+    auto_archive_artifacts: autoArchive.value,
+  }
+}
+
+/** 自动归档是独立开关，改完立即落盘；失败时回滚勾选状态。 */
+async function changeAutoArchive(value: boolean) {
+  autoArchive.value = value
+  try {
+    const settings = fullSettings()
+    await invoke('settings_save', { settings })
+    rawSettings.value = settings
+  } catch (e) {
+    autoArchive.value = !value
+    error.value = describeIpcError(e, t('保存设置'))
   }
 }
 
@@ -240,6 +258,7 @@ async function load() {
     models.value = s.models?.length ? s.models : [defaultModel()]
     defaultModelId.value = s.default_model_id ?? models.value[0]?.id ?? ''
     piBin.value = s.pi_bin ?? ''
+    autoArchive.value = s.auto_archive_artifacts !== false
     expandedIds.value = new Set([defaultModelId.value])
     inputMap.value = {}
     for (const m of models.value) syncInputMap(m.id, m)
@@ -424,13 +443,20 @@ onMounted(() => {
         <section v-if="tab === 'general'" class="settings-section">
           <h2>{{ t('通用') }}</h2>
           <p class="section-desc">{{ t('界面语言只影响 Pi Workbench 的界面与系统提示，不改变模型输出。切换语言不会重启内核。') }}</p>
-          <label class="field full">
+          <label class="field full inline">
             <span>{{ t('界面语言') }}</span>
             <AppSelect
               :model-value="language"
               :options="languageOptions"
-              width="100%"
+              width="220px"
               @update:model-value="changeLanguage"
+            />
+          </label>
+          <label class="field full inline">
+            <AppCheckbox
+              :model-value="autoArchive"
+              :label="t('会话结束后自动把产物归档进资料库')"
+              @update:model-value="changeAutoArchive"
             />
           </label>
           <p v-if="error" class="form-message err">{{ error }}</p>
@@ -459,7 +485,7 @@ onMounted(() => {
             </label>
 
             <div class="form-actions">
-              <AppButton type="button" variant="secondary" class="tool-btn" @click="detectPi">
+              <AppButton type="button" variant="secondary" @click="detectPi">
                 <AppIcon name="search" :size="14" />
                 <span>{{ t('自动检测') }}</span>
               </AppButton>
@@ -470,10 +496,10 @@ onMounted(() => {
           </div>
 
           <p v-if="loading" class="load-state">{{ t('正在加载设置…') }}</p>
-          <div v-else-if="!hasModels" class="market-empty">
-            <div class="empty-icon"><AppIcon name="cpu" :size="32" /></div>
-            <strong>{{ t('还没有模型') }}</strong>
-            <span class="muted">{{ t('点击「新增模型」添加第一个对话模型。') }}</span>
+          <div v-else-if="!hasModels" class="empty-state">
+            <div class="empty-icon"><AppIcon name="cpu" :size="20" /></div>
+            <p class="empty-title">{{ t('还没有模型') }}</p>
+            <p class="empty-hint">{{ t('点击「新增模型」添加第一个对话模型。') }}</p>
           </div>
 
           <div class="models-list">
@@ -583,7 +609,6 @@ onMounted(() => {
                 <div class="form-actions">
                   <AppButton
                     variant="secondary"
-                    class="tool-btn"
                     :disabled="testing === m.id"
                     @click="testModel(m)"
                   >
@@ -596,11 +621,11 @@ onMounted(() => {
           </div>
 
           <div class="form-actions">
-            <AppButton variant="secondary" class="tool-btn" @click="addModel">
+            <AppButton variant="secondary" @click="addModel">
               <AppIcon name="plus" :size="14" />
               <span>{{ t('新增模型') }}</span>
             </AppButton>
-            <AppButton variant="primary" class="tool-btn primary" :disabled="saving" @click="save">
+            <AppButton variant="primary" :disabled="saving" @click="save">
               <AppIcon name="save" :size="14" />
               <span>{{ saving ? t('保存中…') : t('保存') }}</span>
             </AppButton>
@@ -630,7 +655,7 @@ onMounted(() => {
             <label class="field full">
               <span>{{ t('关闭主窗口时') }}</span>
               <AppSelect
-                :model-value="bgInfo.closeAction"
+                :model-value="bgInfo?.close_action ?? 'ask'"
                 :options="closeActionOptions"
                 width="100%"
                 @update:model-value="changeCloseAction"
@@ -640,7 +665,7 @@ onMounted(() => {
 
             <div class="bg-row">
               <AppCheckbox
-                :model-value="bgInfo.autostart"
+                :model-value="bgInfo?.autostart ?? false"
                 :label="t('登录时自动启动 Pi Workbench')"
                 @update:model-value="toggleAutostart"
               />
@@ -650,8 +675,8 @@ onMounted(() => {
             <div class="bg-row">
               <span class="bg-label">{{ t('当前状态') }}</span>
               <span class="bg-status">
-                {{ bgInfo.paused ? t('主动任务已暂停') : t('主动任务运行中') }} ·
-                {{ bgInfo.autostart ? t('登录项已开启') : t('登录项已关闭') }}
+                {{ bgInfo?.paused ? t('主动任务已暂停') : t('主动任务运行中') }} ·
+                {{ bgInfo?.autostart ? t('登录项已开启') : t('登录项已关闭') }}
               </span>
             </div>
 

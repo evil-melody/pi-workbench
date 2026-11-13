@@ -17,8 +17,11 @@
   color: var(--text-faint);
 }
 
-.app-input:hover:not(:disabled) {
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .app-input:hover:not(:disabled) {
+    border-color: var(--border-strong);
+}
 }
 
 .app-input:focus {

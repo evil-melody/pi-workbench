@@ -107,10 +107,10 @@ onMounted(refresh)
       </div>
     </div>
 
-    <div v-else class="aops-empty">
-      <AppIcon name="monitor" :size="36" />
-      <strong>{{ t('没有进行中的浏览器会话') }}</strong>
-      <span class="muted">{{ t('输入网址点「打开」即可在本地浏览器跳转；抓取类能力在对话里用') }}<code>/browser</code>{{ t('触发。') }}</span>
+    <div v-else class="empty-state">
+      <div class="empty-icon"><AppIcon name="monitor" :size="20" /></div>
+      <p class="empty-title">{{ t('没有进行中的浏览器会话') }}</p>
+      <p class="empty-hint">{{ t('输入网址点「打开」即可在本地浏览器跳转；抓取类能力在对话里用') }}<code>/browser</code>{{ t('触发。') }}</p>
     </div>
   </section>
 </template>

@@ -16,7 +16,8 @@
   flex-direction: column;
   border-radius: var(--r-xl);
   background: var(--bg-panel);
-  border: 1px solid var(--border);
+  /* 阴影已含一层中性 hairline：再叠 border 就是双描边（参考仓 shadow/material 规则）。 */
+  border: 0;
   box-shadow: var(--sh-2);
   overflow: hidden;
 }
@@ -68,9 +69,12 @@
   transform: translate(-50%, -50%);
 }
 
-.modal-close:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .modal-close:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 .modal-close:focus-visible {
@@ -137,7 +141,8 @@
   max-height: calc(100dvh - 48px);
   border: 0;
   border-radius: var(--r-xl);
-  animation: modal-page-in 0.16s ease-out;
+  /* 时长/缓动只走令牌（参考仓 .16s ease-out 就近归到 --dur）。 */
+  animation: modal-page-in var(--dur) var(--ease);
 }
 
 .modal-panel.page .modal-header {
@@ -146,7 +151,7 @@
 
 .modal-panel.page .modal-header h3 {
   font-size: var(--fs-xl);
-  font-weight: 650;
+  font-weight: var(--fw-page);
 }
 
 .modal-panel.page .modal-body {

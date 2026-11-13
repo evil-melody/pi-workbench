@@ -224,22 +224,37 @@ onMounted(reload)
 
 <template>
   <div class="cp">
+    <!-- 窄栏（右列 320px）里搜索框与动作挤一行会把输入压到 55px：搜索独占一行，动作另起一行。 -->
     <div class="cp-toolbar">
       <AppInput v-model="keyword" :placeholder="t('搜索连接器（名称 / 服务标识）')" />
-      <span class="cp-stat">{{ t('共 {0} 个，启用 {1}', [list.length, list.filter((c) => c.enabled).length]) }}
-      </span>
-      <AppButton variant="secondary" class="cp-btn" :disabled="loading" @click="reload">{{ t('刷新') }}</AppButton>
-      <AppButton variant="primary" class="cp-btn primary" @click="openCreate">{{ t('+ 新建连接器') }}</AppButton>
+      <div class="cp-toolbar-row">
+        <span class="cp-stat">{{ t('共 {0} 个，启用 {1}', [list.length, list.filter((c) => c.enabled).length]) }}</span>
+        <AppButton variant="secondary" :disabled="loading" @click="reload">{{ t('刷新') }}</AppButton>
+        <AppButton variant="primary" @click="openCreate">{{ t('+ 新建连接器') }}</AppButton>
+      </div>
     </div>
 
     <p v-if="error" class="cp-error">{{ error }}</p>
 
-    <div class="cp-body">
-      <aside class="cp-list">
-        <p v-if="loading && !list.length" class="cp-hint">{{ t('正在读取连接器…') }}</p>
-        <p v-else-if="!filtered.length" class="cp-hint">
-          {{ keyword ? t('没有匹配的连接器') : t('还没有连接器，点右上「新建连接器」添加一个') }}
-        </p>
+    <div class="cp-body" :class="{ 'has-detail': !!activeItem }">
+      <aside class="cp-list" :class="{ 'is-empty': !filtered.length }">
+        <!-- 骨架与真实行同构：三条整行占位，加载完不跳高度 -->
+        <div v-if="loading && !list.length" class="cp-skeleton" role="status" :aria-label="t('正在读取连接器…')">
+          <span class="skeleton sk-block" />
+          <span class="skeleton sk-block" />
+          <span class="skeleton sk-block" />
+        </div>
+        <!-- 空态走公共 .empty-state：图标 + 一句去向，在列表剩余空间里居中 -->
+        <div v-else-if="!filtered.length" class="empty-state cp-empty">
+          <span class="empty-icon"><AppIcon name="plug" :size="18" /></span>
+          <template v-if="keyword">
+            <p class="empty-title">{{ t('没有匹配的连接器') }}</p>
+          </template>
+          <template v-else>
+            <p class="empty-title">{{ t('还没有连接器') }}</p>
+            <p class="empty-hint">{{ t('点右上「新建连接器」添加一个') }}</p>
+          </template>
+        </div>
         <div
           v-for="c in filtered"
           :key="c.id"
@@ -286,56 +301,51 @@ onMounted(reload)
         </div>
       </aside>
 
-      <section class="cp-detail">
-        <template v-if="activeItem">
-          <header class="cp-detail-head">
-            <div>
-              <h4>{{ activeItem.title }}</h4>
-              <span class="cp-muted">{{ activeItem.description || t('（暂无描述）') }}</span>
-            </div>
-            <div class="cp-detail-actions">
-              <AppButton variant="secondary" class="cp-btn" @click="openEdit(activeItem.id)">{{ t('编辑') }}</AppButton>
-            </div>
-          </header>
-
-          <dl class="cp-facts">
-            <div><dt>{{ t('服务标识') }}</dt><dd><code>{{ activeItem.server_name }}</code></dd></div>
-            <div><dt>{{ t('传输') }}</dt><dd>{{ transportText(activeItem.transport) }}</dd></div>
-            <div>
-              <dt>{{ t('状态') }}</dt>
-              <dd>
-                <span class="cp-badge" :data-state="activeItem.state">
-                  {{ stateText(activeItem.state) }}
-                </span>
-              </dd>
-            </div>
-            <div>
-              <dt>{{ t('本会话') }}</dt>
-              <dd>{{ selection.includes(activeItem.id) ? t('已选中') : t('未选中') }}</dd>
-            </div>
-          </dl>
-
-          <p v-if="activeItem.diagnostic" class="cp-diag">{{ t('诊断：{0}', [activeItem.diagnostic]) }}</p>
-
-          <div v-if="activeItem.tool_names.length" class="cp-tools">
-            <p class="cp-tools-head">{{ t('已发现的工具（{0}）', [activeItem.tool_names.length]) }}</p>
-            <ul>
-              <li v-for="t in activeItem.tool_names" :key="t"><code>{{ t }}</code></li>
-            </ul>
+      <section v-if="activeItem" class="cp-detail">
+        <header class="cp-detail-head">
+          <div>
+            <h4>{{ activeItem.title }}</h4>
+            <span class="cp-muted">{{ activeItem.description || t('（暂无描述）') }}</span>
           </div>
-          <p v-else class="cp-hint">{{ t('这个连接器还没有暴露任何工具。') }}</p>
-        </template>
-        <p v-else class="cp-hint">{{ t('在左侧选择一个连接器查看详情。') }}</p>
+          <div class="cp-detail-actions">
+            <AppButton variant="secondary" @click="openEdit(activeItem.id)">{{ t('编辑') }}</AppButton>
+          </div>
+        </header>
+
+        <dl class="cp-facts">
+          <div><dt>{{ t('服务标识') }}</dt><dd><code>{{ activeItem.server_name }}</code></dd></div>
+          <div><dt>{{ t('传输') }}</dt><dd>{{ transportText(activeItem.transport) }}</dd></div>
+          <div>
+            <dt>{{ t('状态') }}</dt>
+            <dd>
+              <span class="cp-badge" :data-state="activeItem.state">
+                {{ stateText(activeItem.state) }}
+              </span>
+            </dd>
+          </div>
+          <div>
+            <dt>{{ t('本会话') }}</dt>
+            <dd>{{ selection.includes(activeItem.id) ? t('已选中') : t('未选中') }}</dd>
+          </div>
+        </dl>
+
+        <p v-if="activeItem.diagnostic" class="cp-diag">{{ t('诊断：{0}', [activeItem.diagnostic]) }}</p>
+
+        <div v-if="activeItem.tool_names.length" class="cp-tools">
+          <p class="cp-tools-head">{{ t('已发现的工具（{0}）', [activeItem.tool_names.length]) }}</p>
+          <ul>
+            <li v-for="t in activeItem.tool_names" :key="t"><code>{{ t }}</code></li>
+          </ul>
+        </div>
+        <p v-else class="cp-hint">{{ t('这个连接器还没有暴露任何工具。') }}</p>
       </section>
     </div>
 
     <div v-if="showSession" class="cp-session">
+      <!-- 层级：标题 / 说明两行成组，动作另起一行；原来标题+长说明+按钮同排，窄栏里按钮被挤到说明下面却不与标题对齐 -->
       <div class="cp-session-head">
         <strong>{{ t('本会话使用') }}</strong>
         <span class="cp-muted">{{ t('选中哪些连接器由这个会话决定；点「应用到内核白名单」后才会真的注入。') }}</span>
-        <AppButton variant="primary" class="cp-btn primary" :disabled="applying" @click="applyScope">
-          {{ applying ? t('应用中…') : t('应用到内核白名单') }}
-        </AppButton>
       </div>
 
       <div v-if="!!list.length" class="cp-session-pick">
@@ -354,6 +364,12 @@ onMounted(reload)
         </AppButton>
       </div>
       <p v-else class="cp-hint">{{ t('还没有连接器可选。') }}</p>
+
+      <div class="cp-session-actions">
+        <AppButton variant="primary" :disabled="applying" @click="applyScope">
+          {{ applying ? t('应用中…') : t('应用到内核白名单') }}
+        </AppButton>
+      </div>
 
       <div v-if="scope.length" class="cp-scope">
         <p class="cp-tools-head">{{ t('注入白名单（{0}）', [scope.length]) }}</p>

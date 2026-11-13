@@ -26,8 +26,11 @@
   transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 
-.skill-card:hover {
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .skill-card:hover {
+    border-color: var(--border-strong);
+}
 }
 
 .skill-top {

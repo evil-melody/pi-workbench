@@ -125,7 +125,7 @@ async function create() {
     const snap = await invoke<ProjectSnapshot>('project_add', {
       name,
       description: '',
-      templateId: draftTemplate.value || null,
+      template_id: draftTemplate.value || null,
       path: draftPath.value.trim() || null,
     })
     // 后端建项目时指令取自模板；用户在弹窗里改过就补一次配置修订，避免输入被丢掉。
@@ -136,8 +136,8 @@ async function create() {
         id: snap.project.id,
         instruction,
         capabilities: cfg.capabilities ?? [],
-        expectedRevisionId: cfg.id,
-        expectedRevisionNumber: cfg.number,
+        expected_revision_id: cfg.id,
+        expected_revision_number: cfg.number,
       }).catch(() => {})
     }
     await invoke('project_set_active', { id: snap.project.id }).catch(() => {})
@@ -172,7 +172,8 @@ async function unarchive(id: string) {
 
 function stamp(ts?: number) {
   // 与侧栏/收件箱同一套相对时间，卡片不再各写一版（此前 3 天前会显示绝对日期）。
-  return timeAgo(ts) || '—'
+  // 没有时间就返回空串，由模板决定不渲染这一行，而不是显示「更新于 —」。
+  return timeAgo(ts)
 }
 
 onMounted(refresh)
@@ -182,27 +183,14 @@ onMounted(refresh)
   <section class="wd-projects">
     <div class="wd-p-center">
       <p v-if="loadError" class="wd-p-load-error">{{ loadError }}</p>
-      <div class="wd-p-hero">
-        <div class="wd-p-hero-copy">
+      <!-- 页头一行：标题 + 说明 + 筛选 + 新建。原先 h1 与「我的项目」两层标题
+           在 168px 的 hero 里上下堆叠，筛选还被压到第二屏开头。 -->
+      <header class="wd-p-head">
+        <div class="wd-p-head-copy">
           <h1>{{ t('项目') }}</h1>
           <p>{{ t('让资料、技能与 AI 任务，在项目中有序协作。') }}</p>
-          <AppButton variant="primary" class="wd-p-create" @click="openCreate()">
-            <AppIcon name="plus" :size="14" />
-            <span>{{ t('新建项目') }}</span>
-          </AppButton>
         </div>
-        <div class="wd-p-hero-art" aria-hidden="true">
-          <span class="wd-p-art-node"><AppIcon name="file" :size="26" /></span>
-          <i />
-          <span class="wd-p-art-hub"><AppIcon name="share-network" :size="34" /></span>
-          <i />
-          <span class="wd-p-art-node"><AppIcon name="list" :size="26" /></span>
-        </div>
-      </div>
-
-      <div class="wd-p-section-head">
-        <h2>{{ status === 'active' ? t('我的项目') : t('已归档项目') }}</h2>
-        <div class="wd-p-center-filters">
+        <div class="wd-p-head-actions">
           <AppSelect
             v-model="status"
             :options="[
@@ -210,50 +198,57 @@ onMounted(refresh)
               { value: 'archived', label: t('已归档') },
             ]"
           />
-          <AppInput v-model="keyword" :placeholder="t('搜索项目')" />
+          <AppInput v-model="keyword" class="wd-p-search" :placeholder="t('搜索项目')" />
+          <AppButton variant="primary" class="wd-p-create" @click="openCreate()">
+            <AppIcon name="plus" :size="14" />
+            <span>{{ t('新建项目') }}</span>
+          </AppButton>
         </div>
-      </div>
+      </header>
 
       <p v-if="loading && !visible.length" class="load-state">{{ t('正在加载项目…') }}</p>
 
-      <div class="wd-p-grid">
+      <!-- 列表与模板各收成一个容器：行之间用 hairline 分隔，不再每行一张卡。 -->
+      <section v-if="visible.length" class="wd-p-panel">
+        <header class="wd-p-panel-head">
+          <h2>{{ status === 'active' ? t('我的项目') : t('已归档项目') }}</h2>
+          <span class="wd-p-panel-count">{{ visible.length }}</span>
+        </header>
         <article
           v-for="p in visible"
           :key="p.id"
-          class="wd-p-card wd-p-project-card"
+          class="wd-p-row"
           :class="{ active: p.id === activeId }"
         >
           <AppButton
             variant="card"
-            class="wd-p-card-open"
+            class="wd-p-row-open"
             :aria-current="p.id === activeId ? 'page' : undefined"
             @click="openWorkspace(p.id)"
           >
-            <span class="wd-p-card-icon"><AppIcon name="folder" :size="21" /></span>
-            <span class="wd-p-card-body">
-              <strong :title="p.name">{{ p.name }}</strong>
-              <small class="wd-p-card-path" :title="p.path || t('未绑定目录')">{{ p.path || t('未绑定目录') }}</small>
-              <small class="wd-p-card-time">{{ t('更新于 {0}', [stamp(p.updated_at)]) }}</small>
-            </span>
+            <AppIcon name="folder" :size="15" class="wd-p-row-icon" />
+            <strong :title="p.name">{{ p.name }}</strong>
+            <small v-if="p.path" class="wd-p-row-path" :title="p.path">{{ p.path }}</small>
+            <small v-if="stamp(p.updated_at)" class="wd-p-row-time">{{ stamp(p.updated_at) }}</small>
           </AppButton>
           <AppButton
             v-if="status === 'active'"
             variant="text"
-            class="wd-p-card-menu"
+            class="wd-p-row-action"
             :title="t('归档')"
             @click="archive(p.id)"
           >{{ t('归档') }}</AppButton>
           <AppButton
             v-else
             variant="text"
-            class="wd-p-card-menu"
+            class="wd-p-row-action"
             :title="t('恢复')"
             @click="unarchive(p.id)"
           >{{ t('恢复') }}</AppButton>
         </article>
-      </div>
+      </section>
 
-      <div v-if="!loading && !visible.length" class="empty-state wd-p-empty">
+      <div v-if="!loading && !visible.length" class="empty-state">
         <span class="empty-icon"><AppIcon name="folder" :size="18" /></span>
         <p class="empty-title">
           {{ keyword ? t('没有匹配的项目') : projects.length ? t('没有已归档项目') : t('还没有项目') }}
@@ -261,21 +256,23 @@ onMounted(refresh)
         <p class="empty-hint">{{ t('新建项目后，资料、技能与 AI 任务都在这里协同。') }}</p>
       </div>
 
-      <template v-if="templates.length">
-        <div class="wd-p-section-head">
+      <section v-if="templates.length" class="wd-p-panel">
+        <header class="wd-p-panel-head">
           <h2>{{ t('从模板创建') }}</h2>
-        </div>
-
-        <div class="wd-p-grid">
-          <AppButton v-for="t in templates" :key="t.id" variant="card" class="wd-p-card" @click="openCreate(t)">
-            <span class="wd-p-card-icon"><AppIcon name="sparkles" :size="21" /></span>
-            <span>
-              <strong>{{ t.name }}</strong>
-              <small>{{ t.description }}</small>
-            </span>
-          </AppButton>
-        </div>
-      </template>
+          <span class="wd-p-panel-count">{{ templates.length }}</span>
+        </header>
+        <AppButton
+          v-for="t in templates"
+          :key="t.id"
+          variant="card"
+          class="wd-p-row wd-p-row-open wd-p-template"
+          @click="openCreate(t)"
+        >
+          <AppIcon name="sparkles" :size="15" class="wd-p-row-icon" />
+          <strong>{{ t.name }}</strong>
+          <small class="wd-p-row-path">{{ t.description }}</small>
+        </AppButton>
+      </section>
     </div>
 
     <div v-if="creating" class="wd-p-modal-backdrop" @click.self="creating = false">

@@ -67,7 +67,7 @@ async function onWindowFocus() {
   const { takeFocus } = useProactive()
   const target = await takeFocus()
   if (!target) return
-  await router.push({ name: 'inbox', query: { job: target.jobId, item: target.inboxId } })
+  await router.push({ name: 'inbox', query: { job: target.job_id, item: target.inbox_id } })
 }
 
 async function refreshProjects() {
@@ -126,8 +126,14 @@ function openWorkspace(id: string) {
   router.push(`/projects/${id}`)
 }
 
-/** 新会话：轮次加一 → 对话页重挂载（消息与流式状态都在组件里，push 同路由清不掉）。 */
-function newChat() {
+/**
+ * 新会话：先在 journal 落一条显式会话边界（否则运行记录会把新提问并进上一条），
+ * 再轮次加一 → 对话页重挂载（消息与流式状态都在组件里，push 同路由清不掉）。
+ * 桥会在内核存活时重启它——内核是内存态，不重启会把上一段对话带进新会话。
+ */
+async function newChat() {
+  const dir = projects.value.find((p) => p.id === activeProjectId.value)?.path ?? null
+  await invoke('pi_new_session', { cwd: dir }).catch(() => {})
   startNewSession()
   router.push('/chat')
 }
@@ -343,7 +349,7 @@ defineExpose({ refreshProjects })
             </AppButton>
             <span class="ws-time">{{ timeAgo(p.updated_at) }}</span>
           </li>
-          <!-- 该项目的历史运行记录：journal 按 session_open 分段，默认 5 条 + 加载更多。 -->
+          <!-- 该项目的历史运行记录：一次会话一条（内核重启合并），默认 5 条 + 加载更多。 -->
           <li v-if="p.path && expanded.has(p.id)" class="ws-runs">
             <RunHistory :cwd="p.path" @open="openRecord(p, $event)" />
           </li>

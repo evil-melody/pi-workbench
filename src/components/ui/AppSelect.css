@@ -17,11 +17,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  height: 28px;
-  padding: 0 8px;
-  border: var(--stroke);
-  border-radius: var(--r-sm);
-  background: var(--bg-elev);
+  /* 与 AppInput 同一个基座：36 高 / 圆角 8 / field 底色与描边。
+     之前写死 28 高，被 AppButton 的 min-height 抬到 36，是一句无效声明。 */
+  height: var(--row-h);
+  padding: 0 var(--sp-3);
+  border: var(--stroke-field);
+  border-radius: var(--r);
+  background: var(--bg-field);
   color: var(--text);
   font: inherit;
   font-size: var(--fs-ui);
@@ -29,8 +31,11 @@
   transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
-.trigger:hover:not(:disabled) {
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .trigger:hover:not(:disabled) {
+    border-color: var(--border-strong);
+}
 }
 
 .trigger:focus-visible,
@@ -45,9 +50,23 @@
   outline-offset: 2px;
 }
 
+/* 禁用 = 普通展示元素：去掉字段底/描边与指针暗示，值仍可读。 */
 .trigger:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+  opacity: 1;
+  cursor: default;
+  border-color: transparent;
+  background: transparent;
+}
+
+/* 校验失败：只把描边与焦点环换成语义色，几何不变（与 AppInput 同一套）。 */
+.trigger[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.trigger[aria-invalid='true']:focus-visible,
+.trigger[aria-invalid='true'].open {
+  border-color: var(--danger);
+  box-shadow: var(--focus-ring-danger);
 }
 
 .label {
@@ -77,10 +96,9 @@
  * width: max-content 让长描述自然展开，max-width 兜住超长文案。
  */
 .menu {
-  position: absolute;
+  /* fixed：不受工具栏 overflow:hidden 裁剪，坐标由脚本按触发器位置给出。 */
+  position: fixed;
   z-index: 40;
-  top: calc(100% + 4px);
-  left: 0;
   min-width: 100%;
   width: max-content;
   max-width: 320px;
@@ -89,7 +107,8 @@
   margin: 0;
   padding: 4px;
   list-style: none;
-  border: var(--stroke);
+  /* 浮层：--sh-2 内含 hairline，不再叠 border。 */
+  border: 0;
   border-radius: var(--r-lg);
   background: var(--bg-panel);
   box-shadow: var(--sh-2);
@@ -113,10 +132,22 @@
   white-space: nowrap;
 }
 
-.opt:hover,
 .opt:focus-visible {
   background: var(--bg-hover);
   outline: none;
+}
+
+@media (hover: hover) {
+
+  .opt:hover {
+    background: var(--bg-hover);
+    outline: none;
+}
+}
+
+/* 按下与 hover 同色再深一档：菜单项只有这两态，不引入第三种填充。 */
+.opt:active {
+  background: var(--bg-active);
 }
 
 .opt.on {

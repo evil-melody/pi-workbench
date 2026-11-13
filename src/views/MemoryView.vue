@@ -79,6 +79,9 @@ function profileValue(key: string): string {
   return f?.value ?? ''
 }
 
+/** 只列有证据的画像项：没有内容就整行不渲染，不用「暂无证据」占四行。 */
+const filledProfile = computed(() => PROFILE_FIELDS.value.filter((f) => profileValue(f.key)))
+
 // —— 语义向量检索（B5，Rust/LanceDB 侧；与词面记忆列表互补）——
 const vecStatus = ref<MemoryVecStatus | null>(null)
 const vecResults = ref<MemoryVecHit[]>([])
@@ -298,7 +301,7 @@ onUnmounted(() => {
         <p class="muted">{{ t('跨会话长期记忆与知识库检索入口。写入的条目可被对话里的') }}<code>memory_recall</code>{{ t('召回，支撑 RAG 式知识复用。') }}</p>
       </div>
       <div class="aops-meta">
-        <span class="badge">{{ t('{0} 条', [items.length]) }}</span>
+        <span v-if="items.length" class="badge">{{ t('{0} 条', [items.length]) }}</span>
         <AppButton variant="icon" class="tool-btn" :disabled="busy" :title="t('刷新')" @click="refresh()">
           <AppIcon name="refresh" :size="14" />
         </AppButton>
@@ -322,11 +325,9 @@ onUnmounted(() => {
         <span class="muted prof-sub">{{ t('由记忆保留标签折叠生成，无独立档案') }}</span>
       </header>
       <ul class="prof-list">
-        <li v-for="f in PROFILE_FIELDS" :key="f.key" class="prof-row">
+        <li v-for="f in filledProfile" :key="f.key" class="prof-row">
           <span class="prof-label">{{ f.label }}</span>
-          <span class="prof-value" :class="{ faint: !profileValue(f.key) }">
-            {{ profileValue(f.key) || t('暂无证据') }}
-          </span>
+          <span class="prof-value">{{ profileValue(f.key) }}</span>
           <AppButton variant="text" class="aops-plain prof-edit" :title="t('写入一条 {0} 记忆', [f.tag])" @click="openProfileEdit(f.tag)">{{ t('改') }}</AppButton>
         </li>
       </ul>
@@ -336,7 +337,12 @@ onUnmounted(() => {
       <header class="vec-head">
         <AppIcon name="sparkles" :size="15" />
         <span>{{ t('语义向量检索') }}</span>
-        <span class="muted vec-sub">{{ t('同义改写也能召回（bge-m3 · LanceDB）') }}</span>
+        <!-- 模型名与索引条数并进标题行：原先标题一行、状态一行，两行都在说索引。 -->
+        <span class="muted vec-sub">
+          <template v-if="vecStatus && vecStatus.rows">{{ t('{0} 条向量', [vecStatus.rows]) }}<template v-if="vecStatus.embedding.model"> · {{ vecStatus.embedding.model }}</template></template>
+          <template v-else>{{ t('同义改写也能召回') }}</template>
+        </span>
+        <span v-if="vecStatus && !vecStatus.exists" class="vec-warn">{{ t('索引未建') }}</span>
       </header>
 
       <div class="vec-bar">
@@ -358,12 +364,6 @@ onUnmounted(() => {
         >
           <AppIcon name="refresh" :size="14" />
         </AppButton>
-      </div>
-
-      <div v-if="vecStatus" class="vec-meta">
-        <span class="badge">{{ t('{0} 条向量', [vecStatus.rows]) }}</span>
-        <span class="muted">{{ vecStatus.embedding.model || t('未配置') }} @ {{ vecStatus.embedding.baseUrl || '—' }}</span>
-        <span v-if="!vecStatus.exists" class="vec-warn">{{ t('索引未建：写入记忆或点重建') }}</span>
       </div>
 
       <ul v-if="vecResults.length" class="vec-list">
@@ -388,7 +388,7 @@ onUnmounted(() => {
         <li v-for="row in trash" :key="row.id" class="trash-card">
           <div class="trash-main">
             <p class="mem-text">{{ row.text }}</p>
-            <span class="trash-tip">{{ remain(row.purgeAt) }}</span>
+            <span class="trash-tip">{{ remain(row.purge_at) }}</span>
           </div>
           <AppButton variant="secondary" class="btn" @click="undoDelete(row.id)">
             <AppIcon name="refresh" :size="13" />{{ t('恢复') }}</AppButton>
@@ -432,16 +432,16 @@ onUnmounted(() => {
       </li>
     </ul>
 
-    <div v-else class="aops-empty">
-      <AppIcon name="database" :size="36" />
-      <strong>{{ query.trim() ? t('没有匹配的记忆') : trash.length ? t('没有有效记忆') : t('还没有记忆') }}</strong>
-      <span class="muted">
+    <div v-else class="empty-state">
+      <div class="empty-icon"><AppIcon name="database" :size="20" /></div>
+      <p class="empty-title">{{ query.trim() ? t('没有匹配的记忆') : trash.length ? t('没有有效记忆') : t('还没有记忆') }}</p>
+      <p class="empty-hint">
         {{ query.trim()
             ? t('换个关键词，或清空搜索框。')
             : trash.length
               ? t('下面的待撤销条目可在 24 小时内恢复。')
               : t('点「写入记忆」记下一条经验，或在对话里用 /memory 查看。') }}
-      </span>
+      </p>
     </div>
 
     <AppModal :open="dialog" :title="t('写入记忆')" size="md" @close="dialog = false">

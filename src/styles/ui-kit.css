@@ -85,8 +85,8 @@
   align-content: center;
   gap: var(--sp-2);
   min-height: 180px;
-  padding: var(--sp-6) var(--sp-5);
-  border: 1px dashed var(--border);
+  padding: var(--sp-6);
+  border: 0;
   border-radius: var(--r-lg);
   color: var(--text-dim);
   text-align: center;
@@ -132,7 +132,7 @@
   inset: 0;
   transform: translateX(-100%);
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
-  animation: sk-sweep 1.4s var(--ease) infinite;
+  animation: sk-sweep var(--loop-sweep) var(--ease) infinite;
 }
 
 [data-theme='light'] .skeleton::after {

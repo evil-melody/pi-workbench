@@ -8,9 +8,10 @@
   align-items: center;
   justify-content: center;
   gap: var(--sp-1);
-  /* 参考 controls.ts：高 36 / 圆角 9 / padding 9 16 / 不被压扁（圆角归一到 --r）。 */
+  /* 参考 controls.ts：高 36 / 圆角 9 / padding 9 16 / 不被压扁（圆角归一到 --r）。
+     纵向 padding 归 0、由 min-height + 居中对齐定高，与原生 button 的 36 完全一致。 */
   min-height: var(--row-h);
-  padding: 8px 16px;
+  padding: 0 var(--sp-4);
   border-radius: var(--r);
   flex-shrink: 0;
   font-family: inherit;
@@ -24,7 +25,7 @@
 
 .app-btn:where(.s-sm) {
   min-height: 28px;
-  padding: 3px 8px;
+  padding: 0 var(--sp-2);
   font-size: var(--fs-meta);
 }
 
@@ -35,9 +36,12 @@
   font-weight: var(--fw-semibold);
 }
 
-.app-btn:where(.v-primary):where(:hover:not(:disabled)) {
-  background: var(--accent);
-  filter: brightness(1.08);
+@media (hover: hover) {
+
+  .app-btn:where(.v-primary):where(:hover:not(:disabled)) {
+    background: var(--accent);
+    filter: brightness(1.08);
+}
 }
 
 .app-btn:where(.v-primary):where(:active:not(:disabled)) {
@@ -53,10 +57,13 @@
   font-weight: var(--fw-medium);
 }
 
-.app-btn:where(.v-secondary):where(:hover:not(:disabled)) {
-  background: var(--bg-hover);
-  border-color: transparent;
-  color: var(--text);
+@media (hover: hover) {
+
+  .app-btn:where(.v-secondary):where(:hover:not(:disabled)) {
+    background: var(--bg-hover);
+    border-color: transparent;
+    color: var(--text);
+}
 }
 
 .app-btn:where(.v-secondary):where(:active:not(:disabled)) {
@@ -75,9 +82,12 @@
   border-color: var(--danger-soft);
 }
 
-.app-btn:where(.v-danger):where(:hover:not(:disabled)) {
-  background: var(--danger-soft);
-  border-color: var(--danger);
+@media (hover: hover) {
+
+  .app-btn:where(.v-danger):where(:hover:not(:disabled)) {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+}
 }
 
 /* 纯图标：正方形，无边框无底色，hover 才给一层底。 */
@@ -91,10 +101,13 @@
   color: var(--text-dim);
 }
 
-.app-btn:where(.v-icon):where(:hover:not(:disabled)) {
-  background: var(--bg-hover);
-  border-color: var(--border);
-  color: var(--text);
+@media (hover: hover) {
+
+  .app-btn:where(.v-icon):where(:hover:not(:disabled)) {
+    background: var(--bg-hover);
+    border-color: var(--border);
+    color: var(--text);
+}
 }
 
 /* 纯文字：无边框，用于行内操作；不参与 36px 基座高度。 */
@@ -106,10 +119,13 @@
   color: var(--text-dim);
 }
 
-.app-btn:where(.v-text):where(:hover:not(:disabled)) {
-  background: var(--bg-hover);
-  border-color: transparent;
-  color: var(--text);
+@media (hover: hover) {
+
+  .app-btn:where(.v-text):where(:hover:not(:disabled)) {
+    background: var(--bg-hover);
+    border-color: transparent;
+    color: var(--text);
+}
 }
 
 .app-btn:disabled {

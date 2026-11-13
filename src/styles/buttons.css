@@ -6,20 +6,24 @@
   background: var(--accent);
   color: var(--accent-ink);
   border-color: var(--accent);
-  font-weight: 550;
+  font-weight: var(--fw-semibold);
 }
-.btn.primary:hover:not(:disabled) {
-  background: var(--accent);
-  border-color: var(--accent);
-  filter: brightness(1.08);
+@media (hover: hover) {
+  .btn.primary:hover:not(:disabled) {
+    background: var(--accent);
+    border-color: var(--accent);
+    filter: brightness(1.08);
+}
 }
 .btn.danger {
   color: var(--danger);
   border-color: var(--danger-soft);
 }
-.btn.danger:hover:not(:disabled) {
-  background: var(--danger-soft);
-  border-color: var(--danger);
+@media (hover: hover) {
+  .btn.danger:hover:not(:disabled) {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+}
 }
 .btn.tiny {
   padding: 3px 8px;

@@ -4,6 +4,8 @@ const props = withDefaults(
     modelValue: string
     placeholder?: string
     disabled?: boolean
+    readonly?: boolean
+    invalid?: boolean
     type?: 'text' | 'password'
     mono?: boolean
   }>(),
@@ -21,6 +23,8 @@ const emit = defineEmits<{ 'update:modelValue': [string] }>()
     :value="props.modelValue"
     :placeholder="props.placeholder"
     :disabled="props.disabled"
+    :readonly="props.readonly"
+    :aria-invalid="props.invalid ? 'true' : undefined"
     spellcheck="false"
     @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
   />
