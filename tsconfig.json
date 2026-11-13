@@ -30,6 +30,7 @@
   "include": [
     "src",
     "tests",
+    "src-tauri/extensions",
     "vitest.config.ts"
   ]
 }

@@ -6,9 +6,25 @@
     <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="theme-color" content="#2563eb" />
     <title>Pi Workbench</title>
+    <!--
+      首帧底色：模块脚本执行前 body 还没有任何样式，WebView 会先涂默认白底，
+      每次重载都能看到一帧白屏（CDP 实测纯白 255）。这里把主题底色内联进 head，
+      由同一段脚本定 data-theme，首帧直接是 --bg 的色值。
+    -->
+    <style>
+      html {
+        background: #121212;
+        color-scheme: dark;
+      }
+      html[data-theme='light'] {
+        background: #eceff3;
+        color-scheme: light;
+      }
+    </style>
     <script>
-      // 首屏同步定语言：缓存 → 系统语言 → zh-CN，避免英文用户先看到一帧中文。
+      // 首屏同步定语言与主题：缓存 → 系统，避免英文用户先看到中文、暗色用户先看到白底。
       ;(function () {
+        var root = document.documentElement
         try {
           var saved = localStorage.getItem('pi-workbench:lang')
           var lang = saved
@@ -16,9 +32,20 @@
             var nav = (navigator.language || '').toLowerCase()
             lang = nav.indexOf('en') === 0 ? 'en-US' : 'zh-CN'
           }
-          document.documentElement.lang = lang
+          root.lang = lang
         } catch (e) {
           /* localStorage 不可用时保持 zh-CN */
+        }
+        try {
+          var theme = localStorage.getItem('pi-workbench:theme')
+          if (theme !== 'light' && theme !== 'dark') {
+            theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
+              ? 'light'
+              : 'dark'
+          }
+          root.dataset.theme = theme
+        } catch (e) {
+          /* matchMedia 不可用时保持 CSS 默认暗色 */
         }
       })()
     </script>
