@@ -93,6 +93,23 @@ export interface LibraryRevision {
   size: number
 }
 
+/** 一批自动归档失败：保留源路径，用户可在资料库重试。 */
+export interface ArchiveFailure {
+  id: string
+  session_id: string
+  session_title: string
+  date: string
+  paths: string[]
+  error: string
+  at: number
+}
+
+export interface ArchiveReport {
+  imported: number
+  skipped: number
+  failed: number
+}
+
 /** 来源文案：写清楚这条资料是怎么进来的，别让用户猜。 */
 export function originText(kind: string): string {
   const table: Record<string, string> = {
@@ -101,6 +118,7 @@ export function originText(kind: string): string {
     written: t('正文保存'),
     'draft-published': t('草稿发布'),
     rollback: t('回滚'),
+    'auto-archive': t('自动归档'),
   }
   return table[kind] ?? kind
 }
@@ -191,7 +209,7 @@ export const libraryRename = (id: string, name: string) =>
   invoke<LibraryAssetView>('library_rename', { id, name })
 
 export const libraryMove = (id: string, targetDir: string) =>
-  invoke<LibraryAssetView>('library_move', { id, targetDir })
+  invoke<LibraryAssetView>('library_move', { id, target_dir: targetDir })
 
 export const libraryRemove = (id: string) => invoke<void>('library_remove', { id })
 
@@ -213,3 +231,25 @@ export const librarySearch = (query: string) =>
 export const libraryOpen = (id: string) => invoke<void>('library_open', { id })
 
 export const libraryBytes = (id: string) => invoke<LibraryBytes>('library_bytes', { id })
+
+export const libraryArchiveSession = (
+  sessionId: string,
+  sessionTitle: string,
+  date: string,
+  paths: string[],
+) =>
+  invoke<ArchiveReport>('library_archive_session', {
+    session_id: sessionId,
+    session_title: sessionTitle,
+    date,
+    paths,
+  })
+
+export const libraryArchiveFailures = () =>
+  invoke<ArchiveFailure[]>('library_archive_failures')
+
+export const libraryArchiveRetry = (id: string) =>
+  invoke<ArchiveReport>('library_archive_retry', { id })
+
+export const libraryArchiveDismiss = (id: string) =>
+  invoke<void>('library_archive_dismiss', { id })

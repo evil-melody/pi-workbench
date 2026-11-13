@@ -43,11 +43,19 @@ describe('错误码到人话', () => {
 })
 
 describe('文案表覆盖后端会发出的取值', () => {
-  it('来源文案覆盖 AssetOrigin.kind 的五种取值', () => {
-    // Rust 侧 AssetOrigin::kind ∈ created / imported / written / draft-published / rollback
-    for (const kind of ['created', 'imported', 'written', 'draft-published', 'rollback']) {
+  it('来源文案覆盖 AssetOrigin.kind 的六种取值', () => {
+    // Rust 侧 AssetOrigin::kind ∈ created / imported / written / draft-published / rollback / auto-archive
+    for (const kind of [
+      'created',
+      'imported',
+      'written',
+      'draft-published',
+      'rollback',
+      'auto-archive',
+    ]) {
       expect(originText(kind)).not.toBe(kind)
     }
+    expect(originText('auto-archive')).toBe('自动归档')
     expect(originText('unknown')).toBe('unknown')
   })
 

@@ -18,13 +18,13 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: var(--sp-5);
+  gap: var(--sp-6);
   flex-wrap: wrap;
-  margin-bottom: var(--sp-5);
+  margin-bottom: var(--sp-6);
 }
 
 .lib-header h1 {
-  margin: 0 0 var(--sp-1);
+  margin: 0 0 var(--sp-3);
   font-size: var(--fs-page);
   line-height: var(--lh-page);
   font-weight: var(--fw-page);
@@ -32,26 +32,12 @@
 }
 
 .lib-header .muted {
+  margin: 0;
   color: var(--text-dim);
   font-size: var(--fs-md);
 }
 
-.lib-empty {
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: var(--sp-2);
-  min-height: 240px;
-  border: 1px dashed var(--border);
-  border-radius: var(--r-lg);
-  color: var(--text-dim);
-  text-align: center;
-}
-
-.lib-empty strong {
-  color: var(--text);
-  font-size: var(--fs-body);
-}
+/* 空态统一走 ui-kit 的 .empty-state；页面不再保留第三套 .lib-empty。 */
 
 /* ── Toolbar ────────────────────────────────────────────────── */
 .lib-toolbar {
@@ -66,12 +52,13 @@
 .lib-tabs {
   display: flex;
   gap: var(--sp-1);
-  padding: 3px;
+  padding: var(--sp-1);
   max-width: 100%;
   min-width: 0;
   overflow-x: auto;
   border: var(--stroke);
-  border-radius: var(--r-lg);
+  /* 分段容器全站统一 --r；此前这里是 12，与能力中心/插件页并排时圆角不一致。 */
+  border-radius: var(--r);
   background: var(--bg-panel);
   scrollbar-width: none;
 }
@@ -83,10 +70,12 @@
 .lib-tab {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--sp-1);
   flex-shrink: 0;
   white-space: nowrap;
-  padding: 6px 12px;
+  /* 与能力中心/插件页同一档：高 36、横向 12。 */
+  height: var(--row-h);
+  padding: 0 var(--sp-3);
   border: 0;
   border-radius: var(--r);
   background: transparent;
@@ -95,16 +84,17 @@
   cursor: pointer;
 }
 
-.lib-tab:hover {
-  color: var(--text);
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .lib-tab:hover {
+    color: var(--text);
+    background: var(--bg-hover);
+}
 }
 
 .lib-tab.active {
   background: var(--bg-elev);
   color: var(--text);
-  font-weight: var(--fw-semibold);
-  box-shadow: var(--sh-1);
 }
 
 .lib-tools {
@@ -117,38 +107,26 @@
   width: 220px;
   border: 1px solid var(--border);
   border-radius: var(--r);
-  padding: 8px 12px;
+  /* 与两侧 36 高按钮同高；8px 上下内衬只是把 36 凑出来。 */
+  height: var(--row-h);
+  padding: 0 var(--sp-3);
   background: var(--bg-panel);
   color: var(--text);
   font-size: var(--fs-ui);
 }
 
-.tool-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 7px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  background: var(--bg-panel);
-  color: var(--text);
-  font-size: var(--fs-meta);
-  cursor: pointer;
+/* 工具条末位图标键：28 会让这一排高低不齐，统一 36。 */
+.lib-tools :deep(.app-btn.v-icon) {
+  width: var(--row-h);
+  height: var(--row-h);
 }
 
-.tool-btn:hover:not(:disabled) {
-  background: var(--bg-hover);
-}
+/* 工具条按钮统一由 AppButton 变体决定，页面不再重定义 .tool-btn。 */
 
-.tool-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 
 .lib-status {
-  margin-bottom: 12px;
-  padding: 8px 12px;
+  margin-bottom: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
   border-radius: var(--r);
   background: var(--bg-panel);
   color: var(--text-dim);
@@ -159,12 +137,24 @@
   color: var(--danger);
 }
 
+/* 自动归档失败：一句话 + 重试/忽略，不占整行。 */
+.lib-archive-fail {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.lib-archive-fail span {
+  flex: 1;
+  min-width: 0;
+}
+
 /* ── Body ───────────────────────────────────────────────────── */
 .lib-body {
   flex: 1;
   min-height: 0;
   display: flex;
-  gap: 16px;
+  gap: var(--sp-4);
 }
 
 /* 记忆层内嵌容器：与资料库三栏共用同一竖向节奏，不再自带页面级 padding。 */
@@ -188,7 +178,7 @@
 .tree-head {
   display: flex;
   align-items: center;
-  padding: 8px 12px;
+  padding: var(--sp-2) var(--sp-3);
   border-bottom: 1px solid var(--border);
   font-size: var(--fs-micro);
   font-weight: 600;
@@ -201,14 +191,16 @@
   overflow-y: auto;
   list-style: none;
   margin: 0;
-  padding: 4px 0;
+  padding: var(--sp-1) 0;
 }
 
 .tree-node {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
+  gap: var(--sp-2);
+  /* 行高固定 32：文字行与无名称行同高，6px 上下内衬是旧写法。 */
+  min-height: 32px;
+  padding: 0 var(--sp-3);
   /* AUDIT-017②：缩进由模板经 --tree-indent 传入（功能性动态值，豁免铁律）。 */
   padding-left: var(--tree-indent, 12px);
   color: var(--text-dim);
@@ -217,9 +209,12 @@
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
-.tree-node:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .tree-node:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 .tree-node.active {
@@ -241,7 +236,7 @@
 }
 
 .tree-empty {
-  padding: 24px;
+  padding: var(--sp-6);
   color: var(--text-faint);
   text-align: center;
   font-size: var(--fs-meta);
@@ -259,34 +254,19 @@
   overflow: hidden;
 }
 
-.lib-preview.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 24px;
-  color: var(--text-dim);
-  text-align: center;
-}
-
-.lib-preview.empty strong {
-  color: var(--text);
-}
-
 .preview-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
   border-bottom: 1px solid var(--border);
 }
 
 .preview-title {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
   font-size: var(--fs-ui);
   font-weight: 600;
 }
@@ -295,7 +275,7 @@
   flex: 1;
   width: 100%;
   border: 0;
-  padding: 14px;
+  padding: var(--sp-4);
   background: var(--bg);
   color: var(--text);
   font: 13px/1.6 'SF Mono', 'Fira Code', 'PingFang SC', monospace;
@@ -304,7 +284,7 @@
 }
 
 .preview-dirty {
-  padding: 1px 7px;
+  padding: 2px var(--sp-2);
   border-radius: var(--r-full);
   background: var(--accent-dim);
   color: var(--accent);
@@ -314,7 +294,7 @@
 /* ── 配额条 ─────────────────────────────────────────────────── */
 .lib-quota {
   display: grid;
-  gap: 6px;
+  gap: var(--sp-2);
   width: 240px;
   max-width: 100%;
   margin: 0;
@@ -350,20 +330,23 @@
 .hit-node {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 9px 12px;
+  gap: var(--sp-1);
+  padding: var(--sp-2) var(--sp-3);
   border-bottom: 1px solid var(--border-soft);
   cursor: pointer;
 }
 
-.hit-node:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .hit-node:hover {
+    background: var(--bg-hover);
+}
 }
 
 .hit-top {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--sp-1);
   color: var(--text);
   font-size: var(--fs-meta);
   font-weight: 600;
@@ -371,7 +354,7 @@
 
 .hit-convert {
   margin-left: auto;
-  padding: 1px 7px;
+  padding: 2px var(--sp-2);
   border-radius: var(--r-full);
   background: var(--ok-soft);
   color: var(--ok);
@@ -387,7 +370,7 @@
 .hit-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  gap: var(--sp-1) var(--sp-3);
   color: var(--text-faint);
   font-size: var(--fs-micro);
 }
@@ -406,7 +389,7 @@
 /* ── 目录节点的草稿 / 停用标记 ──────────────────────────────── */
 .tree-flag {
   flex-shrink: 0;
-  padding: 0 6px;
+  padding: 0 var(--sp-1);
   border-radius: var(--r-full);
   background: var(--warn-soft);
   color: var(--warn);
@@ -423,8 +406,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px 14px;
-  padding: 8px 14px;
+  gap: var(--sp-1) var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
   border-bottom: 1px solid var(--border-soft);
   color: var(--text-dim);
   font-size: var(--fs-meta);
@@ -435,7 +418,7 @@
 }
 
 .preview-flag {
-  padding: 1px 7px;
+  padding: 2px var(--sp-2);
   border-radius: var(--r-full);
   background: var(--warn-soft);
   color: var(--warn);
@@ -443,7 +426,7 @@
 }
 
 .preview-note {
-  padding: 7px 14px;
+  padding: var(--sp-2) var(--sp-4);
   border-bottom: 1px solid var(--border-soft);
   background: var(--warn-soft);
   color: var(--text-dim);
@@ -453,7 +436,7 @@
 .preview-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--sp-2);
   flex-wrap: wrap;
 }
 
@@ -463,8 +446,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 40px 20px;
+  gap: var(--sp-2);
+  padding: var(--sp-7) var(--sp-6);
   color: var(--text-faint);
   font-size: var(--fs-ui);
   text-align: center;
@@ -478,13 +461,18 @@
   min-height: 0;
   border: 0;
   border-radius: 0;
-  padding: 14px;
+  padding: var(--sp-4);
   background: var(--bg);
   color: var(--text);
   font: 13px/1.6 var(--mono);
   line-height: 1.6;
   resize: none;
   outline: none;
+}
+
+/* 编辑器铺满面板，没有可加深的描边：焦点用内描环，键盘可见且不撑破容器。 */
+.lib-preview .preview-editor:focus-visible {
+  box-shadow: var(--focus-ring-inset);
 }
 
 .lib-preview > .tree-empty {
@@ -497,8 +485,8 @@
 .dialog-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
 }
 
 .dialog-row > span {
@@ -513,7 +501,8 @@
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--r);
-  padding: 7px 10px;
+  height: var(--row-h);
+  padding: 0 var(--sp-3);
   background: var(--bg-panel);
   color: var(--text);
   font-size: var(--fs-ui);
@@ -537,8 +526,8 @@
 .rev-list > li {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 0;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
   border-bottom: 1px solid var(--border-soft);
   font-size: var(--fs-meta);
 }
@@ -549,7 +538,7 @@
 }
 
 .rev-no {
-  min-width: 34px;
+  min-width: 36px;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
 }
@@ -566,9 +555,12 @@
   color: var(--accent-ink);
 }
 
-.tool-btn.primary:hover:not(:disabled) {
-  filter: brightness(1.08);
-  background: var(--accent);
+@media (hover: hover) {
+
+  .tool-btn.primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+    background: var(--accent);
+}
 }
 
 .tool-btn.danger {
@@ -577,13 +569,16 @@
   color: var(--danger);
 }
 
-.tool-btn.danger:hover:not(:disabled) {
-  background: var(--danger);
-  color: var(--accent-ink);
+@media (hover: hover) {
+
+  .tool-btn.danger:hover:not(:disabled) {
+    background: var(--danger);
+    color: var(--accent-ink);
+}
 }
 
 .tool-btn.tiny {
-  padding: 3px 8px;
+  padding: 2px var(--sp-2);
   font-size: var(--fs-meta);
 }
 
@@ -599,7 +594,7 @@
   position: sticky;
   top: 0;
   margin: 0;
-  padding: 6px 14px;
+  padding: var(--sp-2) var(--sp-4);
   border-bottom: 1px solid var(--border);
   background: var(--accent-dim);
   color: var(--text-dim);
@@ -607,7 +602,7 @@
 }
 
 .office-body {
-  padding: 14px;
+  padding: var(--sp-4);
 }
 
 .office-body :deep(table) {
@@ -618,11 +613,11 @@
 .office-body :deep(td),
 .office-body :deep(th) {
   border: 1px solid var(--border);
-  padding: 2px 6px;
+  padding: 2px var(--sp-2);
 }
 
 .office-body :deep(.sname) {
-  margin: 14px 0 8px;
+  margin: var(--sp-4) 0 var(--sp-2);
   font-size: var(--fs-ui);
   color: var(--text);
 }
@@ -654,15 +649,17 @@
 
   .lib-tools {
     width: 100%;
+    /* 不换行时输入框被三个按钮挤到 74px，占位文案截半；换行后输入框独占第一行。 */
+    flex-wrap: wrap;
   }
 
   .lib-tools :deep(.app-input) {
     width: 100%;
-    flex: 1 1 140px;
+    flex: 1 1 100%;
     min-width: 0;
   }
 
   .lib-toolbar {
-    gap: 10px;
+    gap: var(--sp-2);
   }
 }

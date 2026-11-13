@@ -81,6 +81,7 @@ export const memory: Record<string, string> = {
   '上次运行已用 {0} / {1}，剩余 {2}': 'Last run used {0} / {1}, {2} left',
   '设置预授权': 'Set pre-authorization',
   '收件箱': 'Inbox',
+  '全部产物': 'All artifacts',
   '索引未建：写入记忆或点重建': 'Index not built: write a memory or click Rebuild',
   '同义改写也能召回（bge-m3 · LanceDB）': 'Recalls synonyms and paraphrases (bge-m3 · LanceDB)',
   '未配置': 'Not configured',
