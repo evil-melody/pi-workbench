@@ -39,7 +39,7 @@
     "eval:memory": "node --experimental-strip-types scripts/memory-eval.ts"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.1.1",
+    "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-dialog": "^2.4.1",
     "docx-preview": "0.4.1",
     "marked": "^12.0.2",
@@ -49,7 +49,7 @@
     "xlsx": "0.18.5"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.1.0",
+    "@tauri-apps/cli": "^2.12.4",
     "@types/node": "^26.6.2",
     "@vitejs/plugin-vue": "^5.2.1",
     "jsdom": "^30.1.1",
