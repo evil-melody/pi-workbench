@@ -41,9 +41,12 @@
   transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
-.crow-head:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .crow-head:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 /*
@@ -62,8 +65,11 @@
   background: var(--bg);
 }
 
-.crow-head:hover .crow-ic {
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .crow-head:hover .crow-ic {
+    background: var(--bg-hover);
+}
 }
 
 /* 文本列：标题 · 摘要共用一个可收缩轨道。 */
@@ -91,23 +97,31 @@
   color: var(--text-faint);
 }
 
-.crow-head:hover .crow-icon,
 .crow.open .crow-icon {
   color: var(--text-dim);
 }
 
+@media (hover: hover) {
+
+  .crow-head:hover .crow-icon {
+    color: var(--text-dim);
+}
+}
+
 /*
  * 工具名可收缩 + 省略号。原来 flex-shrink:0，长名（codebase_architecture）会把摘要挤出容器。
- * 工具名是标识符：等宽 + 500，与摘要（正文 400）拉开一档。
+ * 但按基准比例收缩会把 4 个字符的 `Bash` 也截成 `Ba…`（截图实证），
+ * 所以只在上限处截断：短名原样、超过 42% 才省略，余下宽度全留给摘要。
  */
 .crow-title {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
+  max-width: 42%;
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   font-family: var(--mono);
-  font-size: var(--fs-sm);
+  font-size: var(--fs-base);
   font-weight: var(--fw-medium);
 }
 
@@ -176,7 +190,7 @@
     color-mix(in srgb, var(--bg-hover) 80%, transparent) 55%,
     transparent 100%
   );
-  animation: crow-sweep 2.6s ease-out infinite;
+  animation: crow-sweep var(--loop-slow) ease-out infinite;
 }
 
 @keyframes crow-sweep {
@@ -311,10 +325,13 @@
     background-color var(--dur-fast) var(--ease);
 }
 
-.crow-body :deep(.crow-btn:hover) {
-  color: var(--text-dim);
-  border-color: var(--border-strong);
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .crow-body :deep(.crow-btn:hover) {
+    color: var(--text-dim);
+    border-color: var(--border-strong);
+    background: var(--bg-hover);
+}
 }
 
 /*

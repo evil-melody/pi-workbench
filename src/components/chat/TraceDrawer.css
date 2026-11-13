@@ -16,8 +16,9 @@
   display: flex;
 }
 
-/* 窄窗：右列转 overlay，浮在主内容上（`.chat` 已 position:relative，脱离 grid 流）。 */
-@media (max-width: 1180px) {
+/* 窄窗：右列转 overlay，浮在主内容上（`.chat` 已 position:relative，脱离 grid 流）。
+   断点 979 = 侧栏 260 + 右列 320 + 中栏 400（参考仓中栏最小宽度）。 */
+@media (max-width: 979px) {
   .trace-drawer.open {
     position: absolute;
     top: 0;
@@ -33,9 +34,9 @@
 .td-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--sp-2);
   flex-shrink: 0;
-  padding: 10px;
+  padding: var(--sp-2);
   border-bottom: 1px solid var(--border);
 }
 
@@ -78,38 +79,48 @@
   --fade-r: 20px;
 }
 
+/* 抽屉宽固定 ~333，5 个标签塞不下图标（合计 351 > 280）：图标一律不渲染，
+   文字标签本身就是识别主体。高度走 28 紧凑档，与右侧关闭键同一档。 */
 .td-tab {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  height: 30px;
-  padding: 0 8px;
+  gap: var(--sp-1);
+  height: 28px;
+  min-height: 28px;
+  /* 5 个标签在 320px 抽屉里原先多出 18px（末个「连接器」被截）：左右各收 4px 后刚好放下。 */
+  padding: 0 var(--sp-1);
   white-space: nowrap;
   font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text-dim);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: var(--r-sm);
+  border-radius: var(--r);
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
-.td-tab:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+.td-tab .app-icon {
+  display: none;
+}
+
+@media (hover: hover) {
+
+  .td-tab:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 .td-tab.on {
   background: var(--bg-elev);
   border-color: var(--border);
   color: var(--text);
-  box-shadow: var(--sh-1);
 }
 
 .td-badge {
-  padding: 0 5px;
+  padding: 0 var(--sp-1);
   border-radius: var(--r-full);
   background: var(--accent-dim);
   color: var(--accent);
@@ -120,21 +131,26 @@
 
 .td-close {
   flex-shrink: 0;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
   display: grid;
   place-items: center;
   border: 1px solid transparent;
-  border-radius: var(--r-sm);
+  border-radius: var(--r);
   background: transparent;
   color: var(--text-dim);
   cursor: pointer;
 }
 
-.td-close:hover {
-  border-color: var(--border);
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .td-close:hover {
+    border-color: var(--border);
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 .td-body {
@@ -144,4 +160,13 @@
   display: flex;
   flex-direction: column;
   overflow: auto;
+}
+
+/* 面板内衬统一由此提供：面板组件本身不再各写 padding（能力页另用页面内衬） */
+.td-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: var(--sp-3);
 }

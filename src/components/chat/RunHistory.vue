@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { t } from '@/i18n'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import AppCheckbox from '@/components/ui/AppCheckbox.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
@@ -10,6 +10,7 @@ import AppInput from '@/components/ui/AppInput.vue'
 import RunBulkBar from './RunBulkBar.vue'
 import RunHistoryMenu from './RunHistoryMenu.vue'
 import { listRunHistory, type RunRecord } from '@/composables/useReplay'
+import { useRunActivity } from '@/composables/useRunActivity'
 import { useRunMeta, type RunMetaPatch } from '@/composables/useRunMeta'
 import { allSelected, selectAll, toggleSelected } from '@/utils/runSelection'
 import { buildRunShareText } from '@/utils/runShare'
@@ -85,6 +86,24 @@ defineExpose({ refresh })
 
 const shown = computed(() => records.value.slice(0, visible.value))
 const hasMore = computed(() => records.value.length > visible.value)
+
+/**
+ * 正在跑的会话 = journal 的最新一段（内核在飞时只会有这一条在追加），
+ * 只给它挂转圈：同一会话多条任务不叠、归档/置顶改动也不影响判定。
+ */
+const { running } = useRunActivity()
+const liveIndex = computed(() =>
+  running.value && records.value.length
+    ? Math.max(...records.value.map((r) => r.index))
+    : null,
+)
+
+// 新任务开始时重读一次：刚开的新会话段要出现，转圈才有行可挂。
+let wasRunning = false
+watch(running, (on) => {
+  if (on && !wasRunning) void refresh()
+  wasRunning = on
+})
 
 /** 归档条数（sidecar 里 archived 且未删除的记录；cwd 为空 = 全部项目）。 */
 const archivedCount = computed(() => {
@@ -327,6 +346,15 @@ function openMenu(r: RunRecord, el: Event) {
           <AppIcon v-if="r.pinned" class="rh-pin" name="star" :size="12" />
           <span class="rh-title">{{ titleOf(r) }}</span>
           <span class="rh-meta">
+            <span
+              v-if="r.index === liveIndex"
+              class="rh-live"
+              role="status"
+              :aria-label="t('运行中')"
+              :title="t('运行中')"
+            >
+              <AppIcon name="spinner" :size="12" />
+            </span>
             <span v-if="r.prompts" class="rh-prompts">{{ t('{0} 轮', [r.prompts]) }}</span>
             <span class="rh-time">{{ timeOf(r) }}</span>
           </span>

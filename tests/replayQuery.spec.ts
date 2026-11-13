@@ -104,7 +104,7 @@ describe('listRunHistory 排序', () => {
   it('includeArchived 透传给后端', async () => {
     invokeMock.mockResolvedValue([])
     await listRunHistory('/repo/a', true)
-    expect(invokeMock).toHaveBeenCalledWith('pi_journal_sessions', { includeArchived: true })
+    expect(invokeMock).toHaveBeenCalledWith('pi_journal_sessions', { include_archived: true })
   })
 
   it('后端失败 → 空数组（列表整体隐藏，不报错打扰）', async () => {

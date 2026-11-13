@@ -41,29 +41,15 @@
   gap: var(--sp-1);
 }
 
-/*
- * F10：dsh 式统计行与代码库索引状态行已迁到轨迹面板（ActivityPanel.css
- * 的 .ctx-zone）——composer 这一行只留快捷键提示 / 活动语 / 中断按钮。
- */
-.abort {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  flex-shrink: 0;
-  height: 20px;
-  padding: 0 var(--sp-2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--text-dim);
-  font-size: var(--fs-xs);
-  cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
-    border-color var(--dur-fast) var(--ease);
+/* 窄栏工具条已被模型 / 思考档 / 角色占满：快捷键提示让位，避免被硬裁半个词 */
+@media (max-width: 1180px) {
+  .hint {
+    display: none;
+  }
 }
 
-.abort:hover {
-  background: var(--danger-soft);
-  border-color: var(--danger);
-  color: var(--danger);
-}
+/*
+ * F10：dsh 式统计行与代码库索引状态行已迁到轨迹面板（ActivityPanel.css
+ * 的 .ctx-zone）——composer 这一行只留快捷键提示 / 活动语。
+ * 中断已并入发送键位置（.composer-shell .stop），这里不再有第二个按钮。
+ */

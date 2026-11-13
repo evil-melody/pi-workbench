@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
+import ComposerShell from '@/components/chat/ComposerShell.vue'
 import RoleSwitcher from '@/components/layout/RoleSwitcher.vue'
 import ModeSwitcher from '@/components/chat/ModeSwitcher.vue'
 // 档位是全局偏好：落地页直接读同一份状态，不再维护本地影子值。
@@ -144,7 +145,7 @@ function onKeydown(e: KeyboardEvent) {
           <img class="hero-mascot" :src="mascotUrl" :alt="t('Pi Workbench 吉祥物')" />
         </div>
         <h1 class="hero-title">Pi Workbench</h1>
-        <p class="hero-sub">{{ t('选一个工作目录，用一句话把任务交给 Pi') }}</p>
+        <p class="hero-sub">{{ t('用一句话把任务交给 Pi') }}</p>
       </div>
 
       <!--
@@ -152,51 +153,43 @@ function onKeydown(e: KeyboardEvent) {
         上下文（工作目录 / 模型 / 权限）在左，执行控制（思考深度 / 发送）在右。
       -->
       <div class="hero-composer">
-        <div class="hero-input-wrap">
+        <ComposerShell class="hero-input-wrap">
           <AppTextarea
             v-model="draft"
             class="hero-input"
             :placeholder="
               cwd
                 ? t('今天帮你做些什么？')
-                : t('直接描述你的任务 —— 发送时会先让你选一个工作目录')
+                : t('描述你的任务，可附图片或文件')
             "
             :rows="2"
+            auto-grow
+            :max-rows="8"
             @keydown="onKeydown"
           />
 
-          <div class="composer-bar">
-            <div class="bar-left">
-              <!-- 工作目录与项目是同一件事：一个控件里既切项目也挑本地目录 -->
-              <WorkspacePicker
-                :projects="projects"
-                :cwd="cwd"
-                :busy="busy"
-                @pick-project="emit('pick-project', $event)"
-                @pick-directory="emit('pick-directory', $event)"
-                @bind-directory="emit('bind-directory', $event)"
-              />
+          <template #left>
+            <!-- 工作目录与项目是同一件事：一个控件里既切项目也挑本地目录 -->
+            <WorkspacePicker
+              :projects="projects"
+              :cwd="cwd"
+              :busy="busy"
+              @pick-project="emit('pick-project', $event)"
+              @pick-directory="emit('pick-directory', $event)"
+              @bind-directory="emit('bind-directory', $event)"
+            />
 
-              <span class="bar-sep" aria-hidden="true" />
+            <!-- 模型：内核只在启动时读模型，所以切换会重启内核 -->
+            <ModelSwitcher compact width="auto" />
 
-              <!-- 模型：内核只在启动时读模型，所以切换会重启内核 -->
-              <div class="bar-chip" :title="t('本轮对话使用的模型（切换会重启内核）')">
-                <AppIcon name="cpu" :size="13" />
-                <ModelSwitcher width="124px" />
-              </div>
+            <!-- 角色是项目级配置：选了项目才能切；没项目时说明白为什么点不动。 -->
+            <RoleSwitcher v-if="cwd" :root="cwd" width="auto" />
+            <span v-else class="bar-muted">{{ t('默认权限') }}</span>
+          </template>
 
-              <span class="bar-sep" aria-hidden="true" />
-
-              <!-- 角色是项目级配置：选了项目才能切；没项目时说明白为什么点不动。 -->
-              <div class="bar-chip" :title="cwd ? t('默认权限') : t('选择项目后可切换权限')">
-                <AppIcon name="user" :size="13" />
-                <RoleSwitcher v-if="cwd" :root="cwd" width="100px" />
-                <span v-else class="bar-muted">{{ t('默认权限') }}</span>
-              </div>
-            </div>
-
+          <template #right>
             <div class="bar-right">
-              <ModeSwitcher :model-value="thinkingLevel" @update:model-value="pickMode" />
+              <ModeSwitcher :model-value="thinkingLevel" width="auto" @update:model-value="pickMode" />
               <AppButton
                 variant="icon"
                 class="hero-send"
@@ -208,8 +201,8 @@ function onKeydown(e: KeyboardEvent) {
                 <AppIcon name="send" :size="16" />
               </AppButton>
             </div>
-          </div>
-        </div>
+          </template>
+        </ComposerShell>
         <p class="hero-hint">
           <AppIcon name="corner-down-left" :size="11" />{{ t('Enter 发送 · Shift+Enter 换行') }}</p>
       </div>

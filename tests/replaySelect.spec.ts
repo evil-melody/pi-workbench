@@ -62,6 +62,52 @@ describe('selectSessionEvents', () => {
     const events = [open('/repo/a')]
     expect(selectSessionEvents(events, '/repo/a')).toEqual([])
   })
+
+  it('同 cwd 内核重启留下的连续标记：合并成一段，不丢重启前的对话', () => {
+    const events = [
+      open('/repo/a'),
+      ev('run_start', { n: 1 }),
+      ev('user_prompt', { n: 2 }),
+      open('/repo/a'),
+      ev('run_start', { n: 3 }),
+    ]
+    // 重启不是新会话：两条标记之间的内容都要回放，否则刷新后整段消失。
+    const ns = selectSessionEvents(events, '/repo/a')
+      .map((e) => e.n)
+      .filter((n) => n !== undefined)
+    expect(ns).toEqual([1, 2, 3])
+  })
+
+  it('重启后的空段不把前一段顶掉（重启即退出的场景）', () => {
+    const events = [open('/repo/a'), ev('user_prompt', { n: 1 }), open('/repo/a')]
+    const ns = selectSessionEvents(events, '/repo/a')
+      .map((e) => e.n)
+      .filter((n) => n !== undefined)
+    expect(ns).toEqual([1])
+  })
+
+  it('中间隔了别的 cwd：不跨项目合并', () => {
+    const events = [
+      open('/repo/a'),
+      ev('user_prompt', { n: 1 }),
+      open('/repo/b'),
+      ev('user_prompt', { n: 2 }),
+      open('/repo/a'),
+      ev('user_prompt', { n: 3 }),
+    ]
+    expect(selectSessionEvents(events, '/repo/a').map((e) => e.n)).toEqual([3])
+  })
+
+  it('显式新会话（reason:"new"）：同 cwd 也不并回上一段', () => {
+    const events = [
+      open('/repo/a'),
+      ev('user_prompt', { n: 1 }),
+      ev('session_open', { cwd: '/repo/a', reason: 'new' }),
+      ev('user_prompt', { n: 2 }),
+    ]
+    // 点「新会话」后只回放新段，旧对话不能混进来。
+    expect(selectSessionEvents(events, '/repo/a').map((e) => e.n)).toEqual([2])
+  })
 })
 
 /**
@@ -101,5 +147,32 @@ describe('selectSessionByIndex', () => {
 
   it('尾斜杠视为同一目录', () => {
     expect(selectSessionByIndex(events, 0, '/repo/a/').map((e) => e.n)).toEqual([1])
+  })
+
+  it('组内任意段号都回放整段会话（运行记录一条 = 一次会话）', () => {
+    const continued = [
+      open('/repo/a'),
+      ev('message_end', { n: 1 }),
+      open('/repo/a'),
+      ev('message_end', { n: 2 }),
+      ev('message_end', { n: 3 }),
+    ]
+    const ns = (i: number) =>
+      selectSessionByIndex(continued, i)
+        .map((e) => e.n)
+        .filter((n) => n !== undefined)
+    expect(ns(0)).toEqual([1, 2, 3])
+    expect(ns(1)).toEqual([1, 2, 3])
+  })
+
+  it('显式新会话是硬边界：组内不越界', () => {
+    const events = [
+      open('/repo/a'),
+      ev('message_end', { n: 1 }),
+      ev('session_open', { cwd: '/repo/a', reason: 'new' }),
+      ev('message_end', { n: 2 }),
+    ]
+    expect(selectSessionByIndex(events, 0).map((e) => e.n)).toEqual([1])
+    expect(selectSessionByIndex(events, 1).map((e) => e.n)).toEqual([2])
   })
 })

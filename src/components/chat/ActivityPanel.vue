@@ -16,6 +16,9 @@ import {
 } from '@/composables/useProject'
 import { EVENT_KIND_ICON, eventKindLabel, eventDisplayLabel, type PiEventRow } from '@/utils/piEventKind'
 import { loadReplay, type ReplayResult } from '@/composables/useReplay'
+import { useRunFocus } from '@/composables/useRunFocus'
+import { buildRunChains, createRunChainStore, type RunChain } from '@/utils/runChain'
+import RunGraph from './RunGraph.vue'
 import type { PiMsg } from '@/composables/usePi'
 
 const props = defineProps<{
@@ -32,6 +35,26 @@ const props = defineProps<{
 const stream = usePiEventsInjected()
 const events = computed<PiEventRow[]>(() => stream?.events.value ?? [])
 const stats = computed(() => stream?.stats.value ?? { total: 0, calls: 0, turns: 0, exits: 0 })
+
+// 链路图：与消息里的「运行链路」入口共用一个焦点，点入口直接滚到本轮。
+// 事件缓冲是定长环形的，图改走增量累加，避免旧行被淘汰时节点消失、整图缩水。
+const chainStore = createRunChainStore()
+const chains = computed<RunChain[]>(() => buildRunChains(chainStore.sync(events.value)).slice(-12))
+const { focusRunId, focusSeq } = useRunFocus()
+
+async function scrollToFocus() {
+  if (!focusRunId.value) return
+  await nextTick()
+  const el = document.querySelector(`[data-run-id="${CSS.escape(focusRunId.value)}"]`)
+  el?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+}
+
+watch(focusSeq, scrollToFocus)
+// 首次点入口时抽屉是刚展开的：ActivityPanel 挂载晚于 focusSeq 变化，
+// 所以挂载后补一次定位，否则只会高亮、不滚到那一轮。
+onMounted(() => {
+  if (focusRunId.value) void scrollToFocus()
+})
 
 const listEl = ref<HTMLElement | null>(null)
 /** 有新事件时贴底，保证「当前正在做什么」始终可见。 */
@@ -184,14 +207,14 @@ interface UsageEntry {
   provider: string
   model: string
   calls: number
-  totalTokens: number
-  costTotal: number
+  total_tokens: number
+  cost_total: number
 }
 interface UsageSummary {
   entries: UsageEntry[]
-  totalCalls: number
-  totalTokens: number
-  totalCost: number
+  total_calls: number
+  total_tokens: number
+  total_cost: number
 }
 
 const usage = ref<UsageSummary | null>(null)
@@ -309,7 +332,8 @@ async function reindex() {
       </div>
     </div>
 
-    <div class="stat-bar" role="group" :aria-label="t('本会话事件统计')">
+    <!-- 全为 0 时不画统计条：三个 0 不提供信息，只把事件列表往下推 52px。 -->
+    <div v-if="stats.calls || stats.turns || stats.exits" class="stat-bar" role="group" :aria-label="t('本会话事件统计')">
       <span class="stat"><b>{{ stats.calls }}</b><i>{{ t('调用') }}</i></span>
       <span class="stat"><b>{{ stats.turns }}</b><i>{{ t('轮次') }}</i></span>
       <span class="stat"><b>{{ stats.exits }}</b><i>{{ t('退出') }}</i></span>
@@ -336,6 +360,19 @@ async function reindex() {
         </AppButton>
       </p>
     </div>
+
+    <!-- 运行链路全景：图形在轨迹抽屉里，消息气泡只留入口。 -->
+    <div v-if="chains.length" class="run-graphs">
+      <RunGraph
+        v-for="c in chains"
+        :key="c.runId"
+        :chain="c"
+        :data-run-id="c.runId"
+        :class="{ 'is-focused': c.runId === focusRunId }"
+      />
+    </div>
+    <!-- 没有事件时只留下面 event-list 的一条空态：两个空块叠着说同一件事。 -->
+    <p v-else-if="events.length" class="run-graphs-empty">{{ t('还没有运行链路。发起一次请求后，这里会长出节点图。') }}</p>
 
     <div ref="listEl" class="event-list" @scroll="onScroll">
       <p v-if="!events.length" class="empty">{{ t('尚无事件。发起一轮对话后，内核事件会在这里按时间排列。') }}</p>
@@ -403,15 +440,15 @@ async function reindex() {
       由 Rust 侧从 journal 聚合。内核未启动时给出诚实空态，不放假数字。
     -->
     <div class="usage-zone">
-      <template v-if="usage && usage.totalCalls > 0">
+      <template v-if="usage && usage.total_calls > 0">
         <div class="usage-head">
           <AppIcon name="activity" :size="12" />
           <span>{{ t('用量') }}</span>
-          <b>{{ fmtTokens(usage.totalTokens) }} tokens · {{ fmtCost(usage.totalCost) }}</b>
+          <b>{{ fmtTokens(usage.total_tokens) }} tokens · {{ fmtCost(usage.total_cost) }}</b>
         </div>
         <div v-for="e in usage.entries" :key="`${e.provider}/${e.model}`" class="usage-row">
           <span class="usage-model" :title="`${e.provider}/${e.model}`">{{ e.model }}</span>
-          <span class="usage-num">{{ t('{0} 次 · {1} tk', [e.calls, fmtTokens(e.totalTokens)]) }}</span>
+          <span class="usage-num">{{ t('{0} 次 · {1} tk', [e.calls, fmtTokens(e.total_tokens)]) }}</span>
         </div>
       </template>
       <p v-else class="usage-empty">{{ usageError || t('还没有用量数据') }}</p>

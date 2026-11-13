@@ -1,5 +1,5 @@
 import { t } from '@/i18n'
-import type { PiMsg } from './usePi'
+import type { PiAttachment, PiMsg } from './usePi'
 import { splitPromptBody } from './usePi'
 import { extractFileChange, type PiFileChange } from '@/utils/fileChanges'
 import { parsePlanSteps } from '@/utils/planMode'
@@ -467,6 +467,35 @@ export function applyEvent(ctx: EventCtx, rec: unknown): void {
     const summary = toolPayloadText(r.result)
     if (summary && !chip.toolResult) chip.toolResult = summary
     if (r.isError === true) chip.toolError = true
+  } else if (eventType === 'user_prompt') {
+    // 用户文本在**发送时**就落 journal（prompt / follow_up / steer 都会落一条
+    // `user_prompt`）：切会话、刷新、进程中断都能凭它还原气泡。只有回放需要它：
+    // 实时气泡已由 pushUser 乐观落过，再落会重复。
+    if (!ctx.replay) return
+    const info = rec as { text?: unknown; mode?: unknown; attachments?: unknown }
+    const raw = info.text
+    if (typeof raw !== 'string' || !raw.trim()) return
+    const { text, attachments: fromBody } = splitPromptBody(raw)
+    // 合成事件带完整元数据（name/size），优先用它；旧 journal 回退到路径块解析。
+    const rich = Array.isArray(info.attachments) ? (info.attachments as PiAttachment[]) : []
+    const attachments = rich.length ? rich : fromBody
+    if (!text.trim() && !attachments.length) return
+    // 落盘顺序不保证：内核极快回显时 message_end 可能先于这条合成事件进 journal。
+    // 已有同文本的正式 user 气泡就并进去，不再叠一条（附件元数据以合成事件为准）。
+    const echoed = messages.find((m2) => m2.role === 'user' && !m2.synth && m2.text === text)
+    if (echoed) {
+      if (!echoed.attachments?.length && attachments.length) echoed.attachments = attachments
+      return
+    }
+    messages.push({
+      id: ctx.nextId(),
+      role: 'user',
+      text,
+      // 普通 prompt 不是排队消息，别误标；排队/插话由内核稍后回显去重。
+      ...(info.mode === 'prompt' ? {} : { queued: true }),
+      synth: true,
+      ...(attachments.length ? { attachments } : {}),
+    })
   } else if (eventType === 'message_start') {
     // 新 assistant 消息开始：文件组到此关闭，后续改动归入下一组。
     const role = (rec as { message?: { role?: unknown } }).message?.role
@@ -486,6 +515,16 @@ export function applyEvent(ctx: EventCtx, rec: unknown): void {
       if (!raw.trim()) return
       const { text, attachments } = splitPromptBody(raw)
       if (!text.trim() && !attachments.length) return
+      // 发送时已落一条 `user_prompt`（prompt / follow_up / steer 都有）：
+      // 内核现在才回显，消标记即可，不能清掉下一条排队消息。
+      const pending = messages.find((m2) => m2.role === 'user' && m2.synth && m2.text === text)
+      if (pending) {
+        delete pending.queued
+        delete pending.synth
+        // 合成事件带更全的附件元数据；内核回显只有路径块，别反向覆盖。
+        if (!pending.attachments?.length && attachments.length) pending.attachments = attachments
+        return
+      }
       messages.push({
         id: ctx.nextId(),
         role: 'user',

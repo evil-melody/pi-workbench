@@ -47,8 +47,11 @@
   border-left: 2px solid transparent;
 }
 
-.row:hover {
-  background: var(--bg-elev);
+@media (hover: hover) {
+
+  .row:hover {
+    background: var(--bg-elev);
+}
 }
 
 .row.leaf {
@@ -82,8 +85,11 @@
   opacity: 0;
 }
 
-.row:hover .meta {
-  opacity: 1;
+@media (hover: hover) {
+
+  .row:hover .meta {
+    opacity: 1;
+}
 }
 
 .time {

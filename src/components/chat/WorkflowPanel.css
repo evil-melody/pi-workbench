@@ -34,9 +34,12 @@
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
-.reset:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .reset:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 .todo-list {
@@ -60,8 +63,11 @@
   transition: background var(--dur-fast) var(--ease);
 }
 
-.todo:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .todo:hover {
+    background: var(--bg-hover);
+}
 }
 
 .todo.done .text {

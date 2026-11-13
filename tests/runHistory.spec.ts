@@ -121,8 +121,8 @@ describe('RunHistory', () => {
     invokeMock.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
       switch (cmd) {
         case 'pi_journal_sessions':
-          // 后端默认过滤 archived；includeArchived=true 才带出。
-          return SESSIONS.filter((s) => (args?.includeArchived === true ? true : !s.archived))
+          // 后端默认过滤 archived；include_archived=true 才带出。
+          return SESSIONS.filter((s) => (args?.include_archived === true ? true : !s.archived))
         case 'run_meta_list':
         case 'run_meta_update':
           return META

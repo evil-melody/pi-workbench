@@ -30,8 +30,11 @@
   cursor: pointer;
 }
 
-.ext:hover:not(:disabled) {
-  background: rgba(110, 168, 254, 0.14);
+@media (hover: hover) {
+
+  .ext:hover:not(:disabled) {
+    background: rgba(110, 168, 254, 0.14);
+}
 }
 
 .ext:disabled {

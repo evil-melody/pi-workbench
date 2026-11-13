@@ -11,12 +11,14 @@ import AppIcon from '@/components/ui/AppIcon.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import SessionTree from '@/components/chat/SessionTree.vue'
 import ActivityPanel from '@/components/chat/ActivityPanel.vue'
+import AgentLanes from '@/components/chat/AgentLanes.vue'
 import WorkflowPanel from '@/components/chat/WorkflowPanel.vue'
 import ConnectorPanel from '@/components/connectors/ConnectorPanel.vue'
 import type { ActivityState } from '@/composables/useActivity'
 import type { PiUsage } from '@/composables/piEvents'
 import type { PiMsg } from '@/composables/usePi'
 import { onTablistKeydown } from '@/composables/useTablist'
+import { useRunFocus } from '@/composables/useRunFocus'
 
 const props = defineProps<{
   open: boolean
@@ -35,16 +37,23 @@ const props = defineProps<{
 
 const emit = defineEmits<{ close: [] }>()
 
-type Tab = 'tree' | 'activity' | 'workflow' | 'connector'
+type Tab = 'tree' | 'activity' | 'agents' | 'workflow' | 'connector'
 
 const TABS = computed<Array<{ key: Tab; label: string; icon: string }>>(() => [
   { key: 'tree', label: t('会话树'), icon: 'clock' },
   { key: 'activity', label: t('轨迹'), icon: 'activity' },
+  { key: 'agents', label: t('智能体'), icon: 'users' },
   { key: 'workflow', label: t('工作流'), icon: 'list' },
   { key: 'connector', label: t('连接器'), icon: 'plug' },
 ])
 
 const tab = ref<Tab>('activity')
+
+/** 气泡下的「运行链路」入口只指向轨迹页签：抽屉已开着时也要切回来。 */
+const { focusSeq } = useRunFocus()
+watch(focusSeq, () => {
+  tab.value = 'activity'
+})
 
 // 收起时记住 tab 没意义，下次打开还是先看轨迹（最常用）。
 watch(
@@ -146,8 +155,11 @@ watch(
         :steps="steps"
         :project-id="projectId"
       />
+      <AgentLanes v-else-if="tab === 'agents'" :state="state" :running="running" />
       <WorkflowPanel v-else-if="tab === 'workflow'" :state="state" :running="running" :messages="messages" />
-      <ConnectorPanel v-else-if="tab === 'connector'" :session-id="sessionId" />
+      <div v-else-if="tab === 'connector'" class="td-pane">
+        <ConnectorPanel :session-id="sessionId" />
+      </div>
     </div>
   </aside>
 </template>

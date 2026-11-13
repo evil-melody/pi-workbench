@@ -37,11 +37,17 @@
 
 /* hover 只提一层底色 + 最弱描边：边框用 --border-soft 而非 --border，
    避免整行在 hover 瞬间出现明显硬边（列表密集时像抖动）。 */
-.rh-item:hover,
 .rh-item:focus-visible {
   background: var(--bg-hover);
   border-color: var(--border-soft);
   outline: none;
+}
+@media (hover: hover) {
+  .rh-item:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-soft);
+    outline: none;
+}
 }
 
 .rh-item:focus-visible {
@@ -99,6 +105,26 @@
   color: var(--text-faint);
 }
 
+/* 运行中：持续旋转的状态图标（不占固定宽度，结束时整块消失）。 */
+.rh-live {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent);
+  animation: rh-spin var(--loop-spin) linear infinite;
+}
+
+@keyframes rh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rh-live {
+    animation-duration: 3s;
+  }
+}
+
 /* 「N 轮」徽标弱化成一颗低对比小计数点：只作次级线索，不与标题抢注意力。 */
 .rh-prompts {
   padding: 1px 5px;
@@ -134,14 +160,23 @@
     color var(--dur-fast) var(--ease);
 }
 
-.rh-item:hover .rh-more-btn,
 .rh-item:focus-within .rh-more-btn {
   opacity: 1;
 }
 
-.rh-more-btn:hover {
-  background: var(--bg-active);
-  color: var(--text);
+@media (hover: hover) {
+
+  .rh-item:hover .rh-more-btn {
+    opacity: 1;
+}
+}
+
+@media (hover: hover) {
+
+  .rh-more-btn:hover {
+    background: var(--bg-active);
+    color: var(--text);
+}
 }
 
 /* 「···」菜单本体样式已抽到 ui/ContextMenu.css（与侧栏项目菜单共用） */
@@ -155,7 +190,8 @@
   z-index: 60;
   margin: 0;
   padding: var(--sp-1) var(--sp-3);
-  border: 1px solid var(--border);
+  /* 浮层：--sh-2 内含 hairline，不再叠 border。 */
+  border: 0;
   border-radius: var(--r-full);
   background: var(--bg-elev);
   box-shadow: var(--sh-2);
@@ -192,10 +228,13 @@
   color: var(--accent-ink);
 }
 
-.rh-btn.primary:hover:not(:disabled) {
-  background: var(--accent);
-  border-color: var(--accent);
-  filter: brightness(1.08);
+@media (hover: hover) {
+
+  .rh-btn.primary:hover:not(:disabled) {
+    background: var(--accent);
+    border-color: var(--accent);
+    filter: brightness(1.08);
+}
 }
 
 .rh-btn.danger {
@@ -203,9 +242,12 @@
   border-color: var(--danger-soft);
 }
 
-.rh-btn.danger:hover:not(:disabled) {
-  background: var(--danger-soft);
-  border-color: var(--danger);
+@media (hover: hover) {
+
+  .rh-btn.danger:hover:not(:disabled) {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+}
 }
 
 /* 分享降级：手动复制的摘要文本（等宽 + 保换行 + 限高滚动） */
@@ -235,7 +277,10 @@
   transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
-.rh-more:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .rh-more:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }

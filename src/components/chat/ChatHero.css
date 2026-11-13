@@ -39,7 +39,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--sp-6);
+  gap: var(--sp-5);
   padding: var(--sp-7) 0 var(--sp-6);
   text-align: center;
 }
@@ -49,7 +49,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
 }
 
 .hero-art {
@@ -95,6 +95,8 @@
 }
 
 /* ── Composer ───────────────────────────────────────────────── */
+/* 外框、内衬、触发器与发送键的形态全部归 ComposerShell.css（落地 / 会话同一份）；
+   这里只留落地页自己的两处差异：右组排布与权限占位文字。 */
 .hero-composer {
   width: 100%;
   display: flex;
@@ -102,157 +104,17 @@
   gap: var(--sp-2);
 }
 
-/* 输入框：上半正文，下半是上下文与执行控制条 */
-.hero-input-wrap {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-3) var(--sp-2);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--r-2xl);
-  background: var(--bg-panel);
-  box-shadow: var(--sh-card);
-  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
-}
-
-/* 焦点环收敛到 3px：旧版 4px 蓝框比输入框本身还抢眼 */
-.hero-input-wrap:focus-within {
-  border-color: var(--accent);
-  box-shadow: var(--focus-ring), var(--sh-card);
-}
-
-.hero-input-wrap :deep(.app-textarea) {
-  flex: 1;
-  min-height: 46px;
-  max-height: 180px;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  font-size: var(--fs-md);
-  line-height: var(--lh-body);
-  padding: 2px 2px 0;
-  resize: none;
-  outline: none;
-}
-
-/*
- * 焦点反馈已经由外层容器的边框+光晕给了，textarea 自己再画一圈 2px 蓝环
- * 会在输入区中间套出一个圆角细框 —— 用户看到的「点一下就冒出条虚线」就是它。
- * 这里必须显式压掉：上层规则只写了 outline，管不到 AppTextarea:focus 的 box-shadow。
- */
-.hero-input-wrap :deep(.app-textarea:focus),
-.hero-input-wrap :deep(.app-textarea:focus-visible) {
-  box-shadow: none;
-}
-
-.hero-input-wrap :deep(.app-textarea::placeholder) {
-  color: var(--text-faint);
-}
-
-/* ── 输入框底部操作条 ───────────────────────────────────────── */
-.composer-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  flex-wrap: wrap;
-}
-
-.bar-left,
 .bar-right {
   display: flex;
   align-items: center;
   gap: var(--sp-1);
-}
-
-/* 左侧自己换行，右侧永远贴右 —— 否则窄窗口下右侧整组掉到第二行左侧 */
-.bar-left {
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  row-gap: var(--sp-1);
-  min-width: 0;
-}
-
-.bar-right {
-  flex: 0 0 auto;
-  margin-left: auto;
-}
-
-.bar-sep {
-  width: 1px;
-  height: 18px;
-  background: var(--border);
-  flex-shrink: 0;
-}
-
-/* 上下文胶囊：图标 + 下拉，视觉上贴合输入框而不是独立卡片 */
-.bar-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  height: 28px;
-  padding: 0 var(--sp-1);
-  border-radius: var(--r);
-  color: var(--text-dim);
-  min-width: 0;
-  transition: background-color var(--dur-fast) var(--ease);
-}
-
-.bar-chip:hover {
-  background: var(--bg-hover);
-}
-
-.bar-chip .app-icon {
-  flex-shrink: 0;
-  color: var(--text-faint);
-}
-
-.bar-chip :deep(.app-select .trigger) {
-  height: 24px;
-  padding: 0 var(--sp-1);
-  border: 0;
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--text);
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-semibold);
-  box-shadow: none;
-}
-
-.bar-chip :deep(.app-select .trigger:hover) {
-  background: transparent;
 }
 
 .bar-muted {
-  font-size: var(--fs-sm);
+  padding: 0 var(--sp-2);
   color: var(--text-faint);
-  padding-right: var(--sp-1);
-}
-
-.hero-send {
-  width: 32px;
-  height: 32px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: var(--r);
-  background: var(--accent);
-  color: var(--accent-ink);
-  cursor: pointer;
-  transition: filter var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease),
-    transform var(--dur-fast) var(--ease);
-}
-
-.hero-send:hover:not(:disabled) {
-  filter: brightness(1.08);
-  transform: scale(1.04);
-}
-
-.hero-send:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+  font-size: var(--fs-meta);
+  white-space: nowrap;
 }
 
 .hero-hint {
@@ -291,7 +153,8 @@
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1);
-  height: 30px;
+  /* 全局 button 的 min-height 就是 --row-h；写 30 只会被顶回 36，声明与实际不一致。 */
+  height: var(--row-h);
   padding: 0 var(--sp-3);
   border: 0;
   border-radius: var(--r-full);
@@ -303,15 +166,19 @@
   transition: color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
 }
 
-.cat-pill:hover {
-  color: var(--text);
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .cat-pill:hover {
+    color: var(--text);
+    background: var(--bg-hover);
+}
 }
 
+/* 选中态降为浅底：整页唯一的主按钮是发送键，分类只是筛选器。 */
 .cat-pill.on {
-  background: var(--accent);
-  color: var(--accent-ink);
-  box-shadow: 0 2px 8px var(--accent-soft);
+  background: var(--bg-hover);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-soft);
 }
 
 .cat-icon {
@@ -326,26 +193,30 @@
 }
 
 .cat-pill.on .cat-icon {
-  background: color-mix(in srgb, var(--accent-ink) 22%, transparent);
-  color: var(--accent-ink);
+  background: transparent;
+  color: var(--text);
 }
 
 .hero-skills {
   width: 100%;
-  /* 收一点宽度，8 个技能两行分布更均匀，避免第二行只挂一个 */
-  max-width: 640px;
-  display: flex;
-  align-items: center;
+  /* 4×2 网格：8 个技能按列对齐，两行左边缘落在同一组列上。
+     居中换行会得到 6+2，第二行两个 chip 的起点与第一行完全错开。 */
+  display: grid;
+  grid-template-columns: repeat(4, max-content);
   justify-content: center;
-  flex-wrap: wrap;
   gap: var(--sp-2);
+}
+
+/* 同列两个 chip 等宽：列宽取最宽文案，左边缘严格对齐。 */
+.hero-skills .skill-chip {
+  justify-self: stretch;
 }
 
 .skill-chip {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1);
-  height: 30px;
+  height: var(--row-h);
   padding: 0 var(--sp-3);
   border: 1px solid var(--border-soft);
   border-radius: var(--r-full);
@@ -360,10 +231,12 @@
 }
 
 /* 建议项 hover 只提对比：强调色留给「当前选中」的分类，避免满屏蓝。 */
-.skill-chip:hover {
-  border-color: var(--border-strong);
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+  .skill-chip:hover {
+    border-color: var(--border-strong);
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 .skill-chip .app-icon {
@@ -371,8 +244,11 @@
   transition: color var(--dur-fast) var(--ease);
 }
 
-.skill-chip:hover .app-icon {
-  color: var(--text-dim);
+@media (hover: hover) {
+
+  .skill-chip:hover .app-icon {
+    color: var(--text-dim);
+}
 }
 
 /* ── Responsive ─────────────────────────────────────────────── */
@@ -391,23 +267,16 @@
     font-size: var(--fs-page);
   }
 
-  /* 窄屏不再并排挤：左组占满一行，右组自己一行贴右 */
-  .bar-left {
-    width: 100%;
-  }
-
-  .bar-right {
-    width: 100%;
-    justify-content: flex-end;
-    margin-left: 0;
-  }
-
-  .bar-sep {
-    display: none;
-  }
+  /* 窄屏不再把右组折到第二排：ComposerShell.css 在 ≤640 收起低优先级触发器，
+     操作条始终一行。 */
 
   .cat-track {
     width: 100%;
+  }
+
+  /* 窄屏 4 列会横溢：退成 2 列，chip 自动等宽。 */
+  .hero-skills {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .cat-pill {

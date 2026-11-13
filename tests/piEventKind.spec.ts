@@ -14,10 +14,14 @@ describe('classifyEvent', () => {
     }
   })
 
-  it('message_update 折算为 message', () => {
+  it('message_update 只有增量字段时不进事件流，顶层文本快照仍归 message', () => {
+    // 增量在 assistantMessageEvent 里，顶层没有 text/delta：折算成空 title 会在轨迹
+    // 面板里留下一串「只剩时间」的空行，且每 token 一条会冲垮 usePiEvents 的定长缓冲。
     expect(
-      classifyEvent({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'hi' } })?.kind,
-    ).toBe('message')
+      classifyEvent({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 'hi' } }),
+    ).toBeNull()
+    // 顶层带完整文本的 message_update 仍是 message 类别。
+    expect(classifyEvent({ type: 'message_update', text: 'hi' })?.kind).toBe('message')
   })
 
   it('agent_settled 与 process_exit 各归其位', () => {

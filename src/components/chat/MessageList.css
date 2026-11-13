@@ -66,11 +66,19 @@
 }
 
 .msg-body > .crow + :not(.crow) {
-  margin-top: var(--sp-3);
+  margin-top: var(--sp-4);
 }
 
 .msg-body > :not(.crow) + .crow {
   margin-top: var(--sp-2);
+}
+
+/*
+ * 过程折叠：一轮里的工具/思考行默认收进「过程」头（正文与失败行不动）。
+ * 隐藏不删节点——展开时原样复用现有行，不改它们的栅格与 rail 对齐。
+ */
+.msg-body.proc-collapsed > .crow:not(.proc-head) {
+  display: none;
 }
 
 /*
@@ -173,7 +181,9 @@
   grid-column: 1;
   display: flex;
   justify-content: center;
-  padding-top: 6px;
+  /* 与首行文字中心对齐：8px 内距 + 19.8/2 - 图标半径 7 ≈ 10。
+     原先 6px 让图标在单行卡片里比卡片中心高约 5px（截图实测）。 */
+  padding-top: 10px;
   color: var(--text-faint);
 }
 
@@ -223,10 +233,13 @@
     background-color var(--dur-fast) var(--ease);
 }
 
-.sys-expand:hover {
-  color: var(--text-dim);
-  border-color: var(--border-strong);
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .sys-expand:hover {
+    color: var(--text-dim);
+    border-color: var(--border-strong);
+    background: var(--bg-hover);
+}
 }
 
 .msg-row.system.sys-error .sys-ic {
@@ -269,6 +282,7 @@
 
 /* F7：气泡本体右贴由 .msg-row.user 的 align-self 负责，这里只把内容右靠，文字保持左读。 */
 .msg-row.user .msg-body {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -290,6 +304,12 @@
    F21（P1-5）：贴气泡右缘、默认不显示——每条历史消息底下常驻两个灰按钮，
    读起来就像整屏都是可点的东西。只改透明度，收起时仍可被键盘/程序点中。 */
 .user-actions {
+  /* 悬浮操作不再占行高：原先 4px 外边距 + 22px 按钮把每条用户消息撑高 26px，
+     气泡到回复的可见间距变成 46px（.msgs 的 20px 之外多出一行空气）。 */
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0;
   display: flex;
   justify-content: flex-end;
   gap: var(--sp-1);
@@ -336,10 +356,13 @@
     background var(--dur-fast) var(--ease);
 }
 
-.ghost-btn:hover {
-  border-color: var(--border-strong);
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .ghost-btn:hover {
+    border-color: var(--border-strong);
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 /*
@@ -358,7 +381,6 @@
   border-radius: var(--r-bubble);
   background: var(--bg-elev);
   border: 1px solid var(--border);
-  box-shadow: var(--sh-1);
   color: var(--text);
 }
 
@@ -422,7 +444,8 @@
 
 .md :deep(ul),
 .md :deep(ol) {
-  margin: var(--sp-1) 0 var(--sp-2);
+  /* 与 p / pre / table / blockquote 同为 sp-2：列表原先上 4 下 8，同段正文里缩进块比其它块贴得更近。 */
+  margin: var(--sp-2) 0;
   padding-left: var(--sp-5);
 }
 
@@ -448,8 +471,11 @@
   text-decoration: none;
 }
 
-.md :deep(a:hover) {
-  text-decoration: underline;
+@media (hover: hover) {
+
+  .md :deep(a:hover) {
+    text-decoration: underline;
+}
 }
 
 /* 行内 code 多是绝对路径：允许在列内断行，不给消息列制造横向滚动。 */
@@ -564,11 +590,19 @@
     background-color var(--dur-fast) var(--ease);
 }
 
-.file-chip:hover,
 .file-chip.on {
   color: var(--text);
   border-color: var(--border-strong);
   background: var(--bg-hover);
+}
+
+@media (hover: hover) {
+
+  .file-chip:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+    background: var(--bg-hover);
+}
 }
 
 .chip-name {
@@ -691,7 +725,7 @@
   inset: 3px;
   border-radius: 50%;
   background: var(--accent);
-  animation: ts-beat 1.6s ease-in-out infinite;
+  animation: ts-beat var(--loop-beat) ease-in-out infinite;
 }
 
 @keyframes ts-beat {
@@ -720,7 +754,7 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: ts-shimmer 1.8s linear infinite;
+  animation: ts-shimmer var(--loop-shimmer) linear infinite;
 }
 
 @keyframes ts-shimmer {
@@ -762,9 +796,12 @@
   cursor: pointer;
 }
 
-.ta-btn:hover:not(:disabled) {
-  color: var(--text-dim);
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .ta-btn:hover:not(:disabled) {
+    color: var(--text-dim);
+    background: var(--bg-hover);
+}
 }
 
 /* dsh `[data-unavailable]`：不可用是「灰掉的常驻按钮」，不是消失的按钮 */
@@ -817,7 +854,7 @@
 
 .cursor {
   color: var(--accent);
-  animation: blink 1s steps(2) infinite;
+  animation: blink var(--loop-blink) steps(2) infinite;
 }
 
 /*
@@ -855,39 +892,6 @@
 
 .msg-row.user .acstrip {
   justify-content: flex-end;
-}
-
-/* 用户消息下方：附件引用条（图片/文件落盘路径，Pi 按路径读取） */
-.msg-attach {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1);
-  margin-top: var(--sp-2);
-}
-
-.att-ref {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  max-width: 240px;
-  padding: var(--sp-1) var(--sp-2);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  background: var(--bg-elev);
-  font-size: var(--fs-sm);
-  color: var(--text-dim);
-}
-
-/* 图片引用不给强调色：它只是「带上了一个文件」，没有交互含义。 */
-.att-ref.image {
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-
-.att-ref-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* ── G5 计划卡（Cursor Plan mode 式先审后做）── */
@@ -985,10 +989,12 @@
 }
 
 /* 次要按钮 hover 只提一档对比，强调色留给「执行计划」这个关键动作。 */
-.plan-btn:hover {
-  border-color: var(--border-strong);
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+  .plan-btn:hover {
+    border-color: var(--border-strong);
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 .plan-btn.primary {
@@ -998,9 +1004,12 @@
   font-weight: var(--fw-semibold);
 }
 
-.plan-btn.primary:hover {
-  background: color-mix(in srgb, var(--accent) 85%, black);
-  color: var(--accent-ink);
+@media (hover: hover) {
+
+  .plan-btn.primary:hover {
+    background: color-mix(in srgb, var(--accent) 85%, black);
+    color: var(--accent-ink);
+}
 }
 
 .plan-running {
@@ -1012,3 +1021,41 @@
   font-size: var(--fs-sm);
   color: var(--text-dim);
 }
+
+/* 请求气泡下的链路入口：一行，点开跳到轨迹抽屉里的节点图。 */
+.run-entry {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-width: 0;
+  margin-top: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--fs-micro);
+  text-align: left;
+  cursor: pointer;
+}
+
+.run-entry:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.re-text {
+  flex: none;
+  font-weight: 600;
+}
+
+.re-sum {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-faint);
+}
+

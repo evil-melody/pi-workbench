@@ -31,15 +31,18 @@
 .bulk-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   padding: 4px 9px;
   border-radius: var(--r-sm);
   font-size: var(--fs-meta);
   color: var(--text-dim);
 }
 
-.bulk-btn:hover:not(:disabled) {
-  color: var(--text);
+@media (hover: hover) {
+
+  .bulk-btn:hover:not(:disabled) {
+    color: var(--text);
+}
 }
 
 .bulk-btn.danger {
@@ -47,7 +50,10 @@
   border-color: var(--danger-soft);
 }
 
-.bulk-btn.danger:hover:not(:disabled) {
-  background: var(--danger-soft);
-  border-color: var(--danger);
+@media (hover: hover) {
+
+  .bulk-btn.danger:hover:not(:disabled) {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+}
 }

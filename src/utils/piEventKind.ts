@@ -17,6 +17,8 @@ export type PiEventKind =
   | 'message'
   | 'settled'
   | 'exit'
+  /** 桥侧合成的专家身份切换 / 交接（`expert_start` / `expert_handoff`）。 */
+  | 'expert'
   /** 内核生命周期噪声（message_start / agent_end / entry_appended / auto_retry_* …）。 */
   | 'lifecycle'
   | 'other'
@@ -42,6 +44,32 @@ export interface PiEventRow {
   fieldsCount?: number
   /** 原始 payload（缩进 JSON，已封顶），只进展开体等宽块。 */
   payload?: string
+  /**
+   * 运行链路信封（桥侧 `pi_run` 标注）。
+   * 老 journal 没有这些键，全部可选——缺省时链路视图按轮次降级。
+   */
+  runId?: string
+  agentId?: string
+  runStartedAt?: number
+  runEndedAt?: number
+  runStatus?: string
+  spanId?: string
+  parentSpanId?: string
+  /** `turn` / `model` / `tool` / `gate` / `retry`。 */
+  spanKind?: string
+  spanStartedAt?: number
+  spanEndedAt?: number
+  /** `run_start` 合成事件携带的请求原文（截断），用于把链路挂回对应气泡。 */
+  prompt?: string
+  /** 专家身份（桥侧按当前运行挂载）。 */
+  expertId?: string
+  expertName?: string
+  /** 交接来源专家 id（`expert_start` 的 handoffFrom）。 */
+  handoffFrom?: string
+  /** 审批请求 / 结论的配对 id。 */
+  gateId?: string
+  confirmed?: boolean
+  toolCallId?: string
 }
 
 /**
@@ -57,6 +85,7 @@ export const EVENT_KIND_ICON: Record<PiEventKind, string> = {
   message: 'doc',
   settled: 'check',
   exit: 'close',
+  expert: 'sparkles',
   lifecycle: 'clock',
   other: 'activity',
 }
@@ -69,6 +98,7 @@ export function eventKindLabel(kind: PiEventKind): string {
     message: t('文本'),
     settled: t('落定'),
     exit: t('退出'),
+    expert: t('专家'),
     lifecycle: t('系统'),
     other: t('其他'),
   }
@@ -118,6 +148,12 @@ const TYPE_KIND: Record<string, PiEventKind> = {
   sessionopen: 'lifecycle',
   queueupdate: 'lifecycle',
   kernelrestarted: 'lifecycle',
+  // 桥侧合成事件（run_start / kernel_start / gate_decision）：与内核事件同一条时间线。
+  runstart: 'lifecycle',
+  kernelstart: 'lifecycle',
+  gatedecision: 'lifecycle',
+  expertstart: 'expert',
+  experthandoff: 'expert',
 }
 
 /**
@@ -138,6 +174,9 @@ function lifecycleLabels(): Record<string, string> {
     sessionopen: t('打开会话'),
     queueupdate: t('队列更新'),
     kernelrestarted: t('内核重启'),
+    runstart: t('请求进入'),
+    kernelstart: t('内核拉起'),
+    gatedecision: t('工具门结论'),
   }
 }
 
@@ -357,6 +396,9 @@ function classifyRow(rec: unknown): PiEventRow | null {
   if (named) {
     if (named === 'message') {
       const text = firstString(obj, TEXT_KEYS) ?? ''
+      // message_update 的增量在 assistantMessageEvent 里，顶层没有 text/delta。
+      // 折算成空 title 的行，在轨迹面板里就是一串「只剩时间」的空行（截图实证）。
+      if (!text.trim()) return null
       return { kind: 'message', title: titleOfText(text), detail: '', at }
     }
     const name = firstString(obj, NAME_KEYS)
@@ -405,6 +447,41 @@ function classifyRow(rec: unknown): PiEventRow | null {
   return { kind: 'other', title: rawType, detail: snippet(obj, 100), at }
 }
 
+/** 链路信封：只搬运，不推断；缺省即不写，保持老事件的形状。 */
+function envelopeOf(obj: Record<string, unknown>): Partial<PiEventRow> {
+  const out: Partial<PiEventRow> = {}
+  const str = (k: keyof PiEventRow, src: string) => {
+    const v = obj[src]
+    if (typeof v === 'string' && v) (out as Record<string, unknown>)[k] = v
+  }
+  const num = (k: keyof PiEventRow, src: string) => {
+    const v = obj[src]
+    if (typeof v === 'number' && Number.isFinite(v)) (out as Record<string, unknown>)[k] = v
+  }
+  const bool = (k: keyof PiEventRow, src: string) => {
+    const v = obj[src]
+    if (typeof v === 'boolean') (out as Record<string, unknown>)[k] = v
+  }
+  str('runId', 'runId')
+  str('agentId', 'agentId')
+  num('runStartedAt', 'runStartedAt')
+  num('runEndedAt', 'runEndedAt')
+  str('runStatus', 'runStatus')
+  str('spanId', 'spanId')
+  str('parentSpanId', 'parentSpanId')
+  str('spanKind', 'spanKind')
+  num('spanStartedAt', 'spanStartedAt')
+  num('spanEndedAt', 'spanEndedAt')
+  str('prompt', 'prompt')
+  str('expertId', 'expertId')
+  str('expertName', 'expertName')
+  str('handoffFrom', 'handoffFrom')
+  str('gateId', 'gateId')
+  bool('confirmed', 'confirmed')
+  str('toolCallId', 'toolCallId')
+  return out
+}
+
 /**
  * 视图入口：先按原有语义折算，再补折叠态主文与展开体原文。
  *
@@ -418,7 +495,7 @@ export function classifyEvent(rec: unknown): PiEventRow | null {
   const obj = rec as Record<string, unknown>
   const raw = typeof obj.type === 'string' ? obj.type : undefined
   const { payload, fieldsCount } = rawOf(obj)
-  const base: PiEventRow = { ...row, type: raw, payload, fieldsCount }
+  const base: PiEventRow = { ...row, type: raw, payload, fieldsCount, ...envelopeOf(obj) }
 
   if (base.kind === 'tool_call' || base.kind === 'tool_result') {
     const out = OUT_KEYS.map((k) => obj[k]).find((v) => typeof v === 'string' && v.trim())
@@ -429,6 +506,22 @@ export function classifyEvent(rec: unknown): PiEventRow | null {
       outLines(out),
     )
     base.result = base.kind === 'tool_result' ? resultLine(obj) : ''
+    return base
+  }
+
+  if (base.kind === 'expert') {
+    const name =
+      (typeof obj.expertName === 'string' && obj.expertName.trim()) ||
+      (typeof obj.expertId === 'string' ? obj.expertId : '')
+    const from = typeof obj.handoffFrom === 'string' ? obj.handoffFrom.trim() : ''
+    base.title = name
+    base.label = from
+      ? t('交接给专家 {0}', [name])
+      : t('专家 {0} 接管', [name])
+    const tools = Array.isArray(obj.allowedTools) ? obj.allowedTools.length : 0
+    base.detail = [from ? t('来自 {0}', [from]) : '', tools ? t('可用工具 {0} 个', [tools]) : '']
+      .filter(Boolean)
+      .join(' · ')
     return base
   }
 

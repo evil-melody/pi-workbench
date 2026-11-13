@@ -7,6 +7,10 @@ import AppButton from '@/components/ui/AppButton.vue'
 import ArtifactCard from './ArtifactCard.vue'
 import ArtifactPreview from './ArtifactPreview.vue'
 import CollapsibleRow from './CollapsibleRow.vue'
+import MessageAttachments from './MessageAttachments.vue'
+import { usePiEventsInjected } from '@/composables/usePiEvents'
+import { useRunFocus } from '@/composables/useRunFocus'
+import { buildRunChains, runSummary, type RunChain as RunChainModel } from '@/utils/runChain'
 import type { Artifact } from '@/composables/useArtifacts'
 import { fmtCost, type PiUsage } from '@/composables/piEvents'
 import { changeDelta, diffLines, fileName, type PiFileChange } from '@/utils/fileChanges'
@@ -112,6 +116,8 @@ interface UserRow {
   kind: 'user'
   key: string
   msg: any
+  /** 该请求的运行链路（没有事件时为空，气泡下方就不出现链路行）。 */
+  chain?: RunChainModel
 }
 interface SystemRow {
   kind: 'system'
@@ -155,6 +161,46 @@ function toggleSys(key: string) {
   openSys.value = next
 }
 
+const stream = usePiEventsInjected()
+const chains = computed(() => buildRunChains(stream?.events.value ?? []))
+
+// 气泡只留一行入口；点它跳轨迹抽屉里的图（图本身不再挂在这里）。
+const { focusRun } = useRunFocus()
+function openChain(chain: RunChainModel) {
+  focusRun(chain.runId)
+}
+function chainSummary(chain: RunChainModel): string {
+  return runSummary(chain, Date.now()).parts.join(' → ')
+}
+
+/**
+ * 用户气泡 ↔ 运行链路：按 prompt 前缀对；对不上再看时间邻近；
+ * 两者都不成立就不挂——宁可不显示，也不把链路安到错的请求上。
+ */
+function chainForUser(
+  text: string,
+  ts: number | undefined,
+  index: number,
+): RunChainModel | undefined {
+  const list = chains.value
+  if (!list.length) return undefined
+  const norm = (s: string) => s.replace(/\s+/g, ' ').trim()
+  const want = norm(String(text ?? '')).slice(0, 60)
+  const hit = list.find((r) => {
+    const p = norm(r.prompt).slice(0, 60)
+    if (!p || !want) return false
+    if (p === want) return true
+    return want.length >= 8 && p.length >= 8 && (want.startsWith(p) || p.startsWith(want))
+  })
+  if (hit) return hit
+  if (ts) {
+    const near = list.filter((r) => Math.abs(r.startedAt - ts) < 120_000)
+    if (near.length === 1) return near[0]
+  }
+  const byOrder = list[index]
+  return byOrder && !byOrder.prompt ? byOrder : undefined
+}
+
 /**
  * turn 聚合渲染（对齐 dsh：一轮回复 = 一个块）。
  *
@@ -168,6 +214,7 @@ const rows = computed<Row[]>(() => {
   const out: Row[] = []
   let cur: Turn | null = null
   const seenChange = new Set<string>()
+  let userIndex = 0
 
   for (const m of props.messages) {
     if (m.role === 'system') {
@@ -179,7 +226,8 @@ const rows = computed<Row[]>(() => {
     }
     if (m.role !== 'assistant') {
       cur = null
-      out.push({ kind: 'user', key: m.id, msg: m })
+      out.push({ kind: 'user', key: m.id, msg: m, chain: chainForUser(m.text, m.ts, userIndex) })
+      userIndex += 1
       continue
     }
     if (isEmptyRow(m)) continue
@@ -382,6 +430,36 @@ function turnSteps(row: Turn): number {
   return row.msgs.filter((m) => m.tool).length
 }
 
+/**
+ * 过程折叠（用户截图：一轮里 9 条工具行平铺，正文被挤到很远）。
+ *
+ * 规则：工具行 ≥ 3 时折成一行「过程 · N 步工具调用」；
+ * 本轮未落定（live）默认展开，跑完默认收起；本轮有失败工具行则始终默认展开
+ * （报错不能藏）。用户点过就记住，不再按流式状态反复抢开合。
+ */
+const PROC_MIN_STEPS = 3
+const procOpen = ref(new Map<string, boolean>())
+
+function procCollapsible(row: Turn): boolean {
+  return turnSteps(row) >= PROC_MIN_STEPS
+}
+
+function procHasError(row: Turn): boolean {
+  return row.msgs.some((m) => m.tool && m.toolError)
+}
+
+function isProcOpen(row: Turn): boolean {
+  const fixed = procOpen.value.get(row.key)
+  if (fixed !== undefined) return fixed
+  return row.live || procHasError(row)
+}
+
+function toggleProc(row: Turn) {
+  const next = new Map(procOpen.value)
+  next.set(row.key, !isProcOpen(row))
+  procOpen.value = next
+}
+
 /** 已点开的 chip 对应的改动（按到达顺序，同一 turn 允许多个同时展开）。 */
 function openedChanges(row: Turn): PiFileChange[] {
   return row.fileChanges.filter((c) => openFiles.value.has(c.id))
@@ -507,18 +585,7 @@ async function copyMsg(key: string, text: string) {
                  hover 浮现，时钟挂在末尾即可，不再单独做一套显隐规则。 -->
             <span v-if="row.msg.ts" class="u-clock">{{ fmtClock(row.msg.ts) }}</span>
           </div>
-          <div v-if="row.msg.attachments?.length" class="msg-attach">
-            <span
-              v-for="a in row.msg.attachments"
-              :key="a.id"
-              class="att-ref"
-              :class="a.kind"
-              :title="a.path"
-            >
-              <AppIcon :name="a.kind === 'image' ? 'image' : 'file'" :size="13" />
-              <span class="att-ref-name">{{ a.name }}</span>
-            </span>
-          </div>
+          <MessageAttachments v-if="row.msg.attachments?.length" :attachments="row.msg.attachments" />
           <div v-if="(artifacts?.[row.msg.id] ?? []).length" class="acstrip">
             <ArtifactCard
               v-for="a in artifacts[row.msg.id]"
@@ -528,12 +595,25 @@ async function copyMsg(key: string, text: string) {
               @open="open = $event"
             />
           </div>
+          <!-- 每个请求一行入口：图在轨迹抽屉里，气泡下不再铺摘要。 -->
+          <button v-if="row.chain" class="run-entry" type="button" @click="openChain(row.chain)">
+            <AppIcon name="activity" :size="12" />
+            <span class="re-text">{{ t('运行链路') }}</span>
+            <span class="re-sum">{{ chainSummary(row.chain) }}</span>
+            <AppIcon name="chevron-right" :size="11" />
+          </button>
         </div>
       </div>
 
       <!-- ── assistant turn：一个头像、一段回复（F5：等待态不再给整行挂 waiting 类） ── -->
       <div v-else class="msg-row assistant">
-        <div class="msg-body" :class="{ 'no-rail': !row.live && turnSteps(row) === 0 }">
+        <div
+          class="msg-body"
+          :class="{
+            'no-rail': !row.live && turnSteps(row) === 0,
+            'proc-collapsed': procCollapsible(row) && !isProcOpen(row),
+          }"
+        >
           <!-- 头像并进 turn 栅格第一格：rail 竖线（left:12.5px）与头像圆心同一次坐标，
                头像留在 .msg-row 的 flex 里时两者的参照系不同，线会整体右偏 38px。 -->
           <div class="msg-avatar">
@@ -541,6 +621,26 @@ async function copyMsg(key: string, text: string) {
           </div>
           <div class="msg-meta">
             <strong>Pi</strong>
+          </div>
+
+          <!-- 过程折叠头：结构沿用工具行的 .crow + .crow-head，不另造形态。 -->
+          <div v-if="procCollapsible(row)" class="crow proc-head" :class="{ open: isProcOpen(row) }">
+            <AppButton
+              variant="menu-item"
+              class="crow-head"
+              :aria-expanded="isProcOpen(row)"
+              @click="toggleProc(row)"
+            >
+              <span class="crow-ic">
+                <AppIcon name="chevron-right" :size="11" class="crow-caret" />
+                <AppIcon name="activity" :size="12" class="crow-icon" />
+              </span>
+              <span class="crow-main">
+                <span class="crow-title">{{ t('过程') }}</span>
+                <span class="crow-sep" aria-hidden="true" />
+                <span class="crow-summary">{{ t('{0} 步工具调用', [turnSteps(row)]) }}</span>
+              </span>
+            </AppButton>
           </div>
 
           <template v-for="m in row.msgs" :key="m.id">
@@ -690,18 +790,7 @@ async function copyMsg(key: string, text: string) {
             </div>
           </div>
 
-          <div v-if="row.attachments.length" class="msg-attach">
-            <span
-              v-for="a in row.attachments"
-              :key="a.id"
-              class="att-ref"
-              :class="a.kind"
-              :title="a.path"
-            >
-              <AppIcon :name="a.kind === 'image' ? 'image' : 'file'" :size="13" />
-              <span class="att-ref-name">{{ a.name }}</span>
-            </span>
-          </div>
+          <MessageAttachments v-if="row.attachments.length" :attachments="row.attachments" />
 
           <div v-if="row.artifacts.length" class="acstrip">
             <ArtifactCard

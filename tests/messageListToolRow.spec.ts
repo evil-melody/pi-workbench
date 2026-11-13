@@ -68,7 +68,8 @@ function mountList(streaming = false, list = msgs) {
   return { host, errors }
 }
 
-const rowsOf = (host: HTMLElement) => [...host.querySelectorAll<HTMLElement>('.crow')]
+/** 过程折叠头同样复用 `.crow`，但它是本轮工具的汇总行，不算工具行。 */
+const toolRowsOf = (host: HTMLElement) => [...host.querySelectorAll<HTMLElement>('.crow:not(.proc-head)')]
 const titleOf = (row: HTMLElement) => row.querySelector('.crow-title')?.textContent ?? ''
 const summaryOf = (row: HTMLElement) => row.querySelector('.crow-summary')?.textContent ?? ''
 
@@ -78,7 +79,10 @@ describe('MessageList 工具行', () => {
     await nextTick()
 
     expect(errors).toEqual([])
-    const rows = rowsOf(host)
+    // 本轮 3 个工具行 ≥ 阈值，先有一行「过程」汇总头（≥3 步才折叠，见 procCollapsible）
+    expect(host.querySelector('.proc-head .crow-title')?.textContent).toBe('过程')
+    expect(host.querySelector('.proc-head .crow-summary')?.textContent).toBe('3 步工具调用')
+    const rows = toolRowsOf(host)
     expect(rows.map(titleOf)).toEqual(['Bash', 'Read', 'Tool call'])
     // bash 取 description（dsh SUMMARY_KEYS 顺序），read 取 path 且削掉工作区前缀
     expect(rows.map(summaryOf)).toEqual(['列目录', 'src/a.ts', 'mcp__db__query · select 1'])
@@ -89,7 +93,7 @@ describe('MessageList 工具行', () => {
   it('展开体里参数按语义分块（命令原文 + 结果同列），复制贴结果块右上角', async () => {
     const { host } = mountList()
     await nextTick()
-    const bash = rowsOf(host)[0]
+    const bash = toolRowsOf(host).find((r) => titleOf(r) === 'Bash')!
     bash.querySelector<HTMLButtonElement>('.crow-head')!.click()
     await nextTick()
 
@@ -107,7 +111,7 @@ describe('MessageList 工具行', () => {
     const { host } = mountList()
     await nextTick()
     // 失败行由 CollapsibleRow 自动展开（F8），这里直接读展开体
-    const unknown = rowsOf(host)[2]
+    const unknown = toolRowsOf(host).find((r) => titleOf(r) === 'Tool call')!
     await nextTick()
 
     expect(unknown.querySelector('.crow-label')!.textContent).toBe('参数')
@@ -117,7 +121,7 @@ describe('MessageList 工具行', () => {
   it('执行失败的工具行带 error 语义色，未知工具保留原始工具名', async () => {
     const { host } = mountList()
     await nextTick()
-    const failed = rowsOf(host)[2]
+    const failed = toolRowsOf(host).find((r) => titleOf(r) === 'Tool call')!
     expect(failed.className).toContain('is-error')
     expect(failed.querySelector('.crow-icon')).not.toBeNull()
   })
@@ -125,7 +129,7 @@ describe('MessageList 工具行', () => {
   it('本轮未落定：无结果的工具行标 running，失败的标 error，已完成的无状态', async () => {
     const { host } = mountList(true)
     await nextTick()
-    const rows = rowsOf(host)
+    const rows = toolRowsOf(host)
     expect(rows[0].getAttribute('data-state')).toBeNull()
     expect(rows[1].getAttribute('data-state')).toBe('running')
     expect(rows[2].getAttribute('data-state')).toBe('error')

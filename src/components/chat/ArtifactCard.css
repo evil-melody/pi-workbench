@@ -14,9 +14,12 @@
   transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 
-.acard:hover {
-  border-color: var(--accent);
-  background: var(--bg-panel);
+@media (hover: hover) {
+
+  .acard:hover {
+    border-color: var(--accent);
+    background: var(--bg-panel);
+}
 }
 
 .acard:active {

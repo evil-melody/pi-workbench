@@ -75,12 +75,18 @@
   color: var(--ok);
 }
 
-.approval-btn.approve:hover {
-  background: var(--ok-soft);
+@media (hover: hover) {
+
+  .approval-btn.approve:hover {
+    background: var(--ok-soft);
+}
 }
 
-.approval-btn.reject:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .approval-btn.reject:hover {
+    background: var(--bg-hover);
+}
 }
 
 .approval-btn.dismiss {
@@ -88,8 +94,11 @@
   color: var(--text-faint);
 }
 
-.approval-btn.dismiss:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .approval-btn.dismiss:hover {
+    background: var(--bg-hover);
+}
 }
 
 /* 进出场：从 composer 侧滑入，不遮挡消息流。 */

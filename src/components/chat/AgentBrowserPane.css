@@ -40,7 +40,7 @@
 .live-dot.on {
   background: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
-  animation: pulse 1.4s ease-in-out infinite;
+  animation: pulse var(--loop-pulse) ease-in-out infinite;
 }
 
 @keyframes pulse {
@@ -86,10 +86,12 @@
   padding: 0;
 }
 
-.browser-actions button:hover:not(:disabled),
-.toolbar-btn:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .browser-actions button:hover:not(:disabled), .toolbar-btn:hover:not(:disabled) {
+    border-color: var(--border-strong);
+    background: var(--bg-hover);
+}
 }
 
 .toolbar-btn:disabled {
@@ -167,7 +169,7 @@
 }
 
 .browser-placeholder .spin {
-  animation: spin 1.1s linear infinite;
+  animation: spin var(--loop-spin) linear infinite;
   color: var(--accent);
 }
 
@@ -184,7 +186,7 @@
 }
 
 .spin {
-  animation: spin 1.1s linear infinite;
+  animation: spin var(--loop-spin) linear infinite;
 }
 
 @keyframes spin {

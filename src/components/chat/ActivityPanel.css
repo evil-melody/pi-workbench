@@ -9,7 +9,7 @@
 .panel-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--sp-2);
   margin-bottom: 12px;
   font-size: var(--fs-sm);
   font-weight: 500;
@@ -26,7 +26,7 @@
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--r-full);
-  padding: 1px 7px;
+  padding: 2px var(--sp-2);
   letter-spacing: 0;
 }
 
@@ -35,7 +35,7 @@
   align-items: center;
   justify-content: center;
   margin-left: auto;
-  padding: 3px;
+  padding: var(--sp-1);
   border: 0;
   border-radius: var(--r-sm);
   background: transparent;
@@ -43,9 +43,12 @@
   cursor: pointer;
 }
 
-.panel-menu-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .panel-menu-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 .status-card {
@@ -85,7 +88,7 @@
 
 /* 相位不再重复成文字（活动语已经说明在做什么），只留工具/技能名。 */
 .meta-chip {
-  padding: 1px 6px;
+  padding: 2px var(--sp-2);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   background: var(--bg);
@@ -101,7 +104,7 @@
  */
 .stat-bar {
   display: flex;
-  margin-bottom: 10px;
+  margin-bottom: var(--sp-3);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   background: var(--bg-elev);
@@ -110,7 +113,7 @@
 .stat {
   flex: 1 1 0;
   min-width: 0;
-  padding: 6px 8px;
+  padding: var(--sp-1) var(--sp-2);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -126,7 +129,7 @@
 
 .stat b {
   font-size: var(--fs-md);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--text);
   font-variant-numeric: tabular-nums;
   line-height: var(--lh-tight);
@@ -149,8 +152,11 @@
   border-radius: var(--r-sm);
 }
 
-.event-item:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .event-item:hover {
+    background: var(--bg-hover);
+}
 }
 
 .event-head {
@@ -159,7 +165,7 @@
   align-items: center;
   gap: var(--sp-2);
   width: 100%;
-  padding: 6px 8px;
+  padding: var(--sp-2);
   border: 0;
   border-radius: var(--r-sm);
   background: transparent;
@@ -330,8 +336,8 @@
 }
 
 .empty {
-  margin: 12px 0;
-  padding: 14px 10px;
+  margin: var(--sp-3) 0;
+  padding: var(--sp-4) var(--sp-3);
   border: 1px dashed var(--border);
   border-radius: var(--r-sm);
   color: var(--text-faint);
@@ -342,12 +348,12 @@
 
 /* A4 崩溃重放：从 journal 重建转写的结果区（入口在面板头部「···」菜单）。 */
 .replay-zone {
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
   border-top: 1px dashed var(--border);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--sp-2);
 }
 
 .replay-note {
@@ -366,7 +372,7 @@
   gap: 4px;
   max-height: 180px;
   overflow: auto;
-  padding: 6px 8px;
+  padding: var(--sp-2);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   background: var(--bg-elev);
@@ -377,7 +383,7 @@
   font-size: var(--fs-xs);
   line-height: 1.5;
   display: flex;
-  gap: 6px;
+  gap: var(--sp-2);
   min-width: 0;
 }
 
@@ -396,8 +402,8 @@
 
 /* usage（治理五件套）：journal 聚合出的模型用量摘要。 */
 .usage-zone {
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
   border-top: 1px dashed var(--border);
   display: flex;
   flex-direction: column;
@@ -407,7 +413,7 @@
 .usage-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--sp-2);
   font-size: var(--fs-xs);
   color: var(--text-dim);
 }
@@ -479,8 +485,8 @@
 .ctx-act {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  margin-left: 2px;
+  gap: var(--sp-1);
+  margin-left: var(--sp-1);
   padding: 0 var(--sp-1);
   height: 16px;
   border: 1px solid var(--border-strong);
@@ -493,8 +499,35 @@
     color var(--dur-fast) var(--ease);
 }
 
-.ctx-act:hover {
-  background: var(--accent-soft);
+@media (hover: hover) {
+
+  .ctx-act:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+}
+
+/* ── 运行链路图区：多轮纵向排列，抽屉内整体滚动 ── */
+.run-graphs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
+  min-width: 0;
+}
+
+.run-graphs .run-graph {
+  scroll-margin-top: var(--sp-2);
+}
+
+.run-graphs .run-graph.is-focused {
   border-color: var(--accent);
-  color: var(--accent);
+}
+
+.run-graphs-empty {
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-micro);
+  color: var(--text-faint);
 }

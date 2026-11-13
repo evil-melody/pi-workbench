@@ -1,0 +1,250 @@
+/*
+ * 输入区唯一的外框。
+ *
+ * 形态对齐 ChatGPT 桌面 / Claude / LibreChat / Open WebUI：
+ * 一个圆角容器包住正文与操作，边框只在容器外侧出现一次；
+ * 容器内不再有第二个带描边或带底色的控件 —— 模型 / 档位 / 角色 / 专家
+ * 都退化成文字 + 图标的轻量触发器，hover 才浮一层底色。
+ *
+ * 非 scoped：必须命中子组件内部节点（.app-textarea / .app-select .trigger /
+ * .ws-trigger / .ep-trigger），否则每个调用方都要再抄一份 :deep 覆写。
+ * 所有选择器都限定在 .composer-shell 下，不外溢到别的页面。
+ */
+
+.composer-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2xl);
+  background: var(--bg-elev);
+  box-shadow: var(--sh-card);
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+
+/* 聚焦反馈只发生在外框：不换强调色（避免整个输入区跳起来），只把描边压深一档。 */
+.composer-shell:focus-within {
+  border-color: var(--border-strong);
+}
+
+/* ── 正文 ────────────────────────────────────────────────────── */
+.composer-shell textarea.app-textarea {
+  display: block;
+  width: 100%;
+  /* 高度由 auto-grow 按内容写；内联上限见 AppTextarea 的 maxRows。 */
+  min-height: 24px;
+  padding: 0 var(--sp-1);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+  resize: none;
+  outline: none;
+  box-shadow: none;
+}
+
+/* 组件自带的 focus / hover 描边与光圈在这里全部压掉：外框已负责反馈，
+   不压的话输入区中间会再套一个圆角细框。 */
+.composer-shell textarea.app-textarea:focus,
+.composer-shell textarea.app-textarea:focus-visible,
+.composer-shell textarea.app-textarea:hover {
+  border: 0;
+  box-shadow: none;
+}
+
+.composer-shell textarea.app-textarea::placeholder {
+  color: var(--text-faint);
+}
+
+/* ── 操作条：左上下文 / 右执行控制，始终同一行 ─────────────────── */
+.composer-shell-bar {
+  display: flex;
+  align-items: center;
+}
+
+.composer-shell-left {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.composer-shell-right {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 0 0 auto;
+  margin-left: var(--sp-2);
+}
+
+/* ── 容器内的轻量触发器 ──────────────────────────────────────── */
+.composer-shell .app-select .trigger,
+.composer-shell button.ws-trigger,
+.composer-shell button.ep-trigger {
+  height: var(--row-h-mini);
+  min-height: var(--row-h-mini);
+  padding: 0 var(--sp-2);
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-medium);
+}
+
+@media (hover: hover) {
+
+  .composer-shell .app-select .trigger:hover:not(:disabled),
+  .composer-shell button.ws-trigger:hover:not(:disabled),
+  .composer-shell button.ep-trigger:hover:not(:disabled) {
+    border-color: transparent;
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+}
+
+.composer-shell .app-select .trigger:focus-visible,
+.composer-shell .app-select .trigger.open,
+.composer-shell button.ws-trigger.open,
+.composer-shell button.ep-trigger:focus-visible {
+  border-color: transparent;
+  background: var(--bg-hover);
+  box-shadow: none;
+  outline: none;
+}
+
+/* 未配置模型时的入口：同样是轻量文字，提示靠强调色而不是第二条虚线框。 */
+.composer-shell button.ms-setup {
+  height: var(--row-h-mini);
+  min-height: var(--row-h-mini);
+  padding: 0 var(--sp-2);
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-medium);
+}
+
+@media (hover: hover) {
+
+  .composer-shell button.ms-setup:hover {
+    border: 0;
+    background: var(--bg-hover);
+    color: var(--accent);
+  }
+}
+
+/* 未绑目录：用强调色文字提示「先做这件事」，不再在容器里画第二条虚线框。 */
+.composer-shell button.ws-trigger.emphasis,
+.composer-shell button.ws-trigger.emphasis:hover:not(:disabled) {
+  border-color: transparent;
+  color: var(--accent);
+}
+
+/* 触发器内部：图标弱化，宽度可缩（长模型名 / 长项目名走省略号）。 */
+.composer-shell .app-select,
+.composer-shell .ws-picker,
+.composer-shell .model-switcher,
+.composer-shell .mode-switcher,
+.composer-shell .role-switcher,
+.composer-shell .expert-picker {
+  min-width: 0;
+}
+
+.composer-shell .app-select .trigger .label,
+.composer-shell .ws-label,
+.composer-shell .ep-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-shell .model-switcher .app-select {
+  max-width: 160px;
+}
+
+.composer-shell .ws-picker {
+  flex: 0 1 auto;
+}
+
+/* 图标键（附件 / 发送 / 停止）统一 36 正圆，不被全局 button 基座拉成椭圆。 */
+.composer-shell .attach,
+.composer-shell .send,
+.composer-shell .stop,
+.composer-shell .hero-send {
+  width: var(--row-h);
+  height: var(--row-h);
+  min-height: var(--row-h);
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+}
+
+.composer-shell .send,
+.composer-shell .hero-send {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+@media (hover: hover) {
+
+  .composer-shell .send:hover:not(:disabled),
+  .composer-shell .hero-send:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+}
+
+.composer-shell .send:disabled,
+.composer-shell .hero-send:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 运行中：同一个位置换成停止键（中性实底，不抢强调色）。 */
+.composer-shell .stop {
+  background: var(--text);
+  color: var(--bg);
+}
+
+@media (hover: hover) {
+
+  .composer-shell .stop:hover {
+    filter: brightness(0.92);
+  }
+}
+
+/*
+ * 窄宽（≤640）：操作条只留最高优先级入口，单行不换行。
+ * 会话态保留 附件 + 模型；落地页保留 工作目录 + 模型。
+ * 档位 / 角色 / 专家 / 状态文字在这个宽度收起，触发器不折到第二排。
+ */
+@media (max-width: 640px) {
+  /* 类型选择器 + 类：压过各组件 scoped 的 `.xxx[data-v]`（同权重时加载顺序不可靠）。 */
+  .composer-shell div.mode-switcher,
+  .composer-shell div.role-switcher,
+  .composer-shell div.expert-picker,
+  .composer-shell span.bar-muted,
+  .composer-shell div.composer-tools-status {
+    display: none;
+  }
+
+  .composer-shell-right {
+    margin-left: var(--sp-1);
+  }
+
+  .composer-shell .model-switcher .app-select {
+    max-width: 128px;
+  }
+}
