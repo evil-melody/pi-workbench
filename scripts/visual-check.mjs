@@ -14,96 +14,17 @@
  * 依赖：playwright-core（项目依赖或全局均可）。本机需安装 Chrome/Chromium。
  * 产物：截图写入 `.visual-check/`（已 gitignore 友好，可自行清理）。
  */
-import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
-import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
-const require = createRequire(import.meta.url)
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const DIST = path.join(ROOT, 'dist')
 const OUT = path.join(ROOT, '.visual-check')
 const PORT = Number(process.env.VISUAL_CHECK_PORT ?? 4321)
 
-const CHROME_CANDIDATES = [
-  process.env.CHROME_PATH,
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  '/Applications/Chromium.app/Contents/MacOS/Chromium',
-  '/usr/bin/google-chrome',
-  '/usr/bin/chromium',
-  '/usr/bin/chromium-browser',
-].filter(Boolean)
-
-const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript',
-  '.css': 'text/css',
-  '.png': 'image/png',
-  '.svg': 'image/svg+xml',
-  '.woff2': 'font/woff2',
-  '.json': 'application/json',
-}
-
-/** playwright-core 可能装在项目里，也可能装在某个全局 workspace；两处都试。 */
-function loadPlaywright() {
-  const tried = []
-  for (const id of ['playwright-core', 'playwright']) {
-    try {
-      return require(id)
-    } catch {
-      tried.push(id)
-    }
-  }
-  // 常见全局 workspace 回退：环境变量显式指定时也走这里。
-  const extra = process.env.PLAYWRIGHT_PATH
-  if (extra) {
-    try {
-      return require(path.join(extra, 'playwright-core'))
-    } catch {
-      tried.push(extra)
-    }
-  }
-  console.error(
-    `未找到 ${tried.join(' / ')}。请先安装：pnpm add -D playwright-core\n` +
-      `或用 PLAYWRIGHT_PATH=<node_modules 目录> 指向已有安装。`,
-  )
-  process.exit(2)
-}
-
-function firstExisting(paths) {
-  return paths.find((p) => {
-    try {
-      return fs.statSync(p).isFile()
-    } catch {
-      return false
-    }
-  })
-}
-
-function serve() {
-  const server = http.createServer((req, res) => {
-    let p = decodeURIComponent(req.url.split('?')[0])
-    if (p === '/') p = '/index.html'
-    const file = path.join(DIST, p)
-    // 防目录穿越：解析后必须仍在 dist 内。
-    if (!path.resolve(file).startsWith(path.resolve(DIST))) {
-      res.writeHead(403)
-      res.end('forbidden')
-      return
-    }
-    fs.readFile(file, (err, data) => {
-      if (err) {
-        res.writeHead(404)
-        res.end('not found')
-        return
-      }
-      res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] ?? 'application/octet-stream' })
-      res.end(data)
-    })
-  })
-  return new Promise((r) => server.listen(PORT, () => r(server)))
-}
+// 起服务 / 找 Chrome / 载 playwright 与 simulate-run-chain.mjs 共用一份实现。
+const { findChrome, loadPlaywright, serveDist, inspectRunGraph } = await import('./lib/preview.mjs')
 
 /** 断言收集器：全部通过才算成功，任一失败以非零码退出，可直接接 CI。 */
 const results = []
@@ -153,7 +74,7 @@ async function main() {
     console.error('dist/index.html 不存在，请先执行 pnpm build。')
     process.exit(2)
   }
-  const chrome = firstExisting(CHROME_CANDIDATES)
+  const chrome = findChrome()
   if (!chrome) {
     console.error(
       '未找到 Chrome/Chromium。请安装，或设置 CHROME_PATH=<可执行文件路径> 后重试。',
@@ -164,8 +85,10 @@ async function main() {
   const { chromium } = loadPlaywright()
   fs.mkdirSync(OUT, { recursive: true })
   checkIcons()
-  const server = await serve()
-  const browser = await chromium.launch({ executablePath: chrome })
+  const server = (await serveDist(DIST, PORT)).server
+  // --disable-gpu：这套脚本在同一台机器连跑时，GPU 进程会偶发崩溃，表现为
+  // 任意一步抛 “Target page ... has been closed”。关掉 GPU 走软件渲染后 123/123 稳定。
+  const browser = await chromium.launch({ executablePath: chrome, args: ['--disable-gpu'] })
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
 
   const errors = []
@@ -188,13 +111,13 @@ async function main() {
     .catch(() => '')
   const navItems = navText.split('\n').map((s) => s.trim()).filter(Boolean)
   // 直接断言导航文案与预期完全一致：既挡住「凭空多出一个分组」，也不需要在断言里写出被禁的旧名。
-  const EXPECTED_NAV = ['插件', '项目', '专家 · 技能 · 连接器', '资料库']
+  const EXPECTED_NAV = ['对话', '收件箱', '插件', '项目', '专家 · 技能 · 连接器', '资料库']
   assert(
     '主导航文案与预期完全一致',
     JSON.stringify(navItems) === JSON.stringify(EXPECTED_NAV),
     JSON.stringify(navItems),
   )
-  assert('主导航仅 4 项', navItems.length === 4, `count=${navItems.length}`)
+  assert('主导航仅 6 项', navItems.length === 6, `count=${navItems.length}`)
   await shot('01-hero')
 
   // ── 2. 下拉菜单不得被触发器宽度钳死（曾把选项压成竖排） ───────────────
@@ -330,10 +253,16 @@ async function main() {
     .first()
     .evaluate((el) => getComputedStyle(el).backgroundColor)
     .catch(() => '')
+  const pillShadow = await page
+    .locator('.cat-pill.on')
+    .first()
+    .evaluate((el) => getComputedStyle(el).boxShadow)
+    .catch(() => '')
+  // 落地页唯一主色按钮是发送键；分类只是筛选器，选中态用浅底 + 1px 内描边。
   assert(
-    '分类选中态跟随全局强调色',
-    pillBg === 'rgb(37, 99, 235)' || pillBg === 'rgb(79, 140, 255)',
-    `bg=${pillBg}`,
+    '分类选中态用浅底+内描边（主色只留给发送键）',
+    !['rgb(37, 99, 235)', 'rgb(79, 140, 255)'].includes(pillBg) && pillShadow.includes('inset'),
+    `bg=${pillBg} shadow=${pillShadow}`,
   )
 
   // ── 5. 侧栏底部是实时用量卡，且不得出现写死的演示额度 ────────────────
@@ -367,20 +296,20 @@ async function main() {
   await page.waitForTimeout(150)
 
   // ── 6. 全局 CSS 污染回归守卫 ────────────────────────────────────────
-  // 能力中心与资料库的 .tool-btn 是带文字的普通按钮；agent-ops.css 曾把它压成 30×30。
+  // 能力中心与资料库的工具条按钮是带文字的 AppButton；agent-ops.css 曾把同类按钮压成 30×30。
   await go('#/capabilities')
-  const capBtn = await page.locator('.market-tools .tool-btn').first().boundingBox()
+  const capBtn = await page.locator('.market-tools .app-btn').first().boundingBox()
   assert(
     '能力中心按钮未被压成图标方块',
     Boolean(capBtn && capBtn.width > 40),
     `width=${capBtn ? Math.round(capBtn.width) : 'n/a'}px`,
   )
 
-  // ── 7. 运行层视图内图标按钮仍是 30×30（作用域限定后未被误伤） ────────
+  // ── 7. 运行层视图内图标按钮仍是 28×28（作用域限定后未被误伤） ────────
   await go('#/capabilities?tab=team')
   const octoBtn = await page.locator('.agent-ops .tool-btn').first().boundingBox()
   if (octoBtn) {
-    assert('运行层图标按钮保持 30px', Math.round(octoBtn.width) === 30, `width=${Math.round(octoBtn.width)}px`)
+    assert('运行层图标按钮保持 28px', Math.round(octoBtn.width) === 28, `width=${Math.round(octoBtn.width)}px`)
   }
   await shot('03-capabilities-team')
 
@@ -418,7 +347,7 @@ async function main() {
     { id: 'p-flow-a', name: '产品需求全流程', path: null, archived: false, updated_at: Date.now() - 3 * 86_400_000 },
     { id: 'p-flow-b', name: 'pi-workbench', path: '/Users/tatsuma/Documents/GIT/pi-workbench', archived: false, updated_at: Date.now() - 2 * 3_600_000 },
   ]
-  window.__PI_STUB__ = { calls: [], rpcTypes: [], emitted: [], bound: null, replayMode: !!window.__PI_REPLAY_MODE__, scripted: !!window.__PI_SCRIPTED__, slow: !!window.__PI_SLOW__, listeners: {}, lastSent: '', q: { steering: [], followUp: [] }, active: (window.__PI_REPLAY_ACTIVE__ || window.__PI_SCRIPTED__) ? 'p-flow-b' : null }
+  window.__PI_STUB__ = { calls: [], rpcTypes: [], emitted: [], bound: null, replayMode: !!window.__PI_REPLAY_MODE__, scripted: !!window.__PI_SCRIPTED__, slow: !!window.__PI_SLOW__, listeners: {}, lastSent: '', q: { steering: [], followUp: [] }, experts: [], drafts: {}, active: (window.__PI_REPLAY_ACTIVE__ || window.__PI_SCRIPTED__) ? 'p-flow-b' : null }
   // 字段完整性自检（AUDIT-001 回归）：漏字段立刻抛明确错误，
   // 而不是等 emitPi 用到时才静默崩在半路（Cannot read properties of undefined）。
   ;(() => {
@@ -461,13 +390,36 @@ async function main() {
         ? '已按批准的计划执行：修改完成，测试通过。'
         : '收到，已处理。'
     const usage = { input: 120, output: 42, cacheRead: 0, cacheWrite: 0, totalTokens: 162, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }
+    // 链路信封：桥侧 pi_run 会给每条事件补 runId/spanId/起止时间，
+    // 这里按同一形状补上，测试界面走的就不是「老事件降级路径」。
+    const stub = window.__PI_STUB__
+    const n = (stub.runs = (stub.runs ?? 0) + 1)
+    const runId = 'run-test-' + n
+    const t0 = Date.now()
+    const turnId = 'turn-' + n
+    const modelId = 'model-' + n
+    if (!stub.kernelSent) {
+      stub.kernelSent = true
+      emitPi({ type: 'kernel_start', agentId: 'main', pid: 4242, extensions: ['agent-tool-gate', 'agent-teams'], cwd: '/tmp/flow-demo-repo', pi_ts: t0 - 500 })
+    }
+    emitPi({ type: 'run_start', runId, agentId: 'main', runStartedAt: t0, prompt: String(body).slice(0, 160), pi_ts: t0 })
+    emitPi({ type: 'turn_start', runId, agentId: 'main', spanId: turnId, spanKind: 'turn', spanStartedAt: t0 + 1, pi_ts: t0 + 1 })
     setTimeout(() => {
-      emitPi({ type: 'message_start', message: { role: 'assistant', content: [] } })
-      emitPi({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: text }, usage })
+      emitPi({ type: 'message_start', message: { role: 'assistant', content: [] }, runId, agentId: 'main', spanId: modelId, parentSpanId: turnId, spanKind: 'model', spanStartedAt: t0 + 120, pi_ts: t0 + 120 })
+      emitPi({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: text }, usage, runId, agentId: 'main', spanId: modelId, parentSpanId: turnId, spanKind: 'model', spanStartedAt: t0 + 120, pi_ts: t0 + 130 })
     }, 120)
+    // 普通回复里塞一次失败的工具调用：验证「失败环节标红」与独立状态，不混进「完成」。
+    if (text === '收到，已处理。') {
+      setTimeout(() => {
+        emitPi({ type: 'tool_execution_start', toolCallId: 'c-' + n, toolName: 'bash', args: { command: 'pnpm test -- --runInBand' }, runId, agentId: 'main', spanId: 'tool-' + n, parentSpanId: modelId, spanKind: 'tool', spanStartedAt: t0 + 150, pi_ts: t0 + 150 })
+      }, 150)
+      setTimeout(() => {
+        emitPi({ type: 'tool_execution_end', toolCallId: 'c-' + n, toolName: 'bash', isError: true, result: { content: [{ type: 'text', text: 'Command failed with exit code 1' }] }, runId, agentId: 'main', spanId: 'tool-' + n, parentSpanId: modelId, spanKind: 'tool', spanStartedAt: t0 + 150, spanEndedAt: t0 + 210, pi_ts: t0 + 210 })
+      }, 210)
+    }
     setTimeout(() => {
-      emitPi({ type: 'message_end', message: { role: 'assistant', content: [], usage } })
-      emitPi({ type: 'agent_settled' })
+      emitPi({ type: 'message_end', message: { role: 'assistant', content: [], usage }, runId, agentId: 'main', spanId: modelId, parentSpanId: turnId, spanKind: 'model', spanStartedAt: t0 + 120, spanEndedAt: t0 + 260, pi_ts: t0 + 260 })
+      emitPi({ type: 'agent_settled', runId, agentId: 'main', spanId: turnId, spanKind: 'turn', spanStartedAt: t0 + 1, spanEndedAt: t0 + 262, runEndedAt: t0 + 262, runStatus: 'ok', pi_ts: t0 + 262 })
       deliverQueue()
     }, window.__PI_STUB__.slow ? 4000 : 320)
   }
@@ -547,17 +499,36 @@ async function main() {
       if (cmd === 'fs_read_dir') return r([])
       if (cmd === 'fs_read_file') return r('')
       if (cmd === 'settings_load') return r({ models: [] })
+      // 后台与启动：真实后端返回 BackgroundInfo，null 会让设置页后台分区渲染崩掉。
+      if (cmd === 'background_get' || cmd === 'background_set_close_action' || cmd === 'background_set_paused')
+        return r({ close_action: 'ask', paused: false, autostart: false })
+      if (cmd === 'background_set_autostart') return r(false)
       // 内核自检：桌面进程 PATH 里常没有 pi，设置页要显示探测结果。
       if (cmd === 'pi_doctor') return r({ found: true, path: '/opt/homebrew/bin/pi', probed: 12, error: null })
       // 发消息：failSend 打开时模拟「内核未启动」，用来验证失败不是静默的。
+      if (cmd === 'pi_note_user') return r(null)
       if (cmd === 'pi_send') {
         if (window.__PI_STUB__.failSend) return Promise.reject('pi 未启动')
+        let type = ''
+        let body = ''
+        try {
+          const req = JSON.parse(args.json)
+          type = req.type ?? ''
+          body = req.message ?? ''
+        } catch {}
+        // G6：follow_up / steer 走 pi_send 下发（与真实后端同一通道）。
+        // 桩同样立刻回推 queue_update——chip 以内核回推为权威，不本地维护副账。
+        if (type === 'follow_up' || type === 'steer') {
+          const q = window.__PI_STUB__.q
+          if (type === 'follow_up') q.followUp.push(body)
+          else q.steering.push(body)
+          window.__PI_STUB__.lastQueued = body
+          window.__PI_STUB__.rpcTypes.push(type)
+          emitPi({ type: 'queue_update', steering: q.steering, followUp: q.followUp })
+          return r(null)
+        }
         // scripted 模式：记下发的正文，并按内容推一轮流式回复（G5 plan 流程用）。
         if (window.__PI_STUB__.scripted) {
-          let body = ''
-          try {
-            body = JSON.parse(args.json).message ?? ''
-          } catch {}
           window.__PI_STUB__.lastSent = body
           replyScripted(body)
         }
@@ -624,12 +595,65 @@ async function main() {
         { id: 'a1', name: '会议纪要.md', rel_path: '/docs/会议纪要.md', kind: 'markdown', dir: '/docs', origin: { kind: 'local' }, enabled: true, searchable: true, draft: false, revision: 2, size: 2048, updated_at: Date.now() },
         { id: 'a2', name: '需求.doc', rel_path: '/docs/需求.doc', kind: 'docx', dir: '/docs', origin: { kind: 'import' }, enabled: true, searchable: true, draft: false, revision: 1, size: 4096, updated_at: Date.now() },
       ])
-      if (cmd === 'library_stats') return r({ asset_count: 2, used_bytes: 6144, max_total_bytes: 104857600 })
+      if (cmd === 'library_stats') return r({ asset_count: 2, used_bytes: 6144, max_file_bytes: 52428800, max_total_bytes: 104857600 })
+      // 失败批次：真实后端返回空数组。返回 null 会让「空值归一化」缺失时整页崩掉，
+      // 掩盖掉目录树和配额卡的其它缺陷。
+      if (cmd === 'library_archive_failures') return r([])
+      // 记忆层：给空清单与未建索引状态，验证空态/骨架切换而不是永久骨架。
+      if (cmd === 'agent_memory_list') return r([])
+      if (cmd === 'agent_memory_trash') return r([])
+      if (cmd === 'agent_profile_get') return r({ generated_at: 0, source_mtime: 0 })
+      if (cmd === 'memory_vec_status') return r({ table: 'memory_vectors', exists: false, rows: 0, embedding: { base_url: '', model: '' }, agent_tool_note: '' })
       if (cmd === 'library_tree') return r([ { path: '/', name: '', is_dir: true, asset_id: null }, { path: '/docs', name: 'docs', is_dir: true, asset_id: null }, { path: '/docs/会议纪要.md', name: '会议纪要.md', is_dir: false, asset_id: 'a1' } ])
       if (cmd === 'library_marks') return r([ { id: 'a1', name: '会议纪要.md', dir: '/docs' } ])
       if (cmd === 'library_search') return r([ { asset_id: 'a1', name: '会议纪要.md', dir: '/docs', kind: 'markdown', origin: { kind: 'local' }, revision: 2, location: '摘要', snippet: '本次会议决定了…', convert_status: 'ready' } ])
       if (cmd === 'skills_list') return r([ { name: 'pdf', description: 'PDF 读写与转换', kind: 'skill', path: '/skills/pdf', via: 'local', scope: 'user', origin: 'local' }, { name: 'docx', description: 'Word 文档处理', kind: 'skill', path: '/skills/docx', via: 'local', scope: 'user', origin: 'local' } ])
-      if (cmd === 'experts_list') return r([ { id: 'e1', name: '代码审查专家', description: '审查 diff 并给出风险', role_id: 'reviewer' } ])
+      // 专家域：清单可变，用来验证「新建 → 表单 → 保存 → 列表回显」整条链路。
+      // 返新数组：与 Vue ref 里的数组保持不同引用，否则同一实例的 push 不触发重渲染。
+      if (cmd === 'experts_list') return r(window.__PI_STUB__.experts.map((e) => ({ ...e })))
+      if (cmd === 'tools_list') return r({
+        active: [],
+        catalog: ['read', 'edit', 'write', 'bash', 'grep', 'glob', 'codebase_search', 'web_search'],
+        settings_path: '/tmp/flow-demo-repo/.pi/settings.json',
+      })
+      if (cmd === 'expert_draft_load') return r(window.__PI_STUB__.drafts[args.id] ?? null)
+      if (cmd === 'expert_validate') return r([])
+      if (cmd === 'expert_draft_save') {
+        const draft = { definition: args.definition, revision: 1, digest: 'd'.repeat(16), updated_at: Date.now() }
+        window.__PI_STUB__.drafts[args.id] = draft
+        const rows = window.__PI_STUB__.experts
+        const row = {
+          id: args.id,
+          name: args.definition.name,
+          description: args.definition.description,
+          role: args.definition.role,
+          tags: args.definition.tags || [],
+          published: false,
+          draft_revision: 1,
+          digest: draft.digest,
+          tool_count: (args.definition.allowed_tools || []).length,
+          last_run: { run_id: 'run-e1', status: 'ok', at: Date.now() - 60_000 },
+        }
+        const i = rows.findIndex((e) => e.id === args.id)
+        if (i >= 0) rows[i] = row
+        else rows.push(row)
+        return r(draft)
+      }
+      if (cmd === 'expert_delete') {
+        window.__PI_STUB__.experts = window.__PI_STUB__.experts.filter((e) => e.id !== args.id)
+        delete window.__PI_STUB__.drafts[args.id]
+        return r(null)
+      }
+      // 智能体分道：给一份真实形状的团队 + 调度日志，空桩会让「有成员」的分支永远测不到。
+      if (cmd === 'agent_teams_list') return r([
+        { id: 'crew-frontend', name: '前端专家团', members: ['架构师', '实现者'], strategy: 'sequential', created_at: Date.now(), runs: 2 },
+      ])
+      if (cmd === 'agent_team_runs') return r([
+        { run_id: '8f3a1c', strategy: 'sequential', real: true, at: Date.now() - 120000 },
+        { run_id: '8f3a1c', member: '架构师', ok: true, output: '拆分为三个改动点：轨迹抽屉新增页签、分道视图、后端日志读取。', at: Date.now() - 118000 },
+        { run_id: '8f3a1c', member: '实现者', ok: false, output: '类型检查失败：AgentLanes 里 payload 可能为 null。', at: Date.now() - 60000 },
+        { run_id: '7c21de', strategy: 'debate', real: true, note: 'plan-only', at: Date.now() - 300000 },
+      ])
       if (cmd === 'project_index_status') return r({ indexed: true, nodes: 3130, edges: 8836, project_name: 'Users-tatsuma-Documents-GIT-pi-workbench', error: null, indexing: false })
       // G4：journal 回放。多项目共用一个 events.jsonl，按 session_open 的 cwd 分段；
       // 只有 pi-workbench 段的消息应该被回放，别的项目段一条都不能出现。
@@ -648,7 +672,7 @@ async function main() {
       }
       if (cmd === 'conversations_list' || cmd === 'conversation_list') return r([ { id: 'c1', title: '产品需求补全', updated_at: Date.now() } ])
       // 收件箱/定时任务：真实后端永远返回完整快照，桩缺这条会让页面渲染 null.unread 崩溃。
-      if (cmd === 'proactive_snapshot') return r({ jobs: [], inbox: [], unread: 0, runningJob: null, grantUsage: null })
+      if (cmd === 'proactive_snapshot') return r({ jobs: [], inbox: [], unread: 0, running_job: null, grant_usage: null })
       return r(null)
     },
   }
@@ -923,6 +947,32 @@ async function main() {
   )
   await page2.screenshot({ path: path.join(OUT, '33-flow-chat-trace.png') })
 
+  // 智能体分道：内容来自内核事件 + 团队日志，必须真渲染一次，不能只靠类型检查。
+  await page2.locator('.trace-drawer .td-tab').filter({ hasText: '智能体' }).first().click()
+  await page2.waitForTimeout(300)
+  const lanes = page2.locator('.agent-lanes').first()
+  assert(
+    '智能体分道：面板渲染且有标题',
+    (await lanes.count()) === 1 && (await lanes.locator('.al-head').innerText()).includes('智能体分道'),
+    'panel missing',
+  )
+  assert(
+    '智能体分道：团队成员按分道展示（含失败态）',
+    (await lanes.locator('.al-lane').count()) >= 2 && (await lanes.locator('.al-lane.bad').count()) >= 1,
+    `lanes=${await lanes.locator('.al-lane').count()}`,
+  )
+  const overflow1440 = await lanes.evaluate((el) => el.scrollWidth - el.clientWidth)
+  assert('智能体分道：1440 无横向溢出', overflow1440 <= 1, `overflow=${overflow1440}`)
+  await page2.screenshot({ path: path.join(OUT, '47-agent-lanes-1440.png') })
+
+  await page2.setViewportSize({ width: 390, height: 844 })
+  await page2.waitForTimeout(250)
+  const overflow390 = await lanes.evaluate((el) => el.scrollWidth - el.clientWidth)
+  assert('智能体分道：390 无横向溢出', overflow390 <= 1, `overflow=${overflow390}`)
+  await page2.screenshot({ path: path.join(OUT, '48-agent-lanes-390.png') })
+  await page2.setViewportSize({ width: 1440, height: 900 })
+  await page2.waitForTimeout(200)
+
   // 过程面板之外的工具（文件 / 终端 / 浏览器）归项目详情页。
   // 从侧栏项目行的「工作台」入口过去 —— 这条入口本身也是这版新加的。
   await page2
@@ -992,16 +1042,24 @@ async function main() {
   await page2.waitForTimeout(600)
   const pluginRows = await page2.locator('.market-row').count()
   assert('插件市场：渲染出真实扩展行（非空壳）', pluginRows >= 3, `rows=${pluginRows}`)
-  const enabledFlags = await page2.locator('.market-row .row-flag').count()
-  assert('插件市场：显示已载入/未载入状态', enabledFlags >= 1, `flags=${enabledFlags}`)
+  const enabledFlags = await page2.locator('.market-row .row-install').count()
+  assert('插件市场：每行显示启用状态', enabledFlags >= 1, `flags=${enabledFlags}`)
   await page2.screenshot({ path: path.join(OUT, '39-plugins-real.png') })
 
   await page2.goto(`http://localhost:${PORT}/#/library`, { waitUntil: 'load' })
   await page2.waitForTimeout(600)
   const libNodes = await page2.locator('.tree-node').count()
   assert('资料库：目录树渲染出节点（非空壳）', libNodes >= 2, `nodes=${libNodes}`)
+  const libTreeText = await page2.locator('.lib-tree').innerText().catch(() => '')
+  // 只数节点会被「节点在、内容空」骗过：目录名与文件名必须真的显示出来。
+  assert('资料库：目录树显示目录名与文件名', libTreeText.includes('docs') && libTreeText.includes('会议纪要.md'), JSON.stringify(libTreeText.slice(0, 80)))
   const libQuota = await page2.locator('.lib-quota').count()
   assert('资料库：配额卡渲染', libQuota === 1, `quota=${libQuota}`)
+  // 字段名对不上时卡片仍在，但字节会显示成 undefined、占用条固定 0%。
+  const quotaText = await page2.locator('.lib-quota').innerText().catch(() => '')
+  assert('资料库：配额显示真实份数与字节', quotaText.includes('2 份') && quotaText.includes('6.0 KiB') && quotaText.includes('100.00 MiB'), JSON.stringify(quotaText))
+  const quotaWidth = await page2.locator('.lib-quota .quota-bar > span').first().evaluate((el) => (el ? el.style.getPropertyValue('--quota-w') : '')).catch(() => '')
+  assert('资料库：占用比例按 6144/100MiB 渲染（非 0）', parseFloat(quotaWidth) > 0, `--quota-w=${quotaWidth}`)
   await page2.screenshot({ path: path.join(OUT, '40-library-real.png') })
 
   await page2.goto(`http://localhost:${PORT}/#/capabilities?tab=skill`, { waitUntil: 'load' })
@@ -1009,6 +1067,45 @@ async function main() {
   const skillCards = await page2.locator('.market-card').count()
   assert('能力中心：技能列表渲染', skillCards >= 1, `cards=${skillCards}`)
   await page2.screenshot({ path: path.join(OUT, '41-capabilities-real.png') })
+
+  // ── 9c. 专家域：新建 → 表单（工具清单来自 tools_list）→ 保存 → 列表回显 ──
+  await page2.goto(`http://localhost:${PORT}/#/capabilities?tab=expert`, { waitUntil: 'load' })
+  await page2.waitForTimeout(600)
+  await page2.locator('.market-tools .app-btn', { hasText: '新建专家' }).first().click()
+  await page2.waitForTimeout(300)
+  assert('专家创建：弹出新建对话框', (await page2.locator('.modal-backdrop .modal-panel').count()) === 1)
+  await page2.locator('.modal-body .app-input').first().fill('code-reviewer')
+  await page2.locator('.modal-footer .app-btn', { hasText: '打开编辑器' }).first().click()
+  await page2.waitForTimeout(800)
+
+  const toolBoxes = await page2.locator('.ed-tools .app-check').count()
+  const toolNames = await page2.locator('.ed-tools .app-check .text').allInnerTexts()
+  assert(
+    '专家表单：可用工具来自内核工具清单（不写死）',
+    toolBoxes >= 6 && toolNames.includes('codebase_search'),
+    `tools=${toolBoxes} ${toolNames.slice(0, 4).join(',')}`,
+  )
+  for (const tool of ['read', 'grep']) {
+    await page2.locator('.ed-tools .app-check').filter({ hasText: tool }).first().click()
+  }
+  await page2.locator('.ed-field .app-input').nth(1).fill('代码评审专家')
+  await page2.locator('.ed-field .app-textarea').nth(0).fill('审查改动并给出风险清单')
+  await page2.locator('.ed-field .app-textarea').nth(1).fill('只读审查，不改代码。')
+  await page2.locator('.ed-head-actions .app-btn', { hasText: '保存草稿' }).first().click()
+  await page2.waitForTimeout(800)
+
+  const savedExperts = await page2.evaluate(() => window.__PI_STUB__.experts)
+  assert(
+    '专家表单：保存草稿并带上允许工具集',
+    savedExperts.length === 1 && savedExperts[0].tool_count === 2,
+    JSON.stringify(savedExperts.map((e) => [e.id, e.tool_count])),
+  )
+  const expertRole = (await page2.locator('.expert-item .expert-item-role').first().innerText().catch(() => '')).trim()
+  const expertMeta = (await page2.locator('.expert-item .expert-item-stats').first().innerText().catch(() => '')).replace(/\s+/g, ' ')
+  const expertTags = (await page2.locator('.expert-item .expert-item-tags').first().innerText().catch(() => '')).replace(/\s+/g, ' ')
+  assert('专家列表：显示角色与可用工具数', expertRole.includes('只读审查') && expertMeta.includes('2 个工具'), `${expertRole} | ${expertMeta}`)
+  assert('专家列表：来源与最近一次运行状态分层可见', expertTags.includes('本地创建') && expertMeta.includes('最近运行成功'), `${expertTags} | ${expertMeta}`)
+  await page2.screenshot({ path: path.join(OUT, '41b-expert-form.png') })
 
   const fatal = flowErrors.filter((t) => /Cannot read properties|is not a function|undefined is not/.test(t))
   assert('全流程：无渲染期崩溃', fatal.length === 0, fatal.slice(0, 2).join(' | ').slice(0, 120))
@@ -1154,15 +1251,16 @@ async function main() {
   const p5Composer = page5.locator('.composer .app-textarea').first()
   await p5Composer.click()
   await page5.keyboard.type('顺便把测试补上')
-  // 先落草稿再断言：空草稿时按钮本就该禁用（与 streaming 无关）。
+  // 运行中发送键的位置切换为停止键（对齐主流输入区：同一个圆圈，不并排第二个按钮）。
   assert(
-    'G6：streaming 中发送按钮可用（从禁发改为排队语义）',
-    (await page5.locator('.composer .send').isDisabled().catch(() => true)) === false,
-    'send still disabled while streaming',
+    'G6：运行中发送键位置显示停止键',
+    (await page5.locator('.composer .stop').count()) === 1 &&
+      (await page5.locator('.composer .send').count()) === 0,
+    `stop=${await page5.locator('.composer .stop').count()} send=${await page5.locator('.composer .send').count()}`,
   )
 
-  // 第二条：排队入队（follow_up）
-  await page5.locator('.composer .send').click()
+  // 第二条：Enter 排队入队（follow_up）；发送键此刻是停止，不再承担排队。
+  await page5.keyboard.press('Enter')
   await page5.waitForTimeout(400)
   const p5RpcTypes = await page5.evaluate(() => window.__PI_STUB__.rpcTypes ?? [])
   assert(
@@ -1237,7 +1335,8 @@ async function main() {
   await page5.waitForTimeout(350)
   await p5Composer2.click()
   await page5.keyboard.type('再排一条')
-  await page5.locator('.composer .send').click()
+  // 运行中发送键位置是停止键，排队走 Enter（与手动使用一致）。
+  await page5.keyboard.press('Enter')
   await page5.waitForTimeout(300)
   assert(
     'G6：清空前队列里有一条待执行',
@@ -1265,7 +1364,148 @@ async function main() {
     !p5Msgs2.includes('已处理：再排一条'),
     p5Msgs2.slice(-80),
   )
+  await page5.screenshot({ path: path.join(OUT, '46-queue-clear.png') })
+
+  // 请求链路：气泡下只留一行入口；点入口展开轨迹抽屉里的节点图。
+  const runEntries = page5.locator('.msgs .run-entry')
+  assert(
+    '请求链路：用户气泡下出现「运行链路」入口',
+    (await runEntries.count()) >= 2,
+    `entries=${await runEntries.count()}`,
+  )
+  await runEntries.last().click()
+  await page5.waitForTimeout(500)
+  assert('请求链路：点入口展开轨迹抽屉', (await page5.locator('.trace-drawer.open').count()) === 1)
+  const graph = page5.locator('.trace-drawer .run-graph').last()
+  const graphNodes = await page5.locator('.trace-drawer .rg-node').count()
+  const failedNodes = await page5.locator('.trace-drawer .rg-node.is-failed').count()
+  assert('请求链路：抽屉里按节点渲染整条链路', graphNodes >= 6, `nodes=${graphNodes}`)
+  assert('请求链路：失败环节独立标红，不被算成完成', failedNodes >= 1, `failed=${failedNodes}`)
+  const geo = await inspectRunGraph(graph)
+  assert('请求链路：节点不重叠', geo.overlaps === 0, `overlaps=${geo.overlaps}`)
+  assert('请求链路：连线不穿节点', geo.crossings === 0, `crossings=${geo.crossings}`)
+  assert('请求链路：文字不被裁', geo.clipped === 0, `clipped=${geo.clipped}`)
+  assert('请求链路：图不产生横向溢出', geo.overflow <= 1, `overflow=${geo.overflow}`)
+  await page5.locator('.trace-drawer .rg-node.is-failed').first().click()
+  await page5.waitForTimeout(150)
+  const detailCount = await page5.locator('.trace-drawer .rg-detail').count()
+  const rawLen = (await page5.locator('.trace-drawer .rg-raw').innerText().catch(() => '')).length
+  assert('请求链路：点节点展开输入/输出/原始事件', detailCount === 1 && rawLen > 10, `raw=${rawLen}`)
+
+  // 抖动闸门：追加事件、每秒耗时刷新都不许挪动既有节点或滚动容器。
+  // 曾经的回归是图每帧从环形缓冲全量重建，旧行被淘汰时节点消失、整图缩水一帧上移。
+  const shake = await page5.evaluate(async () => {
+    const panel = document.querySelector('.trace-drawer .activity-panel')
+    if (panel) panel.scrollTop = 0
+    const sample = () => {
+      const graphs = [...document.querySelectorAll('.trace-drawer .run-graph')]
+      const g = graphs.at(-1)
+      const svg = g?.querySelector('.rg-svg')
+      return {
+        run: g?.getAttribute('data-run-id'),
+        top: g ? Math.round(g.getBoundingClientRect().top * 10) / 10 : null,
+        scrollTop: Math.round((panel?.scrollTop ?? 0) * 10) / 10,
+        svgH: Number(svg?.getAttribute('height')),
+        nodes: [...(g?.querySelectorAll('.rg-node') ?? [])].map((n) => ({
+          k: n.querySelector('.rg-node-title')?.textContent ?? '',
+          y: Number(n.querySelector('.rg-box')?.getAttribute('y')),
+        })),
+      }
+    }
+    const emit = (rec) => window.__PI_STUB__.emitPi(rec)
+    const runId = 'run-jitter-guard'
+    const t0 = Date.now()
+    const base = { runId, runStartedAt: t0 }
+    emit({ type: 'run_start', ...base, agentId: 'main', prompt: '抖动闸门', pi_ts: t0 })
+    await new Promise((r) => requestAnimationFrame(r))
+    const before = sample()
+    for (let i = 0; i < 3; i++) {
+      const t = Date.now()
+      const span = { ...base, agentId: 'main', spanId: `guard-${i}`, spanKind: 'tool' }
+      emit({ type: 'tool_execution_start', toolCallId: `guard-${i}`, toolName: 'bash', args: { command: 'ls' }, ...span, spanStartedAt: t, pi_ts: t })
+      emit({ type: 'tool_execution_end', toolCallId: `guard-${i}`, toolName: 'bash', args: { command: 'ls' }, result: { content: [{ type: 'text', text: 'ok' }] }, ...span, spanStartedAt: t, spanEndedAt: t + 10, pi_ts: t + 10 })
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+    }
+    const after = sample()
+    // 跨过一次每秒耗时刷新：只允许文字变，几何与滚动必须原地不动。
+    await new Promise((r) => setTimeout(r, 1300))
+    const ticked = sample()
+    return { runId, before, after, ticked }
+  })
+  const samePrefix = (a, b) =>
+    a.nodes.length <= b.nodes.length &&
+    a.nodes.every((n, i) => n.k === b.nodes[i].k && n.y === b.nodes[i].y)
+  assert(
+    '请求链路：追加事件既有节点不重排（顺序与坐标不变）',
+    shake.after.run === shake.runId && shake.after.nodes.length > shake.before.nodes.length && samePrefix(shake.before, shake.after),
+    `before=${shake.before.nodes.map((n) => n.y).join(',')} after=${shake.after.nodes.map((n) => n.y).join(',')}`,
+  )
+  assert(
+    '请求链路：追加事件不推动滚动容器与图位置',
+    shake.after.scrollTop === shake.before.scrollTop && shake.after.top === shake.before.top,
+    `scroll=${shake.before.scrollTop}→${shake.after.scrollTop} top=${shake.before.top}→${shake.after.top}`,
+  )
+  assert(
+    '请求链路：每秒耗时刷新只改文字，不触发布局',
+    shake.ticked.nodes.length === shake.after.nodes.length &&
+      shake.ticked.svgH === shake.after.svgH &&
+      shake.ticked.top === shake.after.top &&
+      shake.ticked.scrollTop === shake.after.scrollTop &&
+      samePrefix(shake.after, shake.ticked),
+    `svgH=${shake.after.svgH}→${shake.ticked.svgH} top=${shake.after.top}→${shake.ticked.top}`,
+  )
+
+  await page5.screenshot({ path: path.join(OUT, '49-run-graph-1440.png') })
   await page5.close()
+
+  // ── 10. 首帧不白屏 + 无自我重载 ─────────────────────────
+  // 用户报过「界面一直闪、白屏和有内容交替」。两个根因都在渲染入口：
+  //   1) 首帧底色靠 JS 加载后的 CSS 才生效，重载时先涂一帧纯白；
+  //   2) Vite HMR 写死独立端口，第二个实例抢不到 WS，客户端反复重连触发整页 reload。
+  // 这里一条运行时闸门 + 一条配置闸门，任一回归都会让 verify:ui 变红。
+  const viteCfg = fs.readFileSync(path.join(ROOT, 'vite.config.ts'), 'utf8')
+  assert(
+    'HMR 不写死独立端口（多实例并行时不会互抢 WS 导致整页 reload）',
+    !/hmr\s*:\s*\{[^}]*\bport\s*:/.test(viteCfg),
+    'vite.config.ts hmr.port',
+  )
+
+  const flash = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+  await flash.addInitScript(`localStorage.setItem('pi-workbench:theme','dark')`)
+  await flash.addInitScript(`window.__PI_REPLAY_MODE__ = true; window.__PI_REPLAY_ACTIVE__ = true`)
+  await flash.addInitScript(PI_STUB_SCRIPT)
+  await flash.addInitScript(() => {
+    const key = '__vc_loads'
+    sessionStorage.setItem(key, String(Number(sessionStorage.getItem(key) ?? 0) + 1))
+    const frames = []
+    const t0 = performance.now()
+    const tick = () => {
+      frames.push(getComputedStyle(document.documentElement).backgroundColor)
+      if (performance.now() - t0 < 1500) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+    window.__vcFrames = frames
+  })
+  await flash.goto(`http://localhost:${PORT}/#/chat`, { waitUntil: 'commit' })
+  await flash.waitForTimeout(1400)
+  const flashFrames = await flash.evaluate(() => window.__vcFrames ?? [])
+  const whiteFrames = flashFrames.filter((c) => c === 'rgb(255, 255, 255)' || c === 'rgba(0, 0, 0, 0)')
+  assert(
+    '首帧底色为主题底色（不出现白屏帧）',
+    flashFrames.length > 0 && whiteFrames.length === 0,
+    `frames=${flashFrames.length} white=${whiteFrames.length} first=${flashFrames[0] ?? 'none'}`,
+  )
+  const loadsBefore = await flash.evaluate(() => Number(sessionStorage.getItem('__vc_loads')))
+  await flash.reload({ waitUntil: 'load' })
+  await flash.waitForTimeout(900)
+  const loadsAfter = await flash.evaluate(() => Number(sessionStorage.getItem('__vc_loads')))
+  const mounted = await flash.locator('.app-shell').count()
+  assert(
+    '重载一次只加载一次（没有 reload 循环），且挂载后容器有内容',
+    loadsBefore === 1 && loadsAfter === 2 && mounted === 1,
+    `loads=${loadsBefore}→${loadsAfter} shell=${mounted}`,
+  )
+  await flash.close()
 
   // 浏览器预览下 Tauri IPC 缺失属预期；只提示，不作为失败项。
   if (errors.length) {
