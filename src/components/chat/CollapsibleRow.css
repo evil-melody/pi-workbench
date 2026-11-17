@@ -7,6 +7,9 @@
  * 过程行只为「一眼看到这步做了什么」存在，弱色、无底色、hover 才提亮。
  */
 .crow {
+  /* 过程行行高（单行折叠条的唯一节奏值）：24 是 dsh ToolRow 的实测值，
+     36 是 AppButton 基座的高度，两者差 12px/行，连续 8 步就是一屏的 1/6。 */
+  --crow-h: 24px;
   display: flex;
   flex-direction: column;
   align-self: stretch;
@@ -16,18 +19,18 @@
 /*
  * 一行 24px：不加交替底色，「灰底交替」的观感来自行高过大 + hover 残影。
  *
- * F3：head 走 turn 的同一栅格（--turn-grid + 同一 column-gap），所以 caret/图标
+ * F3：head 走 turn 的同一 rail 栅格（--turn-grid-2 + 同一 column-gap），所以 caret/图标
  * 落在 26px rail 列正中，正好压住 MessageList 画在 12.5px 的竖线上。
  * padding-inline 归零是这条对齐的前提——留 4px 内衬图标就偏出竖线。
  */
 .crow-head {
   display: grid;
-  grid-template-columns: var(--turn-grid);
+  grid-template-columns: var(--turn-grid-2);
   column-gap: var(--sp-2);
   align-items: center;
   width: 100%;
   min-width: 0;
-  min-height: 24px;
+  min-height: var(--crow-h);
   padding: 0;
   border: 0;
   border-radius: var(--r-sm);
@@ -35,10 +38,20 @@
   color: var(--text-dim);
   font-family: inherit;
   font-size: var(--fs-base);
-  line-height: 24px;
+  line-height: var(--crow-h);
   text-align: left;
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+/*
+ * AppButton 基座（.app-btn）也声明了 min-height: var(--row-h)=36，同权重且后加载，
+ * 把这里声明的 24 顶回 36：连续 8 条工具/思考行实测 288px，比设计值多 96px。
+ * 双类提高一级定死 24；悬停热区仍由全局 ::before 撑到 44，不缩小点击目标。
+ */
+.crow .crow-head {
+  height: var(--crow-h);
+  min-height: var(--crow-h);
 }
 
 @media (hover: hover) {
@@ -225,7 +238,9 @@
 .crow-body {
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr);
-  align-items: baseline;
+  /* baseline 对齐会让「标签 + 代码行」的网格多算 8px 高度：实测 scrollHeight 67 /
+     clientHeight 59，一行内容也长出纵向滚动条。按首行顶部对齐，几何与内容一致。 */
+  align-items: start;
   column-gap: var(--sp-3);
   row-gap: var(--sp-2);
   min-width: 0;
@@ -240,11 +255,14 @@
 }
 
 /*
- * F20：展开体槽位样式收回本文件。这些节点由调用方通过 slot 传入，scoped 编译后
- * 是 `.crow[data-v-collapsible] .crow-label`——后代不要求带属性，因此 :deep() 可达，
- * 不必再在 MessageList.css 里维护第二份 .crow-* 拷贝。
+ * F20：展开体槽位样式收回本文件。
+ *
+ * 本文件是**非 scoped**（`<style src>` 无 scoped），所以这里不能写 `:deep()`——
+ * 浏览器不认这个伪类，整条规则会被丢弃（改前实测：label 的 grid-column=auto、
+ * pre 的 white-space=pre、复制键 position=relative 落在内容末尾、错误块左边条 0px）。
+ * 直接用后代选择器；`.crow-*` 前缀本身已经限定在过程行内部。
  */
-.crow-body :deep(.crow-label) {
+.crow-body .crow-label {
   grid-column: 1;
   align-self: start;
   position: sticky;
@@ -256,7 +274,7 @@
   white-space: nowrap;
 }
 
-.crow-body :deep(.crow-pre) {
+.crow-body .crow-pre {
   grid-column: 2;
   min-width: 0;
   margin: 0;
@@ -270,13 +288,13 @@
 }
 
 /* 代码 / 内容块才等宽；单行元信息（路径）用正文字体，别把「src/a.ts」装成代码。 */
-.crow-body :deep(.crow-pre.crow-code) {
+.crow-body .crow-pre.crow-code {
   font-family: var(--mono);
   line-height: var(--lh-code);
 }
 
 /* Think 展开体只有正文没有标签：占满两列，右侧不留空沟。 */
-.crow-body :deep(.crow-pre:first-child) {
+.crow-body .crow-pre:first-child {
   grid-column: 1 / -1;
 }
 
@@ -284,10 +302,18 @@
  * 结果区（dsh TerminalBlock 的 ioLabel / bodyScroll 两列布局）。
  * position:relative 是复制按钮的定位基准（块右上角，hover 才浮现）。
  */
-.crow-body :deep(.crow-out) {
+.crow-body .crow-out {
   grid-column: 2;
   position: relative;
   min-width: 0;
+  /*
+   * 全局 --hit:44 的命中伪元素（base.css 的 ::before，居中 44×44）在 17.4px 的内容行里
+   * 会向下溢出 15.9px，被 .crow-body 当成可滚动内容：实测 scrollHeight 67 / clientHeight 59，
+   * 一行输出也长出纵向滚动条。这里收到 24（WCAG 2.5.8 最小目标），并给结果区同一档最小高度，
+   * 溢出归零（66/66），可见高度不变。
+   */
+  --hit: 24px;
+  min-height: 24px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -295,24 +321,24 @@
 }
 
 /* 失败输出：左侧 2px danger 边条，一眼定位「这一段是报错」，不靠整块底色。 */
-.crow-body :deep(.crow-out.crow-err) {
+.crow-body .crow-out.crow-err {
   padding-left: var(--sp-2);
   border-left: 2px solid var(--danger);
 }
 
 /* 退出码行：终端输出里唯一回答「跑没跑成」的一行，等宽、不跟正文抢字号。 */
-.crow-body :deep(.crow-exit) {
+.crow-body .crow-exit {
   margin: 0;
   font-family: var(--mono);
   font-size: var(--fs-sm);
   color: var(--text-faint);
 }
 
-.crow-body :deep(.crow-out.crow-err .crow-exit) {
+.crow-body .crow-out.crow-err .crow-exit {
   color: var(--danger);
 }
 
-.crow-body :deep(.crow-btn) {
+.crow-body .crow-btn {
   padding: 2px var(--sp-2);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
@@ -327,7 +353,7 @@
 
 @media (hover: hover) {
 
-  .crow-body :deep(.crow-btn:hover) {
+  .crow-body .crow-btn:hover {
     color: var(--text-dim);
     border-color: var(--border-strong);
     background: var(--bg-hover);
@@ -339,14 +365,14 @@
  * 所以贴右上角、只在 hover / 聚焦时浮现。指针设备才收起——触屏没有 hover，
  * 收起就等于删掉这个功能。visibility 一起过渡，收起时不可点（不会误触）。
  */
-.crow-body :deep(.crow-copy) {
+.crow-body .crow-copy {
   position: absolute;
   top: 0;
   right: 0;
 }
 
 @media (hover: hover) {
-  .crow-body :deep(.crow-copy) {
+  .crow-body .crow-copy {
     opacity: 0;
     visibility: hidden;
     transition: opacity var(--dur-fast) var(--ease), visibility var(--dur-fast) var(--ease),
@@ -354,8 +380,8 @@
       background-color var(--dur-fast) var(--ease);
   }
 
-  .crow-body :deep(.crow-out:hover .crow-copy),
-  .crow-body :deep(.crow-copy:focus-visible) {
+  .crow-body .crow-out:hover .crow-copy,
+  .crow-body .crow-copy:focus-visible {
     opacity: 1;
     visibility: visible;
   }

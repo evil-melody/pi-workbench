@@ -613,9 +613,36 @@ if (view.value === 'search' && keyword.value.trim()) runSearch()
       <AppButton variant="text" @click="dismissArchives()">{{ t('忽略') }}</AppButton>
     </div>
     <div v-if="status && view !== 'memory'" class="lib-status err" role="alert">{{ status }}</div>
-    <div v-if="busy && view !== 'memory'" class="load-state">{{ t('正在加载资料库…') }}</div>
 
-    <section v-if="view === 'memory'" class="lib-memory-shell">
+    <!-- 加载态与最终三栏同构：左树 8 行、右正文若干行，数据回来只换内容不换版式。 -->
+    <div
+      v-if="busy && view !== 'memory'"
+      class="lib-body lib-skeleton"
+      role="status"
+      :aria-label="t('正在加载资料库…')"
+    >
+      <aside class="lib-tree">
+        <div class="tree-head"><span class="skeleton sk-line w-40"></span></div>
+        <div class="tree-list">
+          <div v-for="n in 8" :key="n" class="tree-node">
+            <span class="skeleton sk-ic-sm"></span>
+            <span class="skeleton sk-line sk-fill"></span>
+          </div>
+        </div>
+      </aside>
+      <section class="lib-preview">
+        <div class="preview-head"><span class="skeleton sk-line w-40"></span></div>
+        <div class="preview-skel">
+          <span class="skeleton sk-line w-80"></span>
+          <span class="skeleton sk-line w-80"></span>
+          <span class="skeleton sk-line w-60"></span>
+          <span class="skeleton sk-line w-80"></span>
+          <span class="skeleton sk-line w-60"></span>
+        </div>
+      </section>
+    </div>
+
+    <section v-else-if="view === 'memory'" class="lib-memory-shell">
       <MemoryView embedded />
     </section>
 
@@ -647,8 +674,11 @@ if (view.value === 'search' && keyword.value.trim()) runSearch()
             </div>
             <p class="hit-snippet">{{ hit.snippet }}</p>
           </li>
-          <li v-if="!hits.length" class="tree-empty">
-            {{ keyword.trim() ? t('没有命中，换个关键词试试') : t('输入关键词做全文检索') }}
+          <li v-if="!hits.length" class="empty-state is-compact">
+            <span class="empty-icon"><AppIcon name="search" :size="16" /></span>
+            <p class="empty-title">
+              {{ keyword.trim() ? t('没有命中，换个关键词试试') : t('输入关键词做全文检索') }}
+            </p>
           </li>
         </ul>
       </aside>
@@ -669,7 +699,10 @@ if (view.value === 'search' && keyword.value.trim()) runSearch()
             <span class="tree-name" :title="m.name">{{ m.name }}</span>
             <span class="tree-badge">{{ m.dir }}</span>
           </li>
-          <li v-if="!marks.length" class="tree-empty">{{ t('还没有记录') }}</li>
+          <li v-if="!marks.length" class="empty-state is-compact">
+            <span class="empty-icon"><AppIcon name="clock" :size="16" /></span>
+            <p class="empty-title">{{ t('还没有记录') }}</p>
+          </li>
         </ul>
       </aside>
 
@@ -699,7 +732,10 @@ if (view.value === 'search' && keyword.value.trim()) runSearch()
               class="tree-flag off"
             >{{ t('停用') }}</span>
           </li>
-          <li v-if="!rowsOf('/').length" class="tree-empty">{{ t('还没有文件，先新建一个草稿') }}</li>
+          <li v-if="!rowsOf('/').length" class="empty-state is-compact">
+            <span class="empty-icon"><AppIcon name="folder" :size="16" /></span>
+            <p class="empty-title">{{ t('还没有文件，先新建一个草稿') }}</p>
+          </li>
         </ul>
       </aside>
 

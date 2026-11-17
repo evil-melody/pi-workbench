@@ -113,6 +113,19 @@ export const settings: Record<string, string> = {
   '专家由「角色定位 / 工作方法 / 行为边界 / 交付物」四段人格拼装， 保存为草稿后需一次显式确认才会发布到 Pi 的角色文件。': 'An expert is assembled from four persona sections: role, method, boundaries, and deliverables. After saving as a draft, one explicit confirmation publishes it to Pi\'s role file.',
   '桌面 App 的 PATH 里常没有 pi，找不到时发送无响应': 'The desktop app\'s PATH often lacks pi; when it\'s missing, sending does nothing',
   '桌面壳': 'Desktop shell',
+  模型下载源: 'Model download source',
+  '国内镜像（推荐）': 'China mirror (recommended)',
+  直连官方: 'Direct official',
+  自定义: 'Custom',
+  国内镜像: 'China mirror',
+  '填写兼容 HuggingFace 的镜像地址': 'Enter a HuggingFace-compatible mirror URL',
+  '自定义下载源（兼容 HuggingFace 的镜像地址）':
+    'Custom download source (HuggingFace-compatible mirror URL)',
+  '当前下载源：{source}。切换只影响新任务，正在下载的任务继续使用启动时的地址。':
+    'Current source: {source}. Switching affects new tasks only; downloads in progress keep the address they started with.',
+  '有 {n} 个任务正在用原地址继续下载，新任务才使用 {source}。如需立即换源，请到本地模型页取消后重新下载。':
+    '{n} task(s) keep downloading from the previous address; new tasks will use {source}. To switch immediately, cancel and restart them on the Local models page.',
+  下载源地址不能为空: 'Download source cannot be empty',
   'id 至少需要一个英文字母、数字或连字符': 'id needs at least one letter, digit, or hyphen',
   'Pi 机器猫（3D 卡通）': 'Pi Robo-Cat (3D cartoon)',
   'pi 可执行文件（留空 = 自动探测）': 'Pi executable (empty = auto-detect)',

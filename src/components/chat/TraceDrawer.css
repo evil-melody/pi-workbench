@@ -31,6 +31,12 @@
   }
 }
 
+@media (max-width: 819px) {
+  .trace-drawer.open {
+    width: 100%;
+  }
+}
+
 .td-head {
   display: flex;
   align-items: center;

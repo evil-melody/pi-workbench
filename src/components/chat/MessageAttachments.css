@@ -2,7 +2,16 @@
 .msg-attach {
   display: flex;
   flex-wrap: wrap;
+  /* 默认 stretch 会把 40px 的文件卡拉到和 88px 缩略图同高（实测 88px，内容只占 30px，
+     卡片下半截全是空底）。卡片按自身高度排，缩略图仍占 88 的行高。 */
+  align-items: flex-start;
   gap: var(--sp-2);
+  /* 通用规则 `.msg-body > * + *` 的 4px 会盖掉这里的 8px（同特异度、后加载），
+     附件卡因此贴着气泡正文。提高一级特异度，恢复「正文 / 附件」两组的分隔。 */
+  margin-top: var(--sp-2);
+}
+
+.msg-row.user .msg-body > .msg-attach {
   margin-top: var(--sp-2);
 }
 
@@ -11,7 +20,8 @@
   height: 88px;
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: var(--r-sm);
+  /* 88px 的图配 4px 圆角太硬，比气泡（--r-bubble）差两档；大面用 --r-lg，卡片用 --r。 */
+  border-radius: var(--r-lg);
   background: var(--bg-elev);
   overflow: hidden;
   cursor: zoom-in;
@@ -28,6 +38,15 @@
   display: block;
 }
 
+/* 640 实测：4 个附件（2 图 + 2 文件卡）在 88px 缩略图下排成 3 行、占 184px。
+   缩到 72px 后「2 图 + 1 卡」同排（72+72+260+24=428 ≤ 432），回到 2 行 ≈124px。 */
+@media (max-width: 720px) {
+  .ma-thumb {
+    width: 72px;
+    height: 72px;
+  }
+}
+
 .ma-file {
   display: inline-flex;
   align-items: center;
@@ -35,7 +54,7 @@
   max-width: 260px;
   padding: var(--sp-1) var(--sp-2);
   border: 1px solid var(--border);
-  border-radius: var(--r-sm);
+  border-radius: var(--r);
   background: var(--bg-elev);
 }
 
@@ -57,8 +76,11 @@
   min-width: 0;
 }
 
+/* 两行文本原本按默认行高排到 34.5px，把卡片撑到 44.5px（26px 图标旁空出 8.5px）。
+   收紧到 16 / 14px 后卡片高 40px，多文件并排和气泡的边缘更平。 */
 .ma-file-name {
   font-size: var(--fs-sm);
+  line-height: 16px;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -67,6 +89,7 @@
 
 .ma-file-meta {
   font-size: var(--fs-xs);
+  line-height: 14px;
   color: var(--text-dim);
 }
 

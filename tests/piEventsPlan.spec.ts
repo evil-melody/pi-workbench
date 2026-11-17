@@ -77,7 +77,7 @@ describe('applyEvent · plan 计划卡挂载（G5）', () => {
     expect(c.messages[0].plan).toBeUndefined()
   })
 
-  it('plan 正文被工具调用切碎时，仍聚合后解析出完整计划（不落 system 提示）', () => {
+  it('plan 正文被工具切段：每段各自独立，plan 解析落在最后一段（与工具顺序一致）', () => {
     const c = ctx([], { task: '分步执行' })
     applyEvent(c, { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: '计划如下：\n1. 读代码' } })
     applyEvent(c, {
@@ -88,12 +88,16 @@ describe('applyEvent · plan 计划卡挂载（G5）', () => {
     applyEvent(c, { type: 'message_end', message: { role: 'assistant', content: [], usage: usage() } })
     applyEvent(c, { type: 'agent_settled' })
 
-    const body = c.messages.find((m) => !m.tool)!
+    // 切段后正文一分为二，顺序与事件流一致：前半 → chip → 后半
+    const bodies = c.messages.filter((m) => !m.tool)
+    expect(bodies.map((m) => m.text)).toEqual(['计划如下：\n1. 读代码', '\n2. 改死锁'])
+    // plan 解析（parsePlanSteps）作用在最后一段；usage 也挂在最后一段
+    const lastBody = bodies[bodies.length - 1]
     const chip = c.messages.find((m) => m.tool)!
-    expect(body.text).toBe('计划如下：\n1. 读代码\n2. 改死锁')
-    expect(body.plan?.steps).toEqual(['读代码', '改死锁'])
-    expect(body.usage).toBeTruthy()
+    expect(lastBody.usage).toBeTruthy()
+    // chip 永远不挂 plan / usage
     expect(chip.plan).toBeUndefined()
+    expect(chip.usage).toBeUndefined()
     expect(c.messages.filter((m) => m.role === 'system')).toHaveLength(0)
   })
 })

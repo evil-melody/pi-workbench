@@ -1,4 +1,4 @@
-import { t } from './index'
+import { currentLocale, t } from './index'
 
 /**
  * 后端错误码 → 中文源文。key 仍是中文原文，错误码只做查表用，
@@ -55,6 +55,16 @@ const ERROR_TEXT: Record<string, string> = {
   'pi/start-failed': '拉起内核失败：{detail}',
 }
 
+/**
+ * 后端 `detail` 的兜底清洗：去掉 `Error:` / `TypeError:` 类前缀、只留第一行、
+ * 限长。词条里的 `{detail}` 也可能塞进堆栈，界面上一律不出现技术文本。
+ */
+export function cleanErrorDetail(detail: string): string {
+  const line = detail.split('\n').find((l) => l.trim()) ?? ''
+  const text = line.replace(/^[\w$.]*(?:Error|Exception)\s*[:：]\s*/i, '').trim()
+  return text.length > 160 ? `${text.slice(0, 160)}…` : text
+}
+
 export function ipcErrorText(
   code: string,
   params?: Record<string, unknown>,
@@ -62,5 +72,7 @@ export function ipcErrorText(
 ): string {
   const source = ERROR_TEXT[code]
   if (source) return t(source, params)
-  return detail || t('未知错误')
+  // 后端 detail 是中文：英文界面透出会中英混排，退回通用英文词条。
+  if (detail && currentLocale() === 'zh-CN') return cleanErrorDetail(detail)
+  return t('未知错误')
 }

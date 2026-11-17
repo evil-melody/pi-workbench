@@ -18,7 +18,8 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--sp-4) var(--sp-6);
-  margin-bottom: var(--sp-6);
+  /* 页头与第一块面板之间 16 已足够分层；24 是整页级的呼吸，面板页用不上。 */
+  margin-bottom: var(--sp-4);
 }
 
 /* D-02：390 下左文本容器曾被压到 27px，标题竖排；给左侧文本保底宽度，
@@ -106,14 +107,7 @@
   color: #fff;
 }
 
-.ib-error {
-  margin: 0 0 var(--sp-4);
-  padding: var(--sp-2) var(--sp-3);
-  border-radius: var(--r);
-  background: var(--danger-soft);
-  color: var(--danger);
-  font-size: var(--fs-base);
-}
+/* 错误态统一由 ui-kit.css 的 .state-error 提供（唯一实现）。 */
 
 /* 一屏两块面板：列表是容器内的行，不再逐行套卡片；空态收成一行，不再撑满 180px。 */
 .ib-panel {
@@ -128,7 +122,8 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  height: 44px;
+  /* 与 tab、按钮同档 36：面板头只是一行标题，44 白白多吃 8px。 */
+  height: var(--row-h);
   padding: 0 var(--sp-4);
   border-bottom: 1px solid var(--border);
 }
@@ -144,11 +139,6 @@
   color: var(--text-faint);
   font-size: var(--fs-meta);
   font-variant-numeric: tabular-nums;
-}
-
-.ib-panel-body {
-  margin: 0;
-  padding: var(--sp-4);
 }
 
 .ib-list,
@@ -496,43 +486,7 @@
   cursor: default;
 }
 
-/* 空态收成面板内的一行：图标、一句标题、一句补充，右侧留白。 */
-.ib-empty {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-4);
-}
-
-.ib-empty-icon {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  flex: none;
-  border-radius: var(--r);
-  background: var(--bg-hover);
-  color: var(--text-faint);
-}
-
-.ib-empty p {
-  margin: 0;
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--sp-2);
-  font-size: var(--fs-base);
-}
-
-.ib-empty strong {
-  color: var(--text);
-  font-weight: var(--fw-medium);
-}
-
-.ib-empty span {
-  color: var(--text-faint);
-  font-size: var(--fs-sm);
-}
+/* 空态统一走 ui-kit 的 .empty-state.is-compact；页面不再保留 .ib-empty。 */
 
 .ib-form {
   display: flex;

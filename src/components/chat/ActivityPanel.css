@@ -80,6 +80,22 @@
 .dot-interrupted,
 .dot-waiting { background: var(--warn); }
 
+/* 结论区圆点：四档终态各给一次色，失败就是 danger，不再与「等待」同色。 */
+.dot-v-ok { background: var(--ok); }
+.dot-v-failed,
+.dot-v-blocked { background: var(--danger); }
+.dot-v-cancelled,
+.dot-v-timeout { background: var(--warn); }
+
+/* 原因行：标题已经说了终态，这一行只回答「为什么」。 */
+.status-reason {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-ui);
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+
 .meta {
   display: flex;
   flex-wrap: wrap;
@@ -139,9 +155,54 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  flex: 1;
-  min-height: 0;
+  flex: 1 1 auto;
+  /* 之前 min-height:0 把列表在长链路下压成 0 高（scrollHeight 2928 / clientHeight 0），
+     事件行看不见。给一个下限：图区封顶 46% 后，列表不再是「图下面的残余」，
+     而是固定分到 ≥180px（4–5 行）；两侧各自滚动。 */
+  min-height: 180px;
   overflow: auto;
+}
+
+/* 原始事件开关：默认关闭；打开后仍是同一个可滚列表。 */
+.raw-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-height: var(--row-h-mini);
+  margin-top: var(--sp-2);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-elev);
+  color: var(--text-dim);
+  font-size: var(--fs-ui);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+.rt-caret {
+  flex: none;
+  transition: transform var(--dur) var(--ease);
+}
+
+.rt-caret.open {
+  transform: rotate(90deg);
+}
+
+.rt-count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.raw-empty {
+  margin: var(--sp-2) 0 0;
+  font-size: var(--fs-sm);
+  color: var(--text-faint);
 }
 
 /*
@@ -508,13 +569,23 @@
 }
 }
 
-/* ── 运行链路图区：多轮纵向排列，抽屉内整体滚动 ── */
+/* ── 运行链路图区：多轮纵向排列 ────────────────────────────────────
+ * 改前：11 节点链路图 766px 全高铺开，事件列表被挤到面板折叠线以下
+ * （列表高 160 / 内容 724，首项 top 1067），同时出现面板滚动 + 列表滚动
+ * 双层。现在图区封顶 46% 自己滚，列表拿剩余高度，两块都在首屏内。 */
 .run-graphs {
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
   padding: var(--sp-2) 0;
   min-width: 0;
+  flex: 0 1 auto;
+  max-height: 46%;
+  overflow: auto;
+  /* 图区自己管理滚动：追加节点时 Chrome 的滚动锚定会挑图里某个节点当锚点，
+     把 scrollTop 顶到 113px，整张图在面板里往上跳（实测 top 421→308）。 */
+  overflow-anchor: none;
+  overscroll-behavior: contain;
 }
 
 .run-graphs .run-graph {
@@ -529,5 +600,54 @@
   margin: 0;
   padding: var(--sp-2) var(--sp-3);
   font-size: var(--fs-micro);
+  color: var(--text-faint);
+}
+
+/* 旧轮次折叠行：一行读完「哪一轮、跑了什么、多久」，点开才铺全景图。 */
+.run-fold {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  min-width: 0;
+  height: var(--row-h);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: var(--fs-micro);
+  text-align: left;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+
+  .run-fold:hover {
+    background: var(--bg-hover);
+}
+}
+
+.run-fold.is-focused {
+  border-color: var(--accent);
+}
+
+.rf-turn {
+  flex: none;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.rf-line {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rf-caret {
+  flex: none;
   color: var(--text-faint);
 }

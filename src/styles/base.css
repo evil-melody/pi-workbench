@@ -26,7 +26,9 @@
   /* 文字 */
   --text: #e7e7e7;
   --text-dim: #a5a5a5;
-  --text-faint: #7d7d7d;
+  /* 深色下的弱化墨要压住灰底：原 #7d7d7d 在 hover / 面板底上只有 3.4–3.8:1，
+     低于小字 4.5:1 门槛；提到 #949494 后三档底都过线，与 --text-dim 仍差 17 级。 */
+  --text-faint: #949494;
 
   /* 强调与状态（primary #2563eb 来自参考仓按钮规范） */
   --accent: #2563eb;
@@ -39,6 +41,8 @@
   --ok-soft: rgba(61, 217, 108, 0.14);
   --warn: #ffb84d;
   --warn-soft: rgba(255, 184, 77, 0.16);
+  /* warn 作正文墨色时的可读值：暗色下与 --warn 同值（对 #1a1a1a 约 8:1）。 */
+  --warn-ink: #ffb84d;
 
   /* 圆角体系（Shape Lock，只有 4/8/12/16 + 圆形五档）：
      小按钮/标签 --r-sm，行内控件/输入 --r，卡片 --r-lg，气泡/弹窗 --r-xl。 */
@@ -121,6 +125,11 @@
   /* turn 统一栅格（F3）：26px icon rail + 内容列 + 右槽（时长/操作） */
   --rail: 26px;
   --turn-grid: var(--rail) minmax(0, 1fr) auto;
+  /*
+   * 无右槽的行用两列：三列版在右槽为空时仍吃掉一个 column-gap（实测少 8px，
+   * 正文列 678 → 686）。只有真的要在行尾放计时/操作时才用 --turn-grid。
+   */
+  --turn-grid-2: var(--rail) minmax(0, 1fr);
 
   /*
    * 右列常驻宽（F1，ai-console.md §8）：对话壳 grid 的第二轨。
@@ -235,6 +244,8 @@
   --ok-soft: rgba(22, 163, 74, 0.1);
   --warn: #d97706;
   --warn-soft: rgba(217, 119, 6, 0.1);
+  /* 浅色下 --warn 对 --bg 只有 2.75:1，只够做图标；小于 18px 的文字用这一档（5.0:1）。 */
+  --warn-ink: #8f5a00;
 
   --bg-sunken: #eef1f5;
   --bg-field: #ffffff;
@@ -425,13 +436,7 @@ pre {
   background: transparent;
 }
 
-/* 三态之加载态：列表/数据页共用一份，避免每页各写一套内联样式。 */
-.load-state {
-  padding: var(--sp-6) var(--sp-4);
-  text-align: center;
-  color: var(--text-faint);
-  font-size: var(--fs-sm);
-}
+/* 三态之加载态统一走 ui-kit.css 的 .sk-list / .sk-card 骨架，不再保留一行文字占位。 */
 
 /*
  * 自定义可点元素（div / li / article，不是 button / a）的按下态。

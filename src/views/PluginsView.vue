@@ -266,8 +266,22 @@ onMounted(load)
     </div>
 
       <p v-if="marketNote" class="market-note" role="status">{{ marketNote }}</p>
-      <p v-if="error" class="market-note" role="alert">{{ error }}</p>
-      <div v-if="busy" class="load-state" role="status">{{ t('正在读取插件清单…') }}</div>
+      <p v-if="error" class="state-error" role="alert">{{ error }}</p>
+      <div
+        v-if="busy"
+        class="sk-list market-list"
+        role="status"
+        :aria-label="t('正在读取插件清单…')"
+      >
+        <div v-for="n in 4" :key="n" class="sk-row">
+          <div class="sk-lines">
+            <span class="skeleton sk-line tall w-30"></span>
+            <span class="skeleton sk-line w-80"></span>
+            <span class="skeleton sk-line w-60"></span>
+          </div>
+          <span class="skeleton sk-act"></span>
+        </div>
+      </div>
 
       <div v-else-if="tab === 'themes'" class="empty-state">
         <p class="empty-title">{{ t('主题') }}</p>
@@ -337,7 +351,7 @@ onMounted(load)
         placeholder="https://example.com/my-ext.ts"
         @keyup.enter="installExtension"
       />
-      <p v-if="installError" class="market-note" role="alert">{{ installError }}</p>
+      <p v-if="installError" class="state-error" role="alert">{{ installError }}</p>
       <p v-if="installNote" class="market-note" role="status">{{ installNote }}</p>
       <template #footer>
         <AppButton

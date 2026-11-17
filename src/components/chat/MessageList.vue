@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { t } from '@/i18n'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { marked } from 'marked'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import AppButton from '@/components/ui/AppButton.vue'
@@ -8,9 +8,6 @@ import ArtifactCard from './ArtifactCard.vue'
 import ArtifactPreview from './ArtifactPreview.vue'
 import CollapsibleRow from './CollapsibleRow.vue'
 import MessageAttachments from './MessageAttachments.vue'
-import { usePiEventsInjected } from '@/composables/usePiEvents'
-import { useRunFocus } from '@/composables/useRunFocus'
-import { buildRunChains, runSummary, type RunChain as RunChainModel } from '@/utils/runChain'
 import type { Artifact } from '@/composables/useArtifacts'
 import { fmtCost, type PiUsage } from '@/composables/piEvents'
 import { changeDelta, diffLines, fileName, type PiFileChange } from '@/utils/fileChanges'
@@ -116,8 +113,6 @@ interface UserRow {
   kind: 'user'
   key: string
   msg: any
-  /** 该请求的运行链路（没有事件时为空，气泡下方就不出现链路行）。 */
-  chain?: RunChainModel
 }
 interface SystemRow {
   kind: 'system'
@@ -146,7 +141,8 @@ const SYS_CLAMP_LEN = 160
 
 function sysNotice(text: string): { tone: SysTone; icon: string } {
   if (/自动重试中|重试中/.test(text)) return { tone: 'muted', icon: 'refresh' } // i18n-ignore: backend message pattern
-  if (/失败|错误|未响应|中断/.test(text)) return { tone: 'error', icon: 'alert-triangle' } // i18n-ignore: backend message pattern
+  // 超时是「这一轮被掐断」，和失败同级；落中性档会让同一版式里的四种状态看起来只有三种。
+  if (/失败|错误|未响应|中断|超时/.test(text)) return { tone: 'error', icon: 'alert-triangle' } // i18n-ignore: backend message pattern
   if (/未解析|无法|注意/.test(text)) return { tone: 'warn', icon: 'alert-triangle' } // i18n-ignore: backend message pattern
   return { tone: 'muted', icon: 'info' }
 }
@@ -159,46 +155,6 @@ function toggleSys(key: string) {
   if (next.has(key)) next.delete(key)
   else next.add(key)
   openSys.value = next
-}
-
-const stream = usePiEventsInjected()
-const chains = computed(() => buildRunChains(stream?.events.value ?? []))
-
-// 气泡只留一行入口；点它跳轨迹抽屉里的图（图本身不再挂在这里）。
-const { focusRun } = useRunFocus()
-function openChain(chain: RunChainModel) {
-  focusRun(chain.runId)
-}
-function chainSummary(chain: RunChainModel): string {
-  return runSummary(chain, Date.now()).parts.join(' → ')
-}
-
-/**
- * 用户气泡 ↔ 运行链路：按 prompt 前缀对；对不上再看时间邻近；
- * 两者都不成立就不挂——宁可不显示，也不把链路安到错的请求上。
- */
-function chainForUser(
-  text: string,
-  ts: number | undefined,
-  index: number,
-): RunChainModel | undefined {
-  const list = chains.value
-  if (!list.length) return undefined
-  const norm = (s: string) => s.replace(/\s+/g, ' ').trim()
-  const want = norm(String(text ?? '')).slice(0, 60)
-  const hit = list.find((r) => {
-    const p = norm(r.prompt).slice(0, 60)
-    if (!p || !want) return false
-    if (p === want) return true
-    return want.length >= 8 && p.length >= 8 && (want.startsWith(p) || p.startsWith(want))
-  })
-  if (hit) return hit
-  if (ts) {
-    const near = list.filter((r) => Math.abs(r.startedAt - ts) < 120_000)
-    if (near.length === 1) return near[0]
-  }
-  const byOrder = list[index]
-  return byOrder && !byOrder.prompt ? byOrder : undefined
 }
 
 /**
@@ -214,7 +170,6 @@ const rows = computed<Row[]>(() => {
   const out: Row[] = []
   let cur: Turn | null = null
   const seenChange = new Set<string>()
-  let userIndex = 0
 
   for (const m of props.messages) {
     if (m.role === 'system') {
@@ -226,8 +181,7 @@ const rows = computed<Row[]>(() => {
     }
     if (m.role !== 'assistant') {
       cur = null
-      out.push({ kind: 'user', key: m.id, msg: m, chain: chainForUser(m.text, m.ts, userIndex) })
-      userIndex += 1
+      out.push({ kind: 'user', key: m.id, msg: m })
       continue
     }
     if (isEmptyRow(m)) continue
@@ -489,6 +443,55 @@ watch(
 
 onBeforeUnmount(() => {
   if (tickTimer) clearInterval(tickTimer)
+  ro?.disconnect()
+})
+
+/*
+ * 贴底滚动（展示层）：会话是最新在下的形态，新消息到 / 流式增长时要跟着走。
+ * 之前整列没有任何滚动逻辑，实测发完一条后仍停在第一轮，距底部 2285px。
+ * 用户手动上翻后不抢滚动；回到距底 48px 内自动恢复贴底。
+ */
+const listEl = ref<HTMLElement | null>(null)
+const PIN_SLACK = 48
+let pinned = true
+
+function onMsgsScroll() {
+  const el = listEl.value
+  if (el) pinned = el.scrollHeight - el.scrollTop - el.clientHeight < PIN_SLACK
+}
+
+function scrollToEnd(force = false) {
+  const el = listEl.value
+  if (!el || (!force && !pinned)) return
+  if (force) pinned = true
+  el.scrollTop = el.scrollHeight
+}
+
+/** 只关心「会改变高度的部分」：条数、末条正文/思考、工具与改动、流式开关。 */
+watch(
+  () => {
+    const last = props.messages[props.messages.length - 1]
+    return [
+      props.messages.length,
+      last?.text?.length ?? 0,
+      last?.reasoning?.length ?? 0,
+      last?.tool?.id ?? '',
+      last?.fileChanges?.length ?? 0,
+      props.streaming ? 1 : 0,
+    ].join(':')
+  },
+  () => nextTick(() => scrollToEnd()),
+  { flush: 'post' },
+)
+
+// 打开历史会话时同样落在最新一条，而不是回放的第一条。
+let ro: ResizeObserver | null = null
+onMounted(() => {
+  nextTick(() => scrollToEnd(true))
+  // 窗口拉窄后内容变高，旧 scrollTop 就悬在半空（实测 390 下距底 457px）：视口变化继续贴底。
+  // jsdom（单测）没有 ResizeObserver，构建真机一定有；缺了就不做这一层。
+  ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => scrollToEnd())
+  if (ro && listEl.value) ro.observe(listEl.value)
 })
 
 /** ≥15s 才显示计时（dsh `showClock = elapsedMs >= 15e3`）。 */
@@ -507,15 +510,54 @@ const elapsedText = computed(() => {
  */
 const mdCache = new Map<string, string>()
 
+/**
+ * 代码块复制键：给 marked 的 `<pre><code>` 包一层容器，把按钮拼进 HTML。
+ *
+ * 正文是 v-html 注入的，Vue 管不到里面的节点，所以按钮只能在字符串阶段加，
+ * 点击走容器上的事件委托（onMdClick）。只匹配 marked 自己的 `<pre><code>` 形态
+ * （行内 code 是裸 `<code>`，不会被命中）。
+ *
+ * ponytail: 用正则而不是自定义 marked renderer——renderer 要自己处理 HTML 转义，
+ * 正则只做「包一层」，转义仍归 marked。私有扩展一旦加了语法高亮就得换 renderer。
+ */
+const CODE_BLOCK = /<pre><code(?: class="language-[^"]*")?>([\s\S]*?)<\/code><\/pre>/g
+
+function decorateCode(html: string): string {
+  if (!html.includes('<pre><code')) return html
+  return html.replace(
+    CODE_BLOCK,
+    (_m, body: string) =>
+      `<div class="md-code"><button type="button" class="md-copy">${t('复制')}</button><pre tabindex="0"><code>${body}</code></pre></div>`,
+  )
+}
+
 function render(m: { id: string; text: string }) {
   const key = `${m.id}\u0000${m.text}`
   let html = mdCache.get(key)
   if (html === undefined) {
-    html = marked.parse(m.text || '', { breaks: true }) as string
+    html = decorateCode(marked.parse(m.text || '', { breaks: true }) as string)
     if (mdCache.size > 400) mdCache.clear()
     mdCache.set(key, html)
   }
   return html
+}
+
+/** 代码块复制（事件委托）：按钮不是 Vue 节点，回显直接改按钮文案 + class。 */
+async function onMdClick(e: MouseEvent) {
+  const btn = (e.target as HTMLElement | null)?.closest?.('.md-copy') as HTMLElement | null
+  if (!btn) return
+  const code = btn.parentElement?.querySelector('pre')?.textContent ?? ''
+  try {
+    await navigator.clipboard.writeText(code)
+  } catch {
+    return
+  }
+  btn.textContent = t('已复制')
+  btn.classList.add('is-copied')
+  setTimeout(() => {
+    btn.textContent = t('复制')
+    btn.classList.remove('is-copied')
+  }, 1500)
 }
 
 /** 复制用户消息：短暂回显「已复制」，失败静默（剪贴板被系统拒绝不是对话区的错）。 */
@@ -534,7 +576,7 @@ async function copyMsg(key: string, text: string) {
 </script>
 
 <template>
-  <div class="msgs">
+  <div ref="listEl" class="msgs" @scroll.passive="onMsgsScroll">
     <div v-if="!messages.length" class="empty">
       <span class="empty-icon"><AppIcon name="sparkles" :size="28" /></span>
       <strong>{{ t('向 Pi 下达编码任务') }}</strong>
@@ -595,13 +637,6 @@ async function copyMsg(key: string, text: string) {
               @open="open = $event"
             />
           </div>
-          <!-- 每个请求一行入口：图在轨迹抽屉里，气泡下不再铺摘要。 -->
-          <button v-if="row.chain" class="run-entry" type="button" @click="openChain(row.chain)">
-            <AppIcon name="activity" :size="12" />
-            <span class="re-text">{{ t('运行链路') }}</span>
-            <span class="re-sum">{{ chainSummary(row.chain) }}</span>
-            <AppIcon name="chevron-right" :size="11" />
-          </button>
         </div>
       </div>
 
@@ -704,7 +739,7 @@ async function copyMsg(key: string, text: string) {
               <span class="cursor">▍</span>
             </div>
             <!-- G5：计划卡的 assistant 消息不再重复渲染原文（步骤以卡片为准，正文那版编号列表会双重显示）。 -->
-            <div v-else-if="m.text && !m.plan" class="md" v-html="render(m)"></div>
+            <div v-else-if="m.text && !m.plan" class="md" v-html="render(m)" @click="onMdClick"></div>
           </template>
 
           <!--
@@ -811,7 +846,8 @@ async function copyMsg(key: string, text: string) {
             class="msg-usage"
             :title="t('输入 {0} · 输出 {1} · 缓存读 {2} · 缓存写 {3} · 合计 {4} tokens', [row.usage.input, row.usage.output, row.usage.cacheRead, row.usage.cacheWrite, row.usage.totalTokens])"
           >
-            {{ t('{0} 步 · {1}', [turnSteps(row), fmtCost(row.usage.cost.total)]) }}
+            <!-- 零步时不写「0 步」：短回复只有成本，多一个假计数只是噪音。 -->
+            {{ turnSteps(row) > 0 ? t('{0} 步 · {1}', [turnSteps(row), fmtCost(row.usage.cost.total)]) : fmtCost(row.usage.cost.total) }}
           </div>
           <!-- 中断回执（dsh：abort 给 running root 合成落定）：用量没上报时
                至少留一行「已中断」，否则被叫停的那轮看起来像凭空消失。 -->

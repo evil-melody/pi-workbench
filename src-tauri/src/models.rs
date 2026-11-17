@@ -85,6 +85,9 @@ pub struct AppSettings {
     /// 会话结束后把产物自动归档进资料库。None = 未设置，按开启处理。
     #[serde(default)]
     pub auto_archive_artifacts: Option<bool>,
+    /// 本地模型下载源（endpoint）。None/空 = 用默认镜像，兼容旧配置。
+    #[serde(default)]
+    pub download_source: Option<String>,
 }
 
 impl AppSettings {
@@ -163,6 +166,7 @@ pub fn settings_load(app: AppHandle) -> AppSettings {
             language: legacy.language,
             pi_bin: None,
             auto_archive_artifacts: None,
+            download_source: None,
         };
     }
 
@@ -253,6 +257,9 @@ pub fn pi_model_launch(app: &AppHandle) -> Option<PiModelLaunch> {
     })
 }
 
+/// 本地 llama-server 在 models.json 里用的 provider id。
+pub const LOCAL_PROVIDER: &str = "local-llama";
+
 /// 合并式写入：只覆盖当前 provider 条目，保留文件里其它 provider。
 /// 未声明 `api` 时 Pi 按 `openai-completions` 兜底，兼容绝大多数 OpenAI 协议端点。
 fn write_models_json(app: &AppHandle, model: &ModelConfig) -> Result<(), String> {
@@ -277,6 +284,15 @@ fn write_models_json(app: &AppHandle, model: &ModelConfig) -> Result<(), String>
     });
     if !model.api_key.trim().is_empty() {
         entry["apiKey"] = serde_json::Value::String(model.api_key.clone());
+    }
+    // 本地 provider 不在 Pi 的内置清单里：必须显式声明 api 和一条可用凭据，
+    // 否则 provider 组装阶段会因「找不到 api / 无认证方式」被丢弃，
+    // 内核启动时报 Unknown provider。本地端点不校验 key，占位即可。
+    if model.provider == LOCAL_PROVIDER {
+        entry["api"] = serde_json::json!("openai-completions");
+        if entry.get("apiKey").is_none() {
+            entry["apiKey"] = serde_json::json!("local");
+        }
     }
     root["providers"][model.provider.as_str()] = entry;
     write_private(

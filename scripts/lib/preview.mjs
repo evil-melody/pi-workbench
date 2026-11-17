@@ -108,11 +108,12 @@ export async function inspectRunGraph(graph) {
       const box = n.querySelector('.rg-box')
       if (!box) return []
       const b = box.getBBox()
-      return [...n.querySelectorAll('text')].map((el) => ({
-        w: el.getBBox().width,
-        x: Number(el.getAttribute('x') ?? 0),
-        limit: b.x + b.width,
-      }))
+      return [...n.querySelectorAll('text')].map((el) => {
+        // 用 bbox 的左缘而不是 x 属性：右对齐的耗时（text-anchor:end）x 就是右缘，
+        // 按 x+w 算会把每一行都判成裁切。
+        const bb = el.getBBox()
+        return { w: bb.width, x: bb.x, limit: b.x + b.width }
+      })
     })
 
     let overlaps = 0

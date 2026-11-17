@@ -364,7 +364,7 @@ onMounted(() => {
       </div>
     </header>
 
-    <p v-if="loadError" class="ib-error" role="alert">{{ loadError }}</p>
+    <p v-if="loadError" class="state-error" role="alert">{{ loadError }}</p>
     <p v-if="notice" class="ib-ok" role="status">{{ notice }}</p>
 
     <section class="ib-panel">
@@ -374,7 +374,15 @@ onMounted(() => {
           {{ unread ? t('未读 {0} / 共 {1}', [unread, inbox.length]) : t('共 {0} 条', [inbox.length]) }}
         </span>
       </header>
-      <p v-if="loading" class="load-state ib-panel-body">{{ t('正在加载收件箱…') }}</p>
+      <ul v-if="loading" class="sk-list" role="status" :aria-label="t('正在加载收件箱…')">
+        <li v-for="n in 3" :key="n" class="sk-row">
+          <span class="skeleton sk-dot"></span>
+          <div class="sk-lines">
+            <span class="skeleton sk-line tall w-60"></span>
+            <span class="skeleton sk-line sk-body w-80"></span>
+          </div>
+        </li>
+      </ul>
       <ul v-else-if="inbox.length" class="ib-list">
         <li
           v-for="item in inbox"
@@ -397,12 +405,12 @@ onMounted(() => {
           </div>
         </li>
       </ul>
-      <div v-else-if="!loading" class="ib-empty">
-        <span class="ib-empty-icon"><AppIcon name="inbox" :size="16" /></span>
-        <p>
-          <strong>{{ t('还没有产物') }}</strong>
-          <span>{{ t('新建定时任务，跑完自动归档到这里。') }}</span>
-        </p>
+      <div v-else-if="!loading" class="empty-state is-compact">
+        <span class="empty-icon"><AppIcon name="inbox" :size="16" /></span>
+        <div class="empty-copy">
+          <p class="empty-title">{{ t('还没有产物') }}</p>
+          <p class="empty-hint">{{ t('新建定时任务，跑完自动归档到这里。') }}</p>
+        </div>
       </div>
     </section>
 
@@ -411,7 +419,16 @@ onMounted(() => {
         <h2>{{ t('定时任务') }}</h2>
         <span v-if="jobs.length" class="ib-panel-count">{{ t('{0} 个', [jobs.length]) }}</span>
       </header>
-      <ul v-if="jobs.length" class="ib-jobs">
+      <ul v-if="loading" class="sk-list" role="status" :aria-label="t('正在加载定时任务…')">
+        <li v-for="n in 2" :key="n" class="sk-row">
+          <div class="sk-lines">
+            <span class="skeleton sk-line tall w-30"></span>
+            <span class="skeleton sk-line w-60"></span>
+          </div>
+          <span class="skeleton sk-act"></span>
+        </li>
+      </ul>
+      <ul v-else-if="jobs.length" class="ib-jobs">
         <li
           v-for="job in jobs"
           :key="job.id"
@@ -493,12 +510,12 @@ onMounted(() => {
           </div>
         </li>
       </ul>
-      <div v-else-if="!loading" class="ib-empty">
-        <span class="ib-empty-icon"><AppIcon name="clock" :size="16" /></span>
-        <p>
-          <strong>{{ t('还没有定时任务') }}</strong>
-          <span>{{ t('让 PI 按周期自己跑一轮，结果回到上方产物。') }}</span>
-        </p>
+      <div v-else-if="!loading" class="empty-state is-compact">
+        <span class="empty-icon"><AppIcon name="clock" :size="16" /></span>
+        <div class="empty-copy">
+          <p class="empty-title">{{ t('还没有定时任务') }}</p>
+          <p class="empty-hint">{{ t('让 PI 按周期自己跑一轮，结果回到上方产物。') }}</p>
+        </div>
       </div>
     </section>
 
@@ -529,7 +546,7 @@ onMounted(() => {
           <p class="ib-note">{{ t('预授权决定无人值守时能跑哪些命令、最多几次风险动作。不设也能创建，之后在任务卡上点「预授权」调整。') }}</p>
         </div>
         <p class="ib-note">{{ t('无人值守只放行项目目录内的读写；风险命令默认全部拒绝，越界会记入审计日志。') }}</p>
-        <p v-if="createError" class="ib-error" role="alert">{{ createError }}</p>
+        <p v-if="createError" class="state-error" role="alert">{{ createError }}</p>
       </div>
       <template #footer>
         <AppButton variant="secondary" class="ib-btn" @click="createOpen = false">{{ t('取消') }}</AppButton>
@@ -569,7 +586,7 @@ onMounted(() => {
         </div>
         <p v-else class="ib-note ib-usage-empty">{{ t('这个任务还没有运行记录，跑完第一次后这里会显示额度用量与剩余次数。') }}</p>
         <p v-if="grantCheck" class="ib-hint">{{ grantCheck }}</p>
-        <p v-if="grantError" class="ib-error" role="alert">{{ grantError }}</p>
+        <p v-if="grantError" class="state-error" role="alert">{{ grantError }}</p>
       </div>
       <template #footer>
         <AppButton variant="secondary" class="ib-btn" @click="grantOpen = false">{{ t('取消') }}</AppButton>

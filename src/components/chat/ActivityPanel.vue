@@ -17,7 +17,7 @@ import {
 import { EVENT_KIND_ICON, eventKindLabel, eventDisplayLabel, type PiEventRow } from '@/utils/piEventKind'
 import { loadReplay, type ReplayResult } from '@/composables/useReplay'
 import { useRunFocus } from '@/composables/useRunFocus'
-import { buildRunChains, createRunChainStore, type RunChain } from '@/utils/runChain'
+import { buildRunChains, createRunChainStore, runSummary, type RunChain } from '@/utils/runChain'
 import RunGraph from './RunGraph.vue'
 import type { PiMsg } from '@/composables/usePi'
 
@@ -40,13 +40,129 @@ const stats = computed(() => stream?.stats.value ?? { total: 0, calls: 0, turns:
 // 事件缓冲是定长环形的，图改走增量累加，避免旧行被淘汰时节点消失、整图缩水。
 const chainStore = createRunChainStore()
 const chains = computed<RunChain[]>(() => buildRunChains(chainStore.sync(events.value)).slice(-12))
+
+/**
+ * 旧轮次默认折成一行：12 张全景图平铺会把事件列表挤到 0 高，
+ * 而用户多数时候只看最新一轮。展开过的轮次留在集合里，不被新一轮重置。
+ */
+const openRuns = ref(new Set<string>())
+const latestRunId = computed(() => chains.value[chains.value.length - 1]?.runId ?? '')
+
+/**
+ * 结论区：终态 + 原因 + 计数。
+ *
+ * 之前只写「本轮已结束」+ 三个计数，用户读完仍不知道是成功、失败还是被中断；
+ * 现在终态与原因都从最新一轮链路取（链路本身由 run_status / 中断标记累加），
+ * 没有链路时退回状态机文案，不凭空判断。
+ */
+const latestChain = computed(() => chains.value[chains.value.length - 1] ?? null)
+const verdict = computed<{ tone: string; title: string; reason: string } | null>(() => {
+  const c = latestChain.value
+  if (!c) return null
+  const tools = c.stages.filter((s) => s.kind === 'tool')
+  const failed = tools.filter((s) => s.status === 'failed')
+  const bad = c.stages.find((s) => s.status === 'failed')
+  const badAt = bad ? c.stages.indexOf(bad) + 1 : 0
+  const totals = failed.length
+    ? t('{0} 次工具，{1} 次失败', [tools.length, failed.length])
+    : t('{0} 次工具，无失败', [tools.length])
+
+  /*
+   * 结束标记没落进事件流的兜底：链路停在 run，但会话已经收场（completed /
+   * failed / interrupted）。改前这里会显示「进行中」，而同一块面板的
+   * phase 文案写着「本轮已结束」——同一件事两个答案。收场后必须有终态；
+   * 还在跑就返回 null，让状态机文案继续说「正在处理」。
+   */
+  const ended =
+    props.state.phase === 'completed' ||
+    props.state.phase === 'failed' ||
+    props.state.phase === 'interrupted'
+  let tone = c.status
+  let lost = false
+  if (c.status === 'run') {
+    if (!ended) return null
+    lost = true
+    tone =
+      props.state.phase === 'failed'
+        ? 'failed'
+        : props.state.phase === 'interrupted'
+          ? 'cancelled'
+          : 'ok'
+  }
+
+  const title =
+    tone === 'ok'
+      ? t('本轮完成')
+      : tone === 'failed'
+        ? t('本轮失败')
+        : tone === 'cancelled'
+          ? t('本轮已中断')
+          : tone === 'blocked'
+            ? t('本轮被拦下')
+            : t('本轮超时')
+
+  let reason: string
+  if (tone === 'ok') {
+    reason = lost
+      ? t('未收到结束标记，按会话状态判定 · {0}', [totals])
+      : failed.length
+        ? t('{0}，其余步骤正常结束', [totals])
+        : t('{0}，全部正常结束', [totals])
+  } else if (tone === 'failed') {
+    const why = (bad?.error || bad?.result || '').replace(/\s+/g, ' ').trim().slice(0, 90)
+    reason = why
+      ? t('{0} · {1}，停在第 {2} 步', [why, totals, badAt])
+      : t('{0} 失败，链路在此时停止 · {1}', [bad?.label || bad?.kind || t('某一步'), totals])
+    if (lost) reason = t('未收到结束标记，按会话状态判定 · {0}', [reason])
+  } else if (tone === 'cancelled') {
+    reason = t('由用户中断 · {0}', [totals])
+    if (lost) reason = t('未收到结束标记，按会话状态判定 · {0}', [reason])
+  } else if (tone === 'blocked') {
+    const why = (bad?.error || '').replace(/\s+/g, ' ').trim()
+    reason = why
+      ? t('{0} · {1}', [why, totals])
+      : t('等待审批未通过，后续步骤没有执行 · {0}', [totals])
+  } else {
+    reason = t('等待审批超时，后续步骤没有执行 · {0}', [totals])
+  }
+  return { tone, title, reason }
+})
+
+/** 原始事件默认关闭：步骤图已经覆盖「做了什么」，逐条事件只在排障时才有价值。 */
+const rawOpen = ref(false)
+
+function runOpen(c: RunChain): boolean {
+  return c.runId === latestRunId.value || openRuns.value.has(c.runId)
+}
+
+function toggleRun(id: string) {
+  const next = new Set(openRuns.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  openRuns.value = next
+}
+
+/** 折叠行摘要：与全图同源（runSummary），标题不另算一套。 */
+function runLine(c: RunChain): string {
+  const s = runSummary(c, Date.now())
+  const ms = s.duration
+  const dur = ms < 1000 ? `${Math.round(ms)}ms` : ms < 60_000 ? `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)}s` : `${Math.floor(ms / 60_000)}m`
+  return `${s.parts.join(' → ')} · ${dur}`
+}
 const { focusRunId, focusSeq } = useRunFocus()
 
 async function scrollToFocus() {
   if (!focusRunId.value) return
   await nextTick()
   const el = document.querySelector(`[data-run-id="${CSS.escape(focusRunId.value)}"]`)
-  el?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  const box = document.querySelector<HTMLElement>('.activity-panel')
+  if (!el || !box) return
+  /*
+   * 只滚面板自己。scrollIntoView 会连带滚所有可滚祖先：图区有 max-height 之后
+   * 也是滚动容器，新轮次一到就被它滚掉 113px（实测图 top 421→308，整图往上跳）。
+   */
+  const top = el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop
+  box.scrollTo({ top: Math.max(0, top - 8), behavior: 'smooth' })
 }
 
 watch(focusSeq, scrollToFocus)
@@ -244,10 +360,28 @@ function fmtCost(n: number): string {
 
 /* ── F10 从 composer 迁来：本会话统计 + 代码库索引状态 ───────────── */
 
-/** dsh 式统计段：轮次/步数 + token + 缓存命中 + 费用，缺数据的段不出现。 */
-const segments = computed(() =>
-  statsSegments({ turns: props.turns ?? 0, steps: props.steps ?? 0 }, props.usage ?? null),
-)
+/**
+ * dsh 式统计段：轮次/步数 + token + 缓存命中 + 费用，缺数据的段不出现。
+ *
+ * 两处口径对齐：
+ * - 步数：消息行没有工具 chip 时（历史会话/回放）为 0，但事件流里明明有调用，
+ *   用事件调用数兜底，避免「图上 5 个工具、头部 0 步」。
+ * - token：`usage.last` 可能上报全 0（provider 不回 usage），这时整段不画——
+ *   底部「用量」读到的是 journal 聚合值，两个 0 并排放只会互相打脸。
+ */
+const segments = computed(() => {
+  const u = props.usage ?? null
+  const real = u && u.input + u.output + u.cacheRead + u.cacheWrite > 0 ? u : null
+  // 轮次同样兜底：live 时消息折算可能尚未落 turn，事件流已有 1 轮 →
+  // 上下文写「0 轮 · 7 步」、统计条写「1 轮次」的同屏打脸。
+  return statsSegments(
+    {
+      turns: Math.max(props.turns ?? 0, stats.value.turns),
+      steps: Math.max(props.steps ?? 0, stats.value.calls),
+    },
+    real,
+  )
+})
 
 /** 只在「项目已经加载过索引状态」时出现，避免没项目时占位。 */
 const codebaseVisible = computed(() => codebaseStatus.value !== null)
@@ -323,9 +457,10 @@ async function reindex() {
 
     <div class="status-card">
       <div class="status-row">
-        <span class="dot" :class="`dot-${props.state.phase}`" />
-        <strong>{{ activityMessage(props.state) }}</strong>
+        <span class="dot" :class="verdict ? `dot-v-${verdict.tone}` : `dot-${props.state.phase}`" />
+        <strong>{{ verdict ? verdict.title : activityMessage(props.state) }}</strong>
       </div>
+      <p v-if="verdict" class="status-reason">{{ verdict.reason }}</p>
       <div v-if="props.state.tool || props.state.skill" class="meta">
         <span v-if="props.state.tool" class="meta-chip">{{ props.state.tool }}</span>
         <span v-if="props.state.skill" class="meta-chip">{{ props.state.skill }}</span>
@@ -361,22 +496,44 @@ async function reindex() {
       </p>
     </div>
 
-    <!-- 运行链路全景：图形在轨迹抽屉里，消息气泡只留入口。 -->
+    <!-- 运行链路全景：最新一轮展开；旧轮次默认一行摘要，点开再铺图。 -->
     <div v-if="chains.length" class="run-graphs">
-      <RunGraph
-        v-for="c in chains"
-        :key="c.runId"
-        :chain="c"
-        :data-run-id="c.runId"
-        :class="{ 'is-focused': c.runId === focusRunId }"
-      />
+      <template v-for="(c, i) in chains" :key="c.runId">
+        <RunGraph
+          v-if="runOpen(c)"
+          :chain="c"
+          :data-run-id="c.runId"
+          :class="{ 'is-focused': c.runId === focusRunId }"
+        />
+        <button
+          v-else
+          type="button"
+          class="run-fold"
+          :class="{ 'is-focused': c.runId === focusRunId }"
+          :data-run-id="c.runId"
+          :aria-expanded="false"
+          :title="c.prompt"
+          @click="toggleRun(c.runId)"
+        >
+          <span class="rf-turn">{{ t('第 {0} 轮', [i + 1]) }}</span>
+          <span class="rf-line">{{ runLine(c) }}</span>
+          <AppIcon name="chevron-right" :size="11" class="rf-caret" />
+        </button>
+      </template>
     </div>
     <!-- 没有事件时只留下面 event-list 的一条空态：两个空块叠着说同一件事。 -->
     <p v-else-if="events.length" class="run-graphs-empty">{{ t('还没有运行链路。发起一次请求后，这里会长出节点图。') }}</p>
 
-    <div ref="listEl" class="event-list" @scroll="onScroll">
-      <p v-if="!events.length" class="empty">{{ t('尚无事件。发起一轮对话后，内核事件会在这里按时间排列。') }}</p>
+    <p v-if="!events.length" class="raw-empty">{{ t('尚无事件。发起一轮对话后，内核事件会在这里按时间排列。') }}</p>
+    <!-- 原始事件默认关闭：上面的步骤图已经回答「做了什么」，逐条事件只在排障时展开。 -->
+    <template v-else>
+      <button type="button" class="raw-toggle" :aria-expanded="rawOpen" @click="rawOpen = !rawOpen">
+        <AppIcon name="chevron-right" :size="11" class="rt-caret" :class="{ open: rawOpen }" />
+        <span>{{ t('原始事件') }}</span>
+        <span class="rt-count">{{ events.length }}</span>
+      </button>
 
+      <div v-if="rawOpen" ref="listEl" class="event-list" @scroll="onScroll">
       <!--
         两条分支共用同一套行解剖（event-head / ic / main / slot / caret）：
         聚合行只是把「一步」换成「N 步」，样式与展开逻辑不该重抄一遍。
@@ -433,7 +590,8 @@ async function reindex() {
           </div>
         </div>
       </template>
-    </div>
+      </div>
+    </template>
 
     <!--
       usage（治理五件套）：内核按 message_end 上报的 provider/model/usage，

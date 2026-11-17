@@ -1,7 +1,7 @@
 import { t } from '@/i18n'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import { getCurrentScope, onScopeDispose, ref } from 'vue'
+import { getCurrentScope, onScopeDispose, ref, watch } from 'vue'
 import { flattenTree, type FlatNode, type PiTreeNode } from '@/composables/useSessionTree'
 import { applyEvent, emptyUsageState, type EventCtx, type PiUsage, type QueueState, type UsageState, emptyQueueState, readQueueUpdate } from '@/composables/piEvents'
 import type { PiFileChange } from '@/utils/fileChanges'
@@ -32,6 +32,19 @@ export function shouldWarnKernelExit(input: {
 }): boolean {
   return input.inFlight && input.sinceStop > 5_000 && input.sinceNotice >= 2_000
 }
+
+/**
+ * 回合空闲超时判据：**多久没收到任何事件**，不是总共跑了多久。
+ * 正常回合每个 token 增量 / 工具调用都会刷事件，180s 完全静默意味着 provider
+ * 挂起或链路断了；工具执行期间内核不产生事件（一次 bash 可能跑很久），
+ * 所以有工具在跑时放宽到 600s。长任务只要还在吐事件就一直不打断。
+ */
+export function idleTimeoutMs(toolRunning: boolean): number {
+  return toolRunning ? 600_000 : 180_000
+}
+
+/** 看门狗巡检间隔：5s 一次，超时误差不超过一个 tick。 */
+export const IDLE_WATCHDOG_TICK_MS = 5_000
 
 export interface PiMsg {
   id: string
@@ -195,6 +208,16 @@ export function usePi() {
   let lastKernelStoppedAt = 0
   /** 最近一次弹出「内核已退出」的时刻：同一退出被多个订阅者各推一条时去重。 */
   let lastExitNoticeAt = 0
+  /** 最近一次收到回合内任何事件的时刻（ms）：空闲看门狗的唯一判据。 */
+  let lastTurnEventAt = 0
+  /** 正在执行的工具调用 id：有工具在跑时超时阈值放宽（工具期间内核不发事件）。 */
+  const activeTools = new Set<string>()
+  let watchdogTimer: ReturnType<typeof setInterval> | null = null
+  /**
+   * 超时收口信号：每收口一次 +1。ChatView 据此做内核自检（活着就 abort 收轮、
+   * 死了就重新拉起）并把消息放回输入框——超时不是取消，用户要能立刻续上。
+   */
+  const timeoutTick = ref(0)
 
   async function ensure() {
     if (un || !IN_TAURI) return
@@ -382,14 +405,16 @@ export function usePi() {
     }
     applyEvent(eventCtx, rec)
     // 结束信号属于本 composable 的状态，不在 applyEvent 里动。
+    // 这里不再从 `message_update` 把 running 拉回 true：节流后的延迟事件会在
+    // `agent_settled` 之后才落盘，反向复活 streaming，界面永久停在「等待模型响应…」。
+    // 实时置 true 由 `handle` 负责。
     if (rec?.type === 'agent_settled' || rec?.type === 'process_exit') streaming.value = false
-    // 兜底：会话中途接管（如换会话/重连）时，用内核事件把 running 态拉回 true。
-    else if (rec?.type === 'message_update' || rec?.type === 'message_start') streaming.value = true
   }
 
   /**
    * 流式合并：一条待应用的 `message_update`，配合下面的定时器按帧落盘。
-   * 每条事件都带**累计全文**，所以后到的直接覆盖先到的，不需要排队。
+   * 内核这些事件只带**增量**（`text_delta.delta`），同帧内必须累加；
+   * 直接覆盖会把整段回复丢成空消息（实测本地小模型一次回复落在一帧内）。
    */
   let pendingDelta: any = null
   let deltaTimer: ReturnType<typeof setTimeout> | null = null
@@ -403,7 +428,76 @@ export function usePi() {
     if (rec) applyNow(rec)
   }
 
+  /** 收掉看门狗：正常落定 / 用户取消 / 超时收口都走这里。 */
+  function stopWatchdog() {
+    if (watchdogTimer) {
+      clearInterval(watchdogTimer)
+      watchdogTimer = null
+    }
+    activeTools.clear()
+  }
+
+  /**
+   * 空闲超时收口：这一轮不再等 provider。
+   *
+   * 与「用户取消」是两种结果：取消是用户意图（`abort:graceful` + 中断收据），
+   * 这里是链路无响应（`turn:timeout` + 系统消息 + 消息回填输入框）。
+   * 收口前先把已收到的增量冲掉，用户看到的正文不因超时丢字。
+   */
+  function onIdleTimeout() {
+    const limit = idleTimeoutMs(activeTools.size > 0)
+    const idle = Date.now() - lastTurnEventAt
+    traceLog('turn:timeout', `idle=${idle}ms limit=${limit}ms tools=${activeTools.size}`)
+    if (deltaTimer) {
+      clearTimeout(deltaTimer)
+      deltaTimer = null
+    }
+    if (pendingDelta) {
+      const p = pendingDelta
+      pendingDelta = null
+      applyNow(p)
+    }
+    streaming.value = false
+    for (const m of messages.value) if (m.streaming) m.streaming = false
+    pushSystem(
+      t('等待模型响应超时：{0} 秒内没有任何事件，已停止等待。可重新发送这条消息继续。', [
+        Math.round(limit / 1000),
+      ]),
+    )
+    // 内核若只是 provider 挂起，abort 能把这一轮收掉，下次发送不会撞上残留状态；
+    // 若内核已不可用，这次调用失败，由 ChatView 的 get_tree 自检决定重启。
+    rpc('abort', {}, 5_000).catch((e) => traceLog('turn:timeout-abort-fail', String(e)))
+    stopWatchdog()
+    timeoutTick.value++
+  }
+
+  /** 开/续看门狗：每次 streaming 变 true 重置计时，之后只由事件刷新。 */
+  function armWatchdog() {
+    lastTurnEventAt = Date.now()
+    stopWatchdog()
+    watchdogTimer = setInterval(() => {
+      if (!streaming.value) {
+        stopWatchdog()
+        return
+      }
+      if (Date.now() - lastTurnEventAt >= idleTimeoutMs(activeTools.size > 0)) onIdleTimeout()
+    }, IDLE_WATCHDOG_TICK_MS)
+  }
+
+  const stopStreamWatch = watch(streaming, (on) => (on ? armWatchdog() : stopWatchdog()))
+
   function handle(rec: any) {
+    // 任何事件都算「内核还活着」：空闲判据只看距上次事件的间隔，不看总时长。
+    lastTurnEventAt = Date.now()
+    // 工具执行期间内核不发增量事件，用调用 id 维护在跑集合，阈值据此放宽。
+    const callId = String(rec?.toolCallId ?? rec?.toolName ?? '')
+    if (callId) {
+      if (rec?.type === 'tool_execution_start') activeTools.add(callId)
+      else if (rec?.type === 'tool_execution_end') {
+        activeTools.delete(callId)
+        if (rec?.toolName) activeTools.delete(String(rec.toolName))
+      }
+    }
     // G6：队列回推（steer/follow_up 入队与消费时内核都会发）——chip 的权威数据源。
     if (rec?.type === 'queue_update') {
       const q = readQueueUpdate(rec)
@@ -420,6 +514,17 @@ export function usePi() {
     }
     // 结束类事件低频且带状态语义：立即应用，不节流。
     if (rec?.type === 'agent_settled' || rec?.type === 'process_exit') {
+      // 先把待落盘的增量冲掉：否则它会在落定之后才应用，正文丢失且
+      // 流式游标挂死。冲完再应用结束态，顺序与内核语义一致。
+      if (deltaTimer) {
+        clearTimeout(deltaTimer)
+        deltaTimer = null
+      }
+      if (pendingDelta) {
+        const p = pendingDelta
+        pendingDelta = null
+        applyNow(p)
+      }
       // 内核自灭必须让用户看见：否则消息停在「已发送」，表现为「点了没反应」。
       // 主动重启（pi_restart）会先发 kernel_restarted，5 秒内的 process_exit 视为重启伴生，不打扰。
       if (rec?.type === 'process_exit') {
@@ -441,13 +546,35 @@ export function usePi() {
     }
     if (rec?.type === 'kernel_restarted') {
       lastKernelStoppedAt = Date.now()
+      // 新内核没有旧队列，前端照旧显示就会出现「排队中」但永远不会执行。
+      queue.value = emptyQueueState()
+      // 切模型 / 改工具白名单会在本轮未结束时重启内核，本轮已被丢弃。
+      // 只记时间戳不提示，用户看到的就是「消息发出去了，然后没有下文」。
+      if (streaming.value) {
+        pushSystem(t('内核已重启（模型或工具配置变更），本轮回复已中断，可重新发送。'))
+        streaming.value = false
+      }
     }
     // `message_update` 在长回复里是逐字级的：每条都触发整列消息重渲染，
     // 主线程会饱和到「整窗卡死 + IMK run loop 报错」。合并成 ~60ms 一帧，
     // 渲染成本从「每条事件一次」降到「每秒十几次」，观感仍是流式。
     if (rec?.type === 'message_update') {
       streaming.value = true
-      pendingDelta = rec
+      const ev = rec.assistantMessageEvent
+      const prev = pendingDelta?.assistantMessageEvent
+      // 同帧内同类型的增量累加，其它事件（toolcall_* / text_end）保持后到覆盖。
+      if (
+        prev &&
+        ev &&
+        prev.type === ev.type &&
+        (ev.type === 'text_delta' || ev.type === 'thinking_delta') &&
+        typeof prev.delta === 'string' &&
+        typeof ev.delta === 'string'
+      ) {
+        pendingDelta = { ...rec, assistantMessageEvent: { ...ev, delta: prev.delta + ev.delta } }
+      } else {
+        pendingDelta = rec
+      }
       if (!deltaTimer) deltaTimer = setTimeout(flushDelta, 60)
       return
     }
@@ -461,6 +588,11 @@ export function usePi() {
    */
   async function abortTurn() {
     if (!IN_TAURI) return
+    // 先落态再发 RPC：abort 的往返窗口里看门狗不能抢跑成「超时」。
+    // 取消与超时必须是两种结果，同一次里不允许两条都记。
+    streaming.value = false
+    stopWatchdog()
+    for (const m of messages.value) if (m.streaming) m.streaming = false
     try {
       await rpc('abort')
     } finally {
@@ -508,6 +640,8 @@ export function usePi() {
     onScopeDispose(() => {
       un?.()
       un = null
+      stopStreamWatch()
+      stopWatchdog()
     })
   }
 
@@ -532,6 +666,7 @@ export function usePi() {
     rewindTurn,
     abortTurn,
     suppressExitNotice,
+    timeoutTick,
     planPending,
     queue,
     followUp,

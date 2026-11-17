@@ -131,7 +131,27 @@
 }
 
 .rg-bar {
-  fill: var(--ok);
+  fill: var(--text-faint);
+}
+
+/* 层级：主干（请求/内核/结束）用底板色退后，模型/专家用主色，工具保持中性灰。 */
+.rg-node.is-backbone .rg-box {
+  fill: var(--bg);
+  stroke: var(--border-soft);
+}
+
+.rg-node.is-backbone .rg-node-title {
+  fill: var(--text-dim);
+  font-weight: 500;
+}
+
+.rg-node.is-backbone .rg-bar {
+  fill: var(--border-strong);
+}
+
+.rg-node.is-model .rg-bar,
+.rg-node.is-expert .rg-bar {
+  fill: var(--accent);
 }
 
 .rg-node.is-run .rg-bar {
@@ -166,15 +186,22 @@
 }
 
 .rg-node-title {
-  font-size: var(--fs-ui);
+  font-size: var(--fs-meta);
   font-weight: 600;
   fill: var(--text);
 }
 
+/* 副行 = 这一步在干什么；耗时单独贴右，与页面其它数值同源（--text-faint + tabular-nums）。 */
 .rg-node-meta {
-  font-size: var(--fs-meta);
+  font-size: var(--fs-micro);
   fill: var(--text-dim);
+}
+
+.rg-node-dur {
+  font-size: var(--fs-micro);
+  fill: var(--text-faint);
   font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .rg-node.is-failed .rg-node-meta {
@@ -194,6 +221,8 @@
   flex-direction: column;
   gap: var(--sp-2);
   min-width: 0;
+  /* 点节点后 scrollIntoView({block:'nearest'})：留出与图边缘的呼吸。 */
+  scroll-margin: var(--sp-3);
 }
 
 .rg-detail-head {
@@ -237,6 +266,27 @@
 
 .rg-detail-body dd.is-error {
   color: var(--danger);
+}
+
+/* 空值不写 `—`：把「没有数据」的原因写出来，否则读者分不清是没渲染还是没数据。 */
+.rg-detail-body dd.is-why {
+  color: var(--text-faint);
+}
+
+/* 参数 / stdout：完整内容自滚动，不撑高整张图。 */
+.rg-pre {
+  margin: 0;
+  padding: var(--sp-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .rg-raw {

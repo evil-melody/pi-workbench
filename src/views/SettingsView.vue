@@ -40,6 +40,17 @@ interface AppSettings {
   pi_bin?: string | null
   /** 会话产物自动归档；null/缺省 = 开启。 */
   auto_archive_artifacts?: boolean | null
+  /** 本地模型下载源；null/缺省 = 默认镜像。 */
+  download_source?: string | null
+}
+
+interface DownloadSourceInfo {
+  endpoint: string
+  mode: 'mirror' | 'official' | 'custom'
+  origin: 'settings' | 'env' | 'default'
+  mirror: string
+  official: string
+  active_tasks: number
 }
 
 const tab = ref<Tab>('general')
@@ -62,6 +73,83 @@ const language = ref<LanguageChoice>('system')
 /** 会话产物自动归档：默认开启，关闭后后端也不再接收归档任务。 */
 const autoArchive = ref(true)
 const rawSettings = ref<AppSettings | null>(null)
+
+/* ── 本地模型下载源 ──────────────────────────────────────── */
+const downloadMode = ref<'mirror' | 'official' | 'custom'>('mirror')
+const downloadCustom = ref('')
+const downloadSource = ref<DownloadSourceInfo | null>(null)
+const downloadNote = ref('')
+
+const downloadSourceOptions = computed<SelectOption[]>(() => [
+  { value: 'mirror', label: t('国内镜像（推荐）'), hint: 'hf-mirror.com' },
+  { value: 'official', label: t('直连官方'), hint: 'huggingface.co' },
+  { value: 'custom', label: t('自定义'), hint: t('填写兼容 HuggingFace 的镜像地址') },
+])
+
+const downloadSourceLabel = computed(() => {
+  const s = downloadSource.value
+  if (!s) return '—'
+  const name =
+    s.mode === 'mirror' ? t('国内镜像') : s.mode === 'official' ? t('直连官方') : t('自定义')
+  return `${s.endpoint}（${name}）`
+})
+
+async function refreshDownloadSource() {
+  try {
+    const info = await invoke<DownloadSourceInfo>('local_download_source')
+    downloadSource.value = info
+    downloadMode.value = info.mode
+    if (info.mode === 'custom') downloadCustom.value = info.endpoint
+    return info
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 下载源是任务级快照：这里只改「新任务」的源，正在跑的任务继续用启动时的地址。
+ * 因此在途任务数 > 0 时把话说清楚，避免用户以为已经换源。
+ */
+async function persistDownloadSource(endpoint: string) {
+  downloadNote.value = ''
+  try {
+    const settings = { ...fullSettings(), download_source: endpoint }
+    await invoke('settings_save', { settings })
+    rawSettings.value = settings
+    const info = await refreshDownloadSource()
+    if (info && info.active_tasks > 0) {
+      downloadNote.value = t(
+        '有 {n} 个任务正在用原地址继续下载，新任务才使用 {source}。如需立即换源，请到本地模型页取消后重新下载。',
+        { n: info.active_tasks, source: endpoint },
+      )
+    }
+  } catch (e) {
+    error.value = describeIpcError(e, t('保存设置'))
+  }
+}
+
+function changeDownloadSource(value: string) {
+  const mode = value === 'official' ? 'official' : value === 'custom' ? 'custom' : 'mirror'
+  downloadMode.value = mode
+  if (mode === 'custom') {
+    if (!downloadCustom.value) downloadCustom.value = downloadSource.value?.endpoint ?? ''
+    return
+  }
+  const endpoint =
+    mode === 'mirror'
+      ? (downloadSource.value?.mirror ?? 'https://hf-mirror.com')
+      : (downloadSource.value?.official ?? 'https://huggingface.co')
+  void persistDownloadSource(endpoint)
+}
+
+function applyCustomSource() {
+  const url = downloadCustom.value.trim()
+  if (!url) {
+    error.value = t('下载源地址不能为空')
+    return
+  }
+  void persistDownloadSource(url)
+}
 
 const languageOptions = computed<SelectOption[]>(() => [
   { value: 'system', label: t('跟随系统'), hint: t('按系统语言自动选择中文或英文') },
@@ -408,6 +496,7 @@ onMounted(() => {
   load()
   loadTools()
   void loadBackground()
+  void refreshDownloadSource()
   // 一进设置就自检：找不到 pi 时模型配得再对也跑不起来，这条要最先看见。
   void detectPi()
 })
@@ -459,6 +548,28 @@ onMounted(() => {
               @update:model-value="changeAutoArchive"
             />
           </label>
+          <label class="field full inline">
+            <span>{{ t('模型下载源') }}</span>
+            <AppSelect
+              :model-value="downloadMode"
+              :options="downloadSourceOptions"
+              width="220px"
+              @update:model-value="changeDownloadSource"
+            />
+          </label>
+          <label v-if="downloadMode === 'custom'" class="field full">
+            <span>{{ t('自定义下载源（兼容 HuggingFace 的镜像地址）') }}</span>
+            <div class="password-row">
+              <AppInput v-model="downloadCustom" placeholder="https://hf-mirror.com" class="flex" />
+              <AppButton type="button" variant="secondary" @click="applyCustomSource">
+                {{ t('应用') }}
+              </AppButton>
+            </div>
+          </label>
+          <p class="bg-hint">
+            {{ t('当前下载源：{source}。切换只影响新任务，正在下载的任务继续使用启动时的地址。', { source: downloadSourceLabel }) }}
+          </p>
+          <p v-if="downloadNote" class="form-message">{{ downloadNote }}</p>
           <p v-if="error" class="form-message err">{{ error }}</p>
         </section>
 
@@ -495,8 +606,15 @@ onMounted(() => {
             <p v-else-if="piDoctor?.error" class="form-message err">{{ piDoctor.error }}</p>
           </div>
 
-          <p v-if="loading" class="load-state">{{ t('正在加载设置…') }}</p>
-          <div v-else-if="!hasModels" class="empty-state">
+          <div v-if="loading" class="models-list" role="status" :aria-label="t('正在加载设置…')">
+            <div v-for="n in 2" :key="n" class="sk-card">
+              <span class="skeleton sk-line tall w-40"></span>
+              <span class="skeleton sk-line w-80"></span>
+              <span class="skeleton sk-line w-60"></span>
+              <span class="skeleton sk-line w-30"></span>
+            </div>
+          </div>
+          <div v-else-if="!hasModels && !error" class="empty-state">
             <div class="empty-icon"><AppIcon name="cpu" :size="20" /></div>
             <p class="empty-title">{{ t('还没有模型') }}</p>
             <p class="empty-hint">{{ t('点击「新增模型」添加第一个对话模型。') }}</p>

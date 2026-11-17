@@ -83,4 +83,9 @@ watch(
   </div>
 </template>
 
-<style src="./CollapsibleRow.css" scoped></style>
+<!--
+  非 scoped：MessageList 里的「过程」折叠头也手写了 .crow / .crow-head 同一套类名，
+  scoped 只给本组件打标记，那份头因此拿不到栅格与 24px 行高（实测 36px、内衬 16，
+  与工具行左缘差 16px）。类名只在 chat 目录内使用，这里放开作用域，两处共用一份规则。
+-->
+<style src="./CollapsibleRow.css"></style>

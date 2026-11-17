@@ -12,6 +12,7 @@ import AppModal from '@/components/ui/AppModal.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
 import RuntimeNote from '@/components/runtime/RuntimeNote.vue'
+import { describeIpcError } from '@/composables/useRuntime'
 import {
   agentSkillPoolList,
   agentSkillPublish,
@@ -38,7 +39,7 @@ async function refresh() {
   try {
     skills.value = await agentSkillPoolList()
   } catch (e) {
-    status.value = String(e)
+    status.value = describeIpcError(e, t('加载技能池'))
     statusError.value = true
   }
   busy.value = false
@@ -63,7 +64,7 @@ async function submit() {
     formBody.value = ''
     await refresh()
   } catch (e) {
-    status.value = String(e)
+    status.value = describeIpcError(e, t('发布技能'))
     statusError.value = true
   }
 }
@@ -94,7 +95,18 @@ onMounted(refresh)
       <span v-if="status" class="aops-status" :class="{ err: statusError }">{{ status }}</span>
     </div>
 
-    <p v-if="busy && !skills.length" class="load-state">{{ t('正在加载技能池…') }}</p>
+    <ul
+      v-if="busy && !skills.length"
+      class="skill-list"
+      role="status"
+      :aria-label="t('正在加载技能池…')"
+    >
+      <li v-for="n in 3" :key="n" class="sk-card">
+        <span class="skeleton sk-line tall w-40"></span>
+        <span class="skeleton sk-line w-80"></span>
+        <span class="skeleton sk-line w-30"></span>
+      </li>
+    </ul>
 
     <ul v-else-if="skills.length" class="skill-list">
       <li v-for="s in skills" :key="s.name" class="skill-card">
@@ -106,7 +118,7 @@ onMounted(refresh)
       </li>
     </ul>
 
-    <div v-else class="empty-state">
+    <div v-else-if="!statusError" class="empty-state">
       <div class="empty-icon"><AppIcon name="layers" :size="20" /></div>
       <p class="empty-title">{{ t('市场池还是空的') }}</p>
       <p class="empty-hint">{{ t('点「发布技能」沉淀第一个可复用能力，或在对话里用') }}<code>/skills-market</code>{{ t('查看。') }}</p>

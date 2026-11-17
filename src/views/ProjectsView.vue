@@ -182,7 +182,7 @@ onMounted(refresh)
 <template>
   <section class="wd-projects">
     <div class="wd-p-center">
-      <p v-if="loadError" class="wd-p-load-error">{{ loadError }}</p>
+      <p v-if="loadError" class="state-error" role="alert">{{ loadError }}</p>
       <!-- 页头一行：标题 + 说明 + 筛选 + 新建。原先 h1 与「我的项目」两层标题
            在 168px 的 hero 里上下堆叠，筛选还被压到第二屏开头。 -->
       <header class="wd-p-head">
@@ -206,7 +206,19 @@ onMounted(refresh)
         </div>
       </header>
 
-      <p v-if="loading && !visible.length" class="load-state">{{ t('正在加载项目…') }}</p>
+      <div
+        v-if="loading && !visible.length"
+        class="sk-list wd-p-panel"
+        role="status"
+        :aria-label="t('正在加载项目…')"
+      >
+        <div v-for="n in 3" :key="n" class="sk-row">
+          <span class="skeleton sk-ic-sm"></span>
+          <span class="skeleton sk-line sk-fill"></span>
+          <span class="skeleton sk-line w-20"></span>
+          <span class="skeleton sk-line w-10"></span>
+        </div>
+      </div>
 
       <!-- 列表与模板各收成一个容器：行之间用 hairline 分隔，不再每行一张卡。 -->
       <section v-if="visible.length" class="wd-p-panel">

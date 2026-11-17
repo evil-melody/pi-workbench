@@ -209,4 +209,9 @@ export const experiments: Record<string, string> = {
   'stdio 子进程': 'stdio subprocess',
   'streamable-http 传输必须填写 URL': 'streamable-http transport requires a URL',
   'URL 必须以 http:// 或 https:// 开头': 'URL must start with http:// or https://',
+  '加载团队': 'load teams',
+  '加载技能池': 'load the skill pool',
+  '保存团队': 'save team',
+  '删除团队': 'delete team',
+  '取消团队运行': 'cancel the team run',
 }

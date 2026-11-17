@@ -41,10 +41,18 @@
   box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.28));
 }
 
+/* 空态 / 失败态：一句原因 + 一个可点的下一步，不用读者自己去别处找入口。 */
 .ep-empty {
   margin: 6px 8px;
   font-size: var(--fs-xs);
   color: var(--text-faint);
+  line-height: var(--lh-body);
+}
+
+.ep-actions {
+  display: flex;
+  gap: var(--sp-2);
+  padding: 2px 8px 4px;
 }
 
 .ep-item {

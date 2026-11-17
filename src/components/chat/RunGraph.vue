@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { t } from '@/i18n'
 import {
   isLongStage,
@@ -42,6 +42,73 @@ const durationText = computed(() => fmt(summary.value.duration))
 const selectedStage = computed(
   () => props.chain.stages.find((s) => s.key === selectedKey.value) ?? null,
 )
+
+const detailEl = ref<HTMLElement | null>(null)
+
+/**
+ * 展开体的数据来源：`raw` 是内核原始 payload（缩进 JSON，≤6000 字），
+ * 比 `stage.detail`（100 字摘要）与 `stage.result`（300 字摘要）全。
+ * 解析失败就退回摘要，不把整块细节丢掉。
+ */
+function parsedRaw(stage: RunStage): Record<string, unknown> | null {
+  if (!stage.raw) return null
+  try {
+    const v = JSON.parse(stage.raw)
+    return v && typeof v === 'object' ? (v as Record<string, unknown>) : null
+  } catch {
+    return null
+  }
+}
+
+function pretty(v: unknown): string {
+  if (v == null) return ''
+  if (typeof v === 'string') return v
+  try {
+    return JSON.stringify(v, null, 2)
+  } catch {
+    return String(v)
+  }
+}
+
+/** 工具返回正文：内核固定形状 `result.content[].text`。 */
+function toolStdout(raw: Record<string, unknown> | null): string {
+  const result = raw?.result
+  if (!result || typeof result !== 'object') return ''
+  const content = (result as Record<string, unknown>).content
+  if (!Array.isArray(content)) return ''
+  return content
+    .map((c) => (c && typeof c === 'object' ? String((c as Record<string, unknown>).text ?? '') : ''))
+    .filter(Boolean)
+    .join('\n')
+}
+
+/** 没有内容时写清原因：空白和 `—` 都读不出「是没数据，还是没渲染出来」。 */
+function emptyWhy(stage: RunStage, side: 'input' | 'output'): string {
+  if (side === 'input') {
+    return stage.kind === 'tool'
+      ? t('内核没有上报该工具的入参。')
+      : t('{0}没有入参。', [stageLabel(stage)])
+  }
+  if (stage.kind === 'tool') return t('本步无输出：内核没有回传 stdout/stderr。')
+  return t('{0}没有输出。', [stageLabel(stage)])
+}
+
+/** 展开内容：工具段优先读 raw 里的完整参数与 stdout，其余段用环节摘要。 */
+const detail = computed(() => {
+  const s = selectedStage.value
+  if (!s) return null
+  const raw = parsedRaw(s)
+  const input = (s.kind === 'tool' ? pretty(raw?.args) || s.detail : s.detail) || ''
+  const output = (s.kind === 'tool' ? toolStdout(raw) || s.result : s.result) || ''
+  return {
+    input,
+    inputWhy: input ? '' : emptyWhy(s, 'input'),
+    output,
+    outputWhy: output ? '' : emptyWhy(s, 'output'),
+    error: s.error ?? '',
+    raw: s.raw ?? '',
+  }
+})
 
 /** 主干视图：折叠成功的工具细节，异常环节一个都不藏。 */
 const visibleStages = computed(() =>
@@ -110,13 +177,20 @@ const nodes = computed(() => {
     ...r,
     x: NODE_X,
     width: w,
-    clipTitle: clip(r.title, w - 24, 13, 600),
+    clipTitle: clip(r.title, w - 24, 12, 600),
   }))
 })
 
-/** 耗时文字按帧取值：只改文本节点，不动 `rows` / `nodes` 的缓存几何。 */
+/** 副行文字与耗时各占一侧：耗时固定贴右，不再和参数抢同一行。 */
+const DUR_W = 54
+
+/** 副行按帧取值：只改文本节点，不动 `rows` / `nodes` 的缓存几何。 */
 function clipMeta(r: { stage: RunStage; width: number }): string {
-  return clip(stageMeta(r.stage, now.value), r.width - 24, 12, 400, true)
+  return clip(stageSub(r.stage, now.value), r.width - 24 - DUR_W, 11, 400)
+}
+
+function durText(r: { stage: RunStage }): string {
+  return fmt(stageElapsed(r.stage, now.value))
 }
 
 const height = computed(() => {
@@ -131,8 +205,12 @@ const rail = computed(() => {
   return { x: RAIL_X, y1: list[0].y + NODE_H / 2, y2: list[list.length - 1].y + NODE_H / 2 }
 })
 
-function select(stage: RunStage) {
+async function select(stage: RunStage) {
   selectedKey.value = selectedKey.value === stage.key ? null : stage.key
+  if (!selectedKey.value) return
+  await nextTick()
+  // 详情块在整图下方，长链路里不滚过去的话，点完节点等于什么都没发生。
+  detailEl.value?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
 }
 
 function fmt(ms: number): string {
@@ -143,17 +221,26 @@ function fmt(ms: number): string {
   return `${m}m${String(s).padStart(2, '0')}s`
 }
 
-function stageTitle(stage: RunStage): string {
-  if (stage.kind === 'tool') return stage.label ?? t('工具')
-  return stageLabel(stage)
+/** 工具标签形如 `bash · find ...`：拆成「工具名」与「在干什么」，别让参数挤在标题里被砍。 */
+function toolParts(stage: RunStage): [string, string] {
+  const label = stage.label ?? t('工具')
+  const i = label.indexOf(' · ')
+  return i < 0 ? [label, ''] : [label.slice(0, i), label.slice(i + 3)]
 }
 
-function stageMeta(stage: RunStage, at: number): string {
-  const bits = [fmt(stageElapsed(stage, at))]
-  if ((stage.kind === 'kernel' || stage.kind === 'expert') && stage.detail) bits.push(stage.detail)
-  if (stage.retries) bits.push(t('重试 {0} 次', [stage.retries]))
+function stageTitle(stage: RunStage): string {
+  return stage.kind === 'tool' ? toolParts(stage)[0] : stageLabel(stage)
+}
+
+/** 副行只说「这一步干了什么 / 出了什么问题」，耗时单独贴右。 */
+function stageSub(stage: RunStage, at: number): string {
+  const bits: string[] = []
   if (stage.status !== 'ok') bits.push(runStatusText(stage.status))
-  if (isLongStage(stage, at)) bits[0] = t('已耗时 {0}', [bits[0]])
+  if (stage.retries) bits.push(t('重试 {0} 次', [stage.retries]))
+  if (isLongStage(stage, at)) bits.push(t('已耗时 {0}', [fmt(stageElapsed(stage, at))]))
+  const body =
+    stage.kind === 'tool' ? toolParts(stage)[1] || stage.detail : stage.kind === 'model' ? stage.result : stage.detail || stage.result
+  if (body) bits.push(body)
   return bits.join(' · ')
 }
 
@@ -170,6 +257,21 @@ function laneName(id: string): string {
     'code-reviewer': 'Ray',
   }
   return table[id] ?? id
+}
+
+/**
+ * 轨道名与交接文案同样要按图宽截断。
+ * 小视口（抽屉 320px）下长 agentId 会画到 SVG 之外，被 .rg-host 直接硬切，
+ * 连省略号都没有；这里用与节点标题同一套 canvas 量宽后再截。
+ */
+const laneMax = computed(() => Math.max(48, width.value - NODE_X - 12))
+
+function laneText(id: string): string {
+  return clip(laneName(id), laneMax.value, 11, 600)
+}
+
+function handoffText(from: string, to: string): string {
+  return clip(t('交接：{0} → {1}', [laneName(from), laneName(to)]), laneMax.value, 11, 400)
 }
 
 let measureCtx: CanvasRenderingContext2D | null = null
@@ -250,13 +352,13 @@ onBeforeUnmount(() => {
 
         <template v-for="row in rows" :key="row.type === 'node' ? row.stage.key : row.id">
           <g v-if="row.type === 'lane'" class="rg-lane-row">
-            <text class="rg-lane" :x="NODE_X" :y="row.y + 16">{{ laneName(row.lane) }}</text>
+            <text class="rg-lane" :x="NODE_X" :y="row.y + 16">{{ laneText(row.lane) }}</text>
             <line class="rg-lane-rule" :x1="NODE_X" :x2="width - 8" :y1="row.y + row.h - 6" :y2="row.y + row.h - 6" />
           </g>
           <g v-else-if="row.type === 'handoff'" class="rg-handoff">
             <line class="rg-rail is-handoff" :x1="RAIL_X" :x2="RAIL_X" :y1="row.y" :y2="row.y + row.h" />
             <text class="rg-handoff-text" :x="NODE_X" :y="row.y + 17">
-              {{ t('交接：{0} → {1}', [laneName(row.from), laneName(row.to)]) }}
+              {{ handoffText(row.from, row.to) }}
             </text>
           </g>
         </template>
@@ -265,9 +367,15 @@ onBeforeUnmount(() => {
           v-for="n in nodes"
           :key="n.stage.key"
           class="rg-node"
-          :class="[`is-${n.stage.status}`, selectedKey === n.stage.key && 'is-selected', isLongStage(n.stage, now) && 'is-long']"
+          :class="[
+            `is-${n.stage.status}`,
+            isBackbone(n.stage) ? 'is-backbone' : `is-${n.stage.kind}`,
+            selectedKey === n.stage.key && 'is-selected',
+            isLongStage(n.stage, now) && 'is-long',
+          ]"
           role="button"
           tabindex="0"
+          :aria-expanded="selectedKey === n.stage.key"
           @click="select(n.stage)"
           @keydown.enter="select(n.stage)"
           @keydown.space.prevent="select(n.stage)"
@@ -277,27 +385,31 @@ onBeforeUnmount(() => {
           <rect class="rg-box" :x="n.x" :y="n.y" :width="n.width" :height="NODE_H" rx="6" />
           <rect class="rg-bar" :x="n.x" :y="n.y + 9" width="2" :height="NODE_H - 18" rx="1" />
           <text class="rg-node-title" :x="n.x + 12" :y="n.y + 21">{{ n.clipTitle }}</text>
-          <text class="rg-node-meta" :x="n.x + 12" :y="n.y + 40">{{ clipMeta(n) }}</text>
+          <text class="rg-node-meta" :x="n.x + 12" :y="n.y + 39">{{ clipMeta(n) }}</text>
+          <text class="rg-node-dur" :x="n.x + n.width - 12" :y="n.y + 39" text-anchor="end">{{ durText(n) }}</text>
         </g>
       </svg>
     </div>
 
-    <div v-if="selectedStage" class="rg-detail">
+    <div v-if="selectedStage && detail" ref="detailEl" class="rg-detail">
       <div class="rg-detail-head">
-        <span class="rg-detail-title">{{ stageLabel(selectedStage) }}</span>
+        <span class="rg-detail-title">{{ stageTitle(selectedStage) }}</span>
         <span class="rg-detail-meta">{{ fmt(stageElapsed(selectedStage, now)) }} · {{ runStatusText(selectedStage.status) }}</span>
       </div>
       <dl class="rg-detail-body">
         <dt>{{ t('输入') }}</dt>
-        <dd>{{ selectedStage.detail || '—' }}</dd>
+        <dd v-if="detail.input"><pre class="rg-pre">{{ detail.input }}</pre></dd>
+        <dd v-else class="is-why">{{ detail.inputWhy }}</dd>
         <dt>{{ t('输出') }}</dt>
-        <dd>{{ selectedStage.result || '—' }}</dd>
-        <template v-if="selectedStage.error">
+        <dd v-if="detail.output"><pre class="rg-pre">{{ detail.output }}</pre></dd>
+        <dd v-else class="is-why">{{ detail.outputWhy }}</dd>
+        <template v-if="detail.error">
           <dt>{{ t('失败') }}</dt>
-          <dd class="is-error">{{ selectedStage.error }}</dd>
+          <dd class="is-error">{{ detail.error }}</dd>
         </template>
         <dt>{{ t('原始事件') }}</dt>
-        <dd><pre class="rg-raw">{{ selectedStage.raw || '—' }}</pre></dd>
+        <dd v-if="detail.raw"><pre class="rg-raw">{{ detail.raw }}</pre></dd>
+        <dd v-else class="is-why">{{ t('该步没有原始事件记录。') }}</dd>
       </dl>
     </div>
   </section>

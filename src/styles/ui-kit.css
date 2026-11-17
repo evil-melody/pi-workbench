@@ -118,6 +118,54 @@
   color: var(--text-faint);
 }
 
+/* 面板内空态：与页面级 .empty-state 同一套元素，只把排布收成一行。
+   用于面板、侧栏这类高度有限的位置，避免每页自写一份 .xx-empty。 */
+.empty-state.is-compact {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--sp-3);
+  min-height: 0;
+  padding: var(--sp-4);
+  text-align: left;
+}
+
+.empty-state.is-compact .empty-icon {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 0;
+  border-radius: var(--r);
+  flex: none;
+}
+
+.empty-copy {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.empty-state.is-compact .empty-title {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+}
+
+.empty-state.is-compact .empty-hint {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-meta);
+}
+
+/* 三态之错误态：红底一句话。列表页不再各自定义 .xx-error。 */
+.state-error {
+  margin: 0 0 var(--sp-4);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--fs-base);
+}
+
 /* ── 骨架屏：加载中不留空白，也不闪文字 ─────────────────────── */
 .skeleton {
   position: relative;
@@ -144,10 +192,114 @@
   margin: var(--sp-2) 0;
 }
 
+.sk-line.w-10 { width: 10%; }
+.sk-line.w-20 { width: 20%; }
+.sk-line.w-30 { width: 30%; }
 .sk-line.w-40 { width: 40%; }
 .sk-line.w-60 { width: 60%; }
 .sk-line.w-80 { width: 80%; }
 .sk-block { height: 72px; }
+
+/* 多行正文的占位高度：单行摘要用默认 10，两行以上用 sk-body。 */
+.sk-line.sk-body { height: 30px; }
+
+/* 行内骨架：一行的形状与最终列表同构（图标位 + 文本行 + 行尾动作位），
+   数据回来只换内容不跳高度。 */
+.sk-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sk-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+}
+
+.sk-row + .sk-row {
+  border-top: 1px solid var(--border-soft);
+}
+
+.sk-ic {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--r-sm);
+}
+
+.sk-ic-sm {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: var(--r-sm);
+}
+
+.sk-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: var(--r-full);
+}
+
+.sk-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.sk-lines .sk-line {
+  margin: 0;
+}
+
+.sk-line.sk-fill {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.sk-line.tall {
+  height: 14px;
+}
+
+.sk-act {
+  width: calc(var(--row-h) * 2);
+  height: var(--row-h);
+  flex: none;
+  border-radius: var(--r);
+}
+
+/* 卡片骨架：卡片列表 / 网格用，视觉与 .team-card / .skill-card 同一档。 */
+.sk-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg-panel);
+}
+
+.sk-card .sk-line {
+  margin: 0;
+}
+
+.sk-chips {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.sk-chip {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: var(--r-full);
+}
 
 @keyframes sk-sweep {
   to {

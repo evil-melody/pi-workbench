@@ -199,14 +199,14 @@
   color: var(--text-faint);
 }
 
-/* 空态统一走 ui-kit 的 .empty-state，页面不再各写一份 min-height/描边。 */
+/* 提示条只承担状态反馈，错误交给 ui-kit 的 .state-error：成功信息不再标红。 */
 .market-note {
   margin: var(--sp-3) 0;
   padding: var(--sp-2) var(--sp-3);
   border: var(--stroke);
   border-radius: var(--r);
   background: var(--bg-panel);
-  color: var(--danger);
+  color: var(--text-dim);
   font-size: var(--fs-ui);
 }
 
@@ -225,7 +225,8 @@
   display: flex;
   align-items: center;
   gap: var(--sp-4);
-  padding: var(--sp-3) var(--sp-4);
+  /* 三行文字本身已有 66px 内容高，上下再各留 12 只是空转；收到 8。 */
+  padding: var(--sp-2) var(--sp-4);
   background: transparent;
   transition: background-color var(--dur-fast) var(--ease);
 }

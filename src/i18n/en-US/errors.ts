@@ -46,4 +46,21 @@ export const errors: Record<string, string> = {
   '能力清单不可用：{detail}': 'Capability manifest unavailable: {detail}',
   'Pi 内核未运行': 'Pi kernel is not running',
   '拉起内核失败：{detail}': 'Failed to start the kernel: {detail}',
+  '权限不足，当前账户无法访问该文件或目录。请换一个可写路径，或在系统设置里授予访问权限后重试。':
+    'Permission denied: this account cannot access that file or folder. Choose a writable path, or grant access in System Settings, then retry.',
+  '找不到对应的文件或命令。请确认路径是否正确，或重新选择文件后再试。':
+    'The file or command could not be found. Check the path, or choose the file again, then retry.',
+  '等待后端响应超时。请稍后重试；若一直超时，重启应用再试。':
+    'The back end did not respond in time. Try again shortly; if it keeps timing out, restart the app.',
+  '网络连接失败，无法访问目标服务。请检查网络与地址配置后重试。':
+    'Network connection failed and the target service is unreachable. Check your network and address settings, then retry.',
+  '当前版本还不支持这个操作。请更新到最新版本后重试。':
+    'This version does not support that action yet. Update to the latest version and try again.',
+  '资源正被占用，另一个操作可能还没结束。请稍候重试。':
+    'A resource is busy, likely because another action is still running. Wait a moment and retry.',
+  '{action}失败：{reason}': 'Failed to {action}: {reason}',
+  '{action}失败：{detail}。请重试；若持续出现，可在日志里查看详细信息。':
+    'Failed to {action}: {detail}. Try again; if it keeps happening, check the logs for details.',
+  '{action}失败：发生了未预期的错误。请重试；若持续出现，可在日志里查看详细信息。':
+    'Failed to {action}: something unexpected happened. Try again; if it keeps happening, check the logs for details.',
 }

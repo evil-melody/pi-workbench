@@ -328,7 +328,7 @@ import { buildExecPrompt, withPlanInstruction } from '@/utils/planMode'
 import { attachmentIcon, attachmentMeta } from '@/utils/attachmentMeta'
 import { useRunFocus } from '@/composables/useRunFocus'
 
-const { messages, streaming, usage, ensure, start, stop, send, noteUser, pushUser, pushSystem, rpc, abortTurn, suppressExitNotice, beginTurn, rewindTurn, planPending, queue, followUp, steerTurn, clearQueue } = usePi()
+const { messages, streaming, usage, ensure, start, stop, send, noteUser, pushUser, pushSystem, rpc, abortTurn, suppressExitNotice, timeoutTick, beginTurn, rewindTurn, planPending, queue, followUp, steerTurn, clearQueue } = usePi()
 
 const cwd = ref('')
 /** 路由 query：独立回放窗口的 replay 段号 / cwd 从这里读（见 consumeReplayQuery）。 */
@@ -499,6 +499,9 @@ interface PendingAttachment {
 }
 
 const pendingAttachments = ref<PendingAttachment[]>([])
+
+/** 本轮最近一次下发的原文与附件：超时后回填输入框，用户回车即可续上。 */
+const lastDispatch = ref<{ text: string; attachments: PiAttachment[] } | null>(null)
 
 /** 发送载荷只带内核/回放需要的字段，不把 webview src 写进 journal。 */
 function attachmentsPayload(): PiAttachment[] {
@@ -791,6 +794,10 @@ async function runRelay() {
   }
   pushSystem(t('交接：{0} → {1}', [from ? expertLabel(from) : t('上一位'), expertLabel(next)]))
   const body = `${t('上一位专家的产出：')}\n\n${last.text.trim()}\n\n${t('请在此基础上继续。')}`
+  if (!(await ensureKernelReady())) {
+    relayRemaining.value = []
+    return
+  }
   try {
     await send(body, undefined, { id: next, handoffFrom: from || undefined })
     traceLog('expert:relay', `${from}->${next}`)
@@ -815,6 +822,27 @@ watch(streaming, (on) => {
   void archiveArtifacts()
 })
 
+/**
+ * 下发前对齐内核：模型 / 工具白名单只在进程启动时读，`pi_start` 按启动签名判断
+ * 复用还是重建。少了这一步，「本地模型已接入但没点重启」会静默沿用旧 provider，
+ * 消息发给了错的模型，界面没有任何提示。
+ */
+async function ensureKernelReady(): Promise<boolean> {
+  if (!cwd.value) {
+    warn(t('请先选择项目或工作目录'))
+    return false
+  }
+  try {
+    await start(cwd.value)
+    return true
+  } catch (e) {
+    pushSystem(t('内核启动失败：{0}', [String(e)]))
+    warn(String(e))
+    traceLog('dispatch:start-fail', String(e))
+    return false
+  }
+}
+
 async function dispatchToPi(
   text: string,
   attachments?: PiAttachment[],
@@ -824,6 +852,8 @@ async function dispatchToPi(
   relayRemaining.value = restExperts
   relayPrev.value = firstExpert ?? ''
   traceLog('dispatch', text.slice(0, 50))
+  // 记下本轮原文：超时收口后放回输入框（超时不是取消，不能让用户重打一遍）。
+  lastDispatch.value = { text, attachments: attachments ?? [] }
   // 乐观 UI：用户消息**先**落列表、落地页立刻切走。前缀收集是锦上添花，
   // 它若挂起（invoke 遇主线程被堵可能永不返回），绝不能挡住「消息至少看得见」——
   // 之前 pushUser 排在 await 之后，卡住时表现为「终端有日志、页面毫无反应」。
@@ -831,6 +861,8 @@ async function dispatchToPi(
   // 先落 journal 再收前缀：这段窗口内刷新 / 切会话，回放仍能还原这条消息。
   // 落盘失败也不阻断——send 会自行合成（journaled=false 时不跳过）。
   const noted = await noteUser(text, attachments)
+  // 发送前对齐内核（模型配置变更后不走旧进程），失败已落系统消息，消息气泡保留。
+  if (!(await ensureKernelReady())) return
   // 前缀收集加硬超时：3.5s 拿不到就空前缀发送。上下文少了可以忍，界面卡死不能忍。
   const rawPreamble = await withTimeout(taskContextPreamble(), 3_500, '').catch(() => '')
   const { preamble } = trimPreamble(rawPreamble)
@@ -871,6 +903,41 @@ async function dispatchToPi(
     traceLog('dispatch:fail', msg)
   }
 }
+
+/**
+ * 回合空闲超时收口（判据见 usePi.idleTimeoutMs）：
+ * 消息回填输入框 → 内核自检 → 不可用就重新拉起。
+ * 与用户主动取消（abort：中断收据）是两条可区分的路径。
+ */
+watch(timeoutTick, async () => {
+  const last = lastDispatch.value
+  if (last && !draft.value.trim()) {
+    draft.value = last.text
+    if (last.attachments.length && pendingAttachments.value.length === 0) {
+      pendingAttachments.value = last.attachments.map((a) => ({
+        ...a,
+        id: `att${Date.now()}_${a.id}`,
+        src: a.kind === 'image' ? convertFileSrc(a.path) : '',
+      }))
+    }
+  }
+  // usePi 已尽力 abort 掉这一轮。get_tree 有回包 = 内核还活着、本轮已收口；
+  // 没回包 = 内核不可用，重新拉起，否则下一次发送会撞上残留状态。
+  try {
+    await rpc('get_tree', {}, 5_000)
+    traceLog('turn:timeout-kernel-alive')
+  } catch (e) {
+    traceLog('turn:timeout-kernel-dead', String(e))
+    suppressExitNotice()
+    await stop().catch(() => {})
+    try {
+      if (cwd.value) await start(cwd.value)
+      pushSystem(t('内核无响应，已重新拉起。'))
+    } catch (e2) {
+      pushSystem(t('内核重启失败：{0}', [String(e2)]))
+    }
+  }
+})
 
 /**
  * G3「回到此处」：确认后还原该轮 edit/write 改过的文件 + fork 会话树到该

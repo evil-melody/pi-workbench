@@ -222,7 +222,10 @@ function roundAlreadyReported(messages: PiMsg[], core: string): boolean {
 function reportError(messages: PiMsg[], prefix: string, raw: unknown, nextId: () => string): void {
   const core = humanizeProviderError(raw)
   if (roundAlreadyReported(messages, core)) return
-  messages.push({ id: nextId(), role: 'system', text: `${prefix}${core}` })
+  // 原文已自带结论前缀（「请求超时：…」「Error: …」）就不再拼通用前缀，
+  // 否则会出现「模型请求失败：请求超时：…」的双前缀。
+  const lead = /^[^：:\s]{1,12}[：:]/.test(core) ? '' : prefix
+  messages.push({ id: nextId(), role: 'system', text: `${lead}${core}` })
 }
 
 /** 最近若干条消息里是否已收录过该调用 id（防 tool_execution_start 与 toolcall_end 双通道重复）。 */
@@ -352,6 +355,23 @@ function createStreamingAssistant(ctx: EventCtx, messages: PiMsg[]): PiMsg {
 }
 
 /**
+ * 正文锚点：续写「紧挨着的上一条」正文消息；中间夹了工具 chip 就另起一段。
+ *
+ * 不这样做，后到的收尾正文会挂回本轮开头那条消息上，整段正文被排到工具行
+ * 之前（真实会话实测：820 字收尾答案落在 14 条工具行上方，末尾只剩工具行）。
+ * 分段后每段留在自己的时间位置，回放顺序与真实发生顺序一致。
+ *
+ * 纯空白块不另起段：内核常在每次工具调用之间发 `"\n"` 正文块，按段落会得到
+ * 一串空 md 块；有现成正文就并进去，没有就落一个空锚点（不留 undefined 文本）。
+ */
+function textAnchor(ctx: EventCtx, messages: PiMsg[], piece: string): PiMsg | null {
+  const cur = findStreamingAssistant(messages)
+  if (!piece.trim()) return cur ?? createStreamingAssistant(ctx, messages)
+  if (cur && messages[messages.length - 1] === cur) return cur
+  return createStreamingAssistant(ctx, messages)
+}
+
+/**
  * usage / plan 的落点：优先本轮的正文消息（streaming 中或有非空文本），
  * 回落到最后一条 assistant——纯工具轮没有正文时仍按老行为挂，不丢数据。
  */
@@ -378,15 +398,23 @@ export function applyEvent(ctx: EventCtx, rec: unknown): void {
     if (!ev || typeof ev !== 'object') return
     const e = ev as { type?: unknown; delta?: unknown; toolCall?: unknown; content?: unknown }
     if (e.type === 'text_delta') {
-      // 续写目标：从末尾往前找**第一条仍在流式的 assistant 消息**。
-      // 工具 chip（toolcall_start 落的空文本消息）没有 streaming 标记，天然被跳过——
-      // 一轮里「文本→工具→文本」因此聚合成一条正文，而不是每段各成一个气泡
-      // （旧逻辑只看末尾一条，工具一插后续文本就另起新消息，markdown 被拦腰截断）。
-      // 找不到说明上一轮已落定或换人了，才新建。
-      const cur = findStreamingAssistant(messages) ?? createStreamingAssistant(ctx, messages)
-      cur.text += typeof e.delta === 'string' ? e.delta : ''
+      const delta = typeof e.delta === 'string' ? e.delta : ''
+      const cur = textAnchor(ctx, messages, delta)
+      if (!cur) return
+      cur.text += delta
       // G2：这条文本消息就是当前 assistant 消息（本轮 LLM 响应）的代表，
       // 后续同一响应内的工具改动挂到它下面，不另起一条。
+      ctx.fileGroupId = cur.id
+    } else if (e.type === 'text_end') {
+      // 块结束带该段全文：节流合并把 delta 覆盖掉时靠它兜回正文。
+      // 已累积过同样全文（正常流式）就不重复追加；多段正文按序拼接。
+      const full = typeof e.content === 'string' ? e.content : ''
+      const cur = textAnchor(ctx, messages, full)
+      if (!cur) return
+      if (full) {
+        if (full.startsWith(cur.text)) cur.text = full
+        else if (!cur.text.includes(full)) cur.text += full
+      }
       ctx.fileGroupId = cur.id
     } else if (e.type === 'thinking_delta') {
       // 思考流（实证：内核 provider 转换器把 thinking_start/delta/end 原样透传进
@@ -537,6 +565,17 @@ export function applyEvent(ctx: EventCtx, rec: unknown): void {
     if (typeof m.errorMessage === 'string' && m.errorMessage.trim()) {
       reportError(messages, t('模型请求失败：'), m.errorMessage, ctx.nextId)
     }
+    // 最终消息是正文的权威来源：增量被合并丢弃，或 provider 只发 message_end
+    // 不发 delta 时，用最终 content 补齐，避免「事件有回复、界面一直等待」。
+    const finalText = extractText(msg)
+    if (finalText.trim()) {
+      const cur = findStreamingAssistant(messages)
+      if (cur) {
+        if (!cur.text.trim() || finalText.startsWith(cur.text.trim())) cur.text = finalText
+      } else if (!messages.some((x) => x.role === 'assistant' && x.text.trim() === finalText.trim())) {
+        messages.push({ id: ctx.nextId(), role: 'assistant', text: finalText, ts: Date.now() })
+      }
+    }
     const last = findUsageTarget(messages)
     // 思考兜底：内层 thinking_delta 若因节流合并丢段，用最终消息的 thinking 块补齐。
     // 只有聚合为空时才覆盖——半截 delta 拼出来的文本比最终块短，但有内容总比没有好，
@@ -588,10 +627,11 @@ export function applyEvent(ctx: EventCtx, rec: unknown): void {
     // 只有 agent_settled 表示「这一轮落定」；process_exit 只翻 usePi 的 streaming 开关，
     // 与内核侧保持一致的语义，不在这里顺手改消息状态。
     // G6：收尾目标不能假设是 messages 末尾——流式中排队/插话会往末尾插 user 气泡。
-    // 正文聚合后一轮只有一条 streaming 消息（工具 chip 无 streaming 标记），
-    // 从末尾往前找第一条 streaming 的 assistant 即是它；找不到（已是落定态）不动。
-    const streamingAssistant = findStreamingAssistant(messages)
-    if (streamingAssistant) streamingAssistant.streaming = false
+    // 正文按工具调用切段后，一轮可能有多条 streaming 正文（首段在工具行上方、
+    // 收尾段在下方）；只清最后一条会让前面的段永远挂着流式光标，所以整轮都清。
+    for (const m of messages) {
+      if (m.role === 'assistant' && m.streaming) m.streaming = false
+    }
     // G2：轮次落定，文件组关闭——下一轮的编辑从新消息开始，不并进上一轮。
     ctx.fileGroupId = null
   }

@@ -28,14 +28,15 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* 右列在此宽度是浮层：整栏让出面板宽度，顶栏动作与输入框不再压在面板下面。
-     390 下面板整屏覆盖，让位会把内容压成 0 宽，故从 560 起生效。 */
+  /* 右列在此宽度是浮层：让出面板宽度，顶栏动作与输入框不再压在面板下面。
+     只在「让位后中栏仍够读」的 820–979 生效；≤819 面板整屏覆盖（TraceDrawer.css
+     同步宽度 100%），中栏保持原宽——改前 640 让位后只剩 236px，正文与输入区都废。 */
   .chat.aside-open .center {
     padding-right: calc(var(--chat-aside) + var(--sp-4));
   }
 }
 
-@media (max-width: 559px) {
+@media (max-width: 819px) {
   .chat.aside-open .center {
     padding-right: 0;
   }
@@ -67,7 +68,8 @@
 
 .notice .app-icon {
   flex-shrink: 0;
-  color: var(--warn);
+  /* 浅色下 --warn 对 --bg 只有 2.76:1，13px 图标也算「有含义的图形」，用墨色档。 */
+  color: var(--warn-ink);
 }
 
 .chat.hero .notice {
@@ -524,7 +526,9 @@
 .composer-meta {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--sp-1);
+  row-gap: var(--sp-1);
   min-width: 0;
 }
 

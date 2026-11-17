@@ -111,13 +111,13 @@ async function main() {
     .catch(() => '')
   const navItems = navText.split('\n').map((s) => s.trim()).filter(Boolean)
   // 直接断言导航文案与预期完全一致：既挡住「凭空多出一个分组」，也不需要在断言里写出被禁的旧名。
-  const EXPECTED_NAV = ['对话', '收件箱', '插件', '项目', '专家 · 技能 · 连接器', '资料库']
+  const EXPECTED_NAV = ['对话', '收件箱', '插件', '项目', '本地模型', '专家 · 技能 · 连接器', '资料库']
   assert(
     '主导航文案与预期完全一致',
     JSON.stringify(navItems) === JSON.stringify(EXPECTED_NAV),
     JSON.stringify(navItems),
   )
-  assert('主导航仅 6 项', navItems.length === 6, `count=${navItems.length}`)
+  assert('主导航仅 7 项', navItems.length === 7, `count=${navItems.length}`)
   await shot('01-hero')
 
   // ── 2. 下拉菜单不得被触发器宽度钳死（曾把选项压成竖排） ───────────────
@@ -1366,20 +1366,23 @@ async function main() {
   )
   await page5.screenshot({ path: path.join(OUT, '46-queue-clear.png') })
 
-  // 请求链路：气泡下只留一行入口；点入口展开轨迹抽屉里的节点图。
+  // 请求链路：气泡下不再有内联入口（右侧轨迹面板已完整覆盖，内联那行是重复占高）。
+  // 入口统一收进面板：点 .trace-toggle 展开抽屉，图的断言不变。
   const runEntries = page5.locator('.msgs .run-entry')
   assert(
-    '请求链路：用户气泡下出现「运行链路」入口',
-    (await runEntries.count()) >= 2,
+    '请求链路：气泡下不再重复渲染「运行链路」入口',
+    (await runEntries.count()) === 0,
     `entries=${await runEntries.count()}`,
   )
-  await runEntries.last().click()
+  await page5.locator('.trace-toggle').click()
   await page5.waitForTimeout(500)
-  assert('请求链路：点入口展开轨迹抽屉', (await page5.locator('.trace-drawer.open').count()) === 1)
+  assert('请求链路：点面板入口展开轨迹抽屉', (await page5.locator('.trace-drawer.open').count()) === 1)
   const graph = page5.locator('.trace-drawer .run-graph').last()
-  const graphNodes = await page5.locator('.trace-drawer .rg-node').count()
+  const graphNodes = await graph.locator('.rg-node').count()
   const failedNodes = await page5.locator('.trace-drawer .rg-node.is-failed').count()
-  assert('请求链路：抽屉里按节点渲染整条链路', graphNodes >= 6, `nodes=${graphNodes}`)
+  // 旧轮次默认折叠成一行（防止长会话把事件列表挤成 0 高），所以只断言当前这一轮：
+  // 该轮的每个环节都要有节点，且失败环节单独标红。
+  assert('请求链路：抽屉里按节点渲染整条链路', graphNodes >= 5, `nodes=${graphNodes}`)
   assert('请求链路：失败环节独立标红，不被算成完成', failedNodes >= 1, `failed=${failedNodes}`)
   const geo = await inspectRunGraph(graph)
   assert('请求链路：节点不重叠', geo.overlaps === 0, `overlaps=${geo.overlaps}`)
@@ -1397,6 +1400,10 @@ async function main() {
   const shake = await page5.evaluate(async () => {
     const panel = document.querySelector('.trace-drawer .activity-panel')
     if (panel) panel.scrollTop = 0
+    // 图区自己也是滚动容器（max-height + overflow:auto）：上一步点节点触发的
+    // scrollIntoView 平滑滚动会落在这里，基准同样归零，否则量到的是那段动画。
+    const rgBox = document.querySelector('.trace-drawer .run-graphs')
+    if (rgBox) rgBox.scrollTop = 0
     const sample = () => {
       const graphs = [...document.querySelectorAll('.trace-drawer .run-graph')]
       const g = graphs.at(-1)
@@ -1417,8 +1424,15 @@ async function main() {
     const t0 = Date.now()
     const base = { runId, runStartedAt: t0 }
     emit({ type: 'run_start', ...base, agentId: 'main', prompt: '抖动闸门', pi_ts: t0 })
-    await new Promise((r) => requestAnimationFrame(r))
-    const before = sample()
+    // 等新轮次的图挂上、且连续两帧位置一致再取基准：轮次切换会把上一轮从展开图折成一行，
+    // 折叠发生在切换后的下一拍，一帧就采样会把「折叠」算成「追加事件挪了图」。
+    let before = sample()
+    for (let i = 0; i < 90; i++) {
+      await new Promise((r) => requestAnimationFrame(r))
+      const s = sample()
+      if (s.run === runId && s.top === before.top && s.top != null) break
+      before = s
+    }
     for (let i = 0; i < 3; i++) {
       const t = Date.now()
       const span = { ...base, agentId: 'main', spanId: `guard-${i}`, spanKind: 'tool' }

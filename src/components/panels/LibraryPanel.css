@@ -20,7 +20,8 @@
   justify-content: space-between;
   gap: var(--sp-6);
   flex-wrap: wrap;
-  margin-bottom: var(--sp-6);
+  /* 与插件页同一档：页头到工具条 16，不再单独用 24。 */
+  margin-bottom: var(--sp-4);
 }
 
 .lib-header h1 {
@@ -235,12 +236,7 @@
   color: var(--text-faint);
 }
 
-.tree-empty {
-  padding: var(--sp-6);
-  color: var(--text-faint);
-  text-align: center;
-  font-size: var(--fs-meta);
-}
+/* 树内空态走 ui-kit 的 .empty-state.is-compact，页面不再单独定义 .tree-empty。 */
 
 /* ── Preview ────────────────────────────────────────────────── */
 .lib-preview {
@@ -475,10 +471,25 @@
   box-shadow: var(--focus-ring-inset);
 }
 
-.lib-preview > .tree-empty {
+/* 加载骨架：树行沿用 .tree-node 的 32px 行高，正文行与编辑器内衬对齐。 */
+.lib-skeleton .tree-head .sk-line {
+  margin: 0;
+}
+
+.lib-skeleton .tree-node {
+  cursor: default;
+}
+
+.preview-skel {
   flex: 1;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+}
+
+.preview-skel .sk-line {
+  margin: 0;
 }
 
 /* ── 弹窗内部 ───────────────────────────────────────────────── */

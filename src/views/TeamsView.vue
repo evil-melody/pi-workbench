@@ -17,6 +17,7 @@ import AppModal from '@/components/ui/AppModal.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
 import RuntimeNote from '@/components/runtime/RuntimeNote.vue'
+import { describeIpcError } from '@/composables/useRuntime'
 import { expertsList, type ExpertSummary } from '@/composables/useExperts'
 import { connectorsList, type ConnectorSummary } from '@/composables/useConnectors'
 import {
@@ -114,7 +115,7 @@ async function refresh() {
   try {
     teams.value = await agentTeamsList()
   } catch (e) {
-    status.value = String(e)
+    status.value = describeIpcError(e, t('加载团队'))
     statusError.value = true
   }
   busy.value = false
@@ -238,7 +239,7 @@ async function submit() {
       : t('已创建团队「{0}」', [saved.name])
     statusError.value = false
   } catch (e) {
-    status.value = String(e)
+    status.value = describeIpcError(e, t('保存团队'))
     statusError.value = true
   }
 }
@@ -262,7 +263,7 @@ async function cancelActiveForDelete() {
     await agentTeamCancelRun(team.id, team.active_run_id)
     deleteNotice.value = t('已请求取消运行，成员子进程会在数秒内停止；随后可删除。')
   } catch (e) {
-    deleteNotice.value = String(e)
+    deleteNotice.value = describeIpcError(e, t('取消团队运行'))
   }
 }
 
@@ -277,7 +278,7 @@ async function confirmDelete() {
     status.value = t('已删除团队「{0}」，历史运行记录保留可查', [team.name])
     statusError.value = false
   } catch (e) {
-    deleteNotice.value = String(e)
+    deleteNotice.value = describeIpcError(e, t('删除团队'))
   }
   deleteBusy.value = false
 }
@@ -338,7 +339,7 @@ async function cancelRun(runId: string) {
     runsNotice.value = t('已请求取消，成员子进程会在数秒内停止；已产出内容会保留在记录里。')
     await loadRuns()
   } catch (e) {
-    runsNotice.value = String(e)
+    runsNotice.value = describeIpcError(e, t('取消团队运行'))
   }
   cancelling.value = ''
 }
@@ -471,7 +472,24 @@ onMounted(() => {
       <span v-if="status" class="aops-status" :class="{ err: statusError }">{{ status }}</span>
     </div>
 
-    <p v-if="busy && !teams.length" class="load-state">{{ t('正在加载团队…') }}</p>
+    <ul
+      v-if="busy && !teams.length"
+      class="team-list"
+      role="status"
+      :aria-label="t('正在加载团队…')"
+    >
+      <li v-for="n in 3" :key="n" class="sk-card">
+        <span class="skeleton sk-line tall w-40"></span>
+        <span class="skeleton sk-line w-80"></span>
+        <span class="skeleton sk-line w-60"></span>
+        <span class="sk-chips">
+          <span class="skeleton sk-chip"></span>
+          <span class="skeleton sk-chip"></span>
+          <span class="skeleton sk-chip"></span>
+        </span>
+        <span class="skeleton sk-line w-30"></span>
+      </li>
+    </ul>
 
     <ul v-else-if="activeTeams.length" class="team-list">
       <li v-for="entry in activeTeams" :key="entry.id" class="team-card">
@@ -503,7 +521,7 @@ onMounted(() => {
       </li>
     </ul>
 
-    <div v-else class="empty-state">
+    <div v-else-if="!statusError" class="empty-state">
       <div class="empty-icon"><AppIcon name="users" :size="20" /></div>
       <p class="empty-title">{{ t('还没有团队') }}</p>
       <p class="empty-hint">{{ t('点「新建团队」从专家 / 技能 / 连接器里挑成员组队，或在对话里用') }}<code>/team</code>{{ t('查看。') }}</p>

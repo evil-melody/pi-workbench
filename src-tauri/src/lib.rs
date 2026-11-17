@@ -16,6 +16,7 @@ mod governance;
 mod i18n;
 mod journal_audit;
 mod library;
+mod local_engine;
 mod mcp;
 mod memory_store;
 mod memory_vec;
@@ -104,6 +105,7 @@ pub fn run() {
         .manage(RolesState::default())
         .manage(ConnectorRuntimeState::default())
         .manage(LibraryState::default())
+        .manage(local_engine::LocalEngineState::default())
         .manage(governance::GovernanceState::default())
         .setup(|app| {
             let handle = app.handle().clone();
@@ -302,6 +304,20 @@ pub fn run() {
             models::settings_load,
             models::settings_save,
             models::settings_test_model,
+            local_engine::local_engine_probe,
+            local_engine::local_engine_status,
+            local_engine::local_engine_start,
+            local_engine::local_engine_stop,
+            local_engine::local_models_paths,
+            local_engine::local_models_catalog,
+            local_engine::local_hardware_info,
+            local_engine::local_download_source,
+            local_engine::local_models_list,
+            local_engine::local_downloads,
+            local_engine::local_model_download,
+            local_engine::local_model_cancel,
+            local_engine::local_model_delete,
+            local_engine::local_model_activate,
             agent_ops::agent_teams_list,
             agent_ops::agent_team_runs,
             agent_ops::agent_memory_list,

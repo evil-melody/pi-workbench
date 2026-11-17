@@ -33,14 +33,7 @@
   padding: var(--page-y) var(--page-x) var(--page-bottom);
 }
 
-.wd-p-load-error {
-  margin: 0 0 var(--sp-4);
-  padding: var(--sp-3) var(--sp-4);
-  border-radius: var(--r);
-  background: var(--danger-soft);
-  color: var(--danger);
-  font-size: var(--fs-ui);
-}
+/* 错误态统一由 ui-kit.css 的 .state-error 提供（唯一实现）。 */
 
 /* ── 页头（单行） ───────────────────────────────────────────── */
 /* 标题、说明、筛选、新建同处一行：原先 h1 → h2 两层标题堆在 168px hero 里，
@@ -163,7 +156,8 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  height: 44px;
+  /* 与 tab、按钮同档 36：44 是旧的面板头高度，白吃 8px。 */
+  height: var(--row-h);
   padding: 0 var(--sp-4);
   border-bottom: 1px solid var(--border);
 }

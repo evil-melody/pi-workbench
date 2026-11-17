@@ -1,5 +1,5 @@
-import { t } from '@/i18n'
-import { ipcErrorText } from '@/i18n/errors'
+import { currentLocale, t } from '@/i18n'
+import { cleanErrorDetail, ipcErrorText } from '@/i18n/errors'
 
 /**
  * 运行环境探测。
@@ -52,15 +52,53 @@ function asIpcError(value: unknown): IpcErrorPayload | null {
 }
 
 /**
+ * 原始错误的常见形态 → 人话原因。只看特征，不把原文带进界面；
+ * 顺序有讲究：权限/不存在优先，避免 `command not found` 被归成通用错误。
+ */
+const ERROR_REASONS: ReadonlyArray<readonly [RegExp, () => string]> = [
+  [
+    /EACCES|EPERM|permission denied|operation not permitted|not allowed/i,
+    () => t('权限不足，当前账户无法访问该文件或目录。请换一个可写路径，或在系统设置里授予访问权限后重试。'),
+  ],
+  [
+    /ENOENT|no such file|not found|cannot find/i,
+    () => t('找不到对应的文件或命令。请确认路径是否正确，或重新选择文件后再试。'),
+  ],
+  [
+    /ETIMEDOUT|timeout|timed out|deadline exceeded/i,
+    () => t('等待后端响应超时。请稍后重试；若一直超时，重启应用再试。'),
+  ],
+  [
+    /ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|network|fetch failed|dns/i,
+    () => t('网络连接失败，无法访问目标服务。请检查网络与地址配置后重试。'),
+  ],
+  [
+    /unknown command|not implemented|not supported|unsupported|no such command/i,
+    () => t('当前版本还不支持这个操作。请更新到最新版本后重试。'),
+  ],
+  [
+    /database is locked|resource busy|EBUSY|already locked/i,
+    () => t('资源正被占用，另一个操作可能还没结束。请稍候重试。'),
+  ],
+]
+
+/** 已经写好、可以原样展示的中文 detail 才放行；英文堆栈一律走通用文案。 */
+const HUMAN_DETAIL = /[\u4e00-\u9fff]/
+const TECH_TRACE =
+  /\n\s+at\s|\bat\s+\S+\s+\(|panicked at|RUST_BACKTRACE|\.rs:\d+|\.ts:\d+|node_modules|\/Users\/|\/home\//
+
+/**
  * 把底层 IPC 错误转成用户能读懂的文案。
  *
  * 后端错误有两层：结构化 `{ code, params, detail }`（新命令），或约定形状的
  * 字符串 `code` / `code: detail`（存量命令）。两种都先查错误码词条，
- * 查不到才退回 `detail` 原文，任何阶段都不把 raw key 显示给用户。
+ * 查不到才退回清洗后的 `detail`，任何阶段都不把 raw key / 堆栈显示给用户。
  * 纯浏览器下 `invoke` 抛的是 TypeError，这里统一说明「需要在桌面 App 运行」。
+ * 原始错误只写控制台，便于排查。
  */
 export function describeIpcError(e: unknown, action: string): string {
   const actionText = t(action)
+  console.warn(`[ipc-error] ${actionText}`, e)
   if (!isTauriRuntime()) {
     return t('{action}需要在桌面 App（pnpm tauri dev）中运行：浏览器预览没有 Tauri 通道。', {
       action: actionText,
@@ -74,5 +112,25 @@ export function describeIpcError(e: unknown, action: string): string {
     })
   }
   const raw = e instanceof Error ? e.message : String(e)
-  return t('{action}失败：{detail}', { action: actionText, detail: raw })
+  for (const [pattern, reason] of ERROR_REASONS) {
+    if (pattern.test(raw)) {
+      return t('{action}失败：{reason}', { action: actionText, reason: reason() })
+    }
+  }
+  const detail = cleanErrorDetail(raw).replace(/[。.\s]+$/, '')
+  // 后端 detail 是中文：英文界面直接透出会中英混排，只保留通用英文文案。
+  if (
+    currentLocale() === 'zh-CN' &&
+    HUMAN_DETAIL.test(detail) &&
+    !TECH_TRACE.test(raw) &&
+    detail.length <= 160
+  ) {
+    return t('{action}失败：{detail}。请重试；若持续出现，可在日志里查看详细信息。', {
+      action: actionText,
+      detail,
+    })
+  }
+  return t('{action}失败：发生了未预期的错误。请重试；若持续出现，可在日志里查看详细信息。', {
+    action: actionText,
+  })
 }

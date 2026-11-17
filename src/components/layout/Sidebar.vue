@@ -51,6 +51,7 @@ const mainNav = computed(() => [
   { name: 'inbox', path: '/inbox', title: t('收件箱'), icon: 'inbox' },
   { name: 'plugins', path: '/plugins', title: t('插件'), icon: 'puzzle' },
   { name: 'projects', path: '/projects', title: t('项目'), icon: 'share-network' },
+  { name: 'local-models', path: '/local-models', title: t('本地模型'), icon: 'cpu' },
   { name: 'capabilities', path: '/capabilities', title: t('专家 · 技能 · 连接器'), icon: 'grid' },
   { name: 'library', path: '/library', title: t('资料库'), icon: 'book' },
 ])

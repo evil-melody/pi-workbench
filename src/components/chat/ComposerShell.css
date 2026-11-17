@@ -61,10 +61,15 @@
   color: var(--text-faint);
 }
 
-/* ── 操作条：左上下文 / 右执行控制，始终同一行 ─────────────────── */
+/* ── 操作条：左上下文 / 右执行控制 ────────────────────────────────
+ * 窄容器（≤980 叠抽屉、640 单列）下允许换行：改前左组 474/642px 被
+ * overflow:hidden 硬裁，「专家」「角色」整块消失；换行后行高变两行，
+ * 控件一个不少，右组始终贴右。 */
 .composer-shell-bar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  row-gap: var(--sp-1);
 }
 
 .composer-shell-left {
@@ -73,6 +78,7 @@
   gap: var(--sp-1);
   flex: 1 1 auto;
   min-width: 0;
+  flex-wrap: wrap;
   overflow: hidden;
 }
 

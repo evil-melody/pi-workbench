@@ -97,13 +97,13 @@
 }
 
 /*
- * F3：turn 里所有行共用 --turn-grid，头像 / 图标 / live 心跳环全部落在 26px rail 列，
- * 文本落在第二列，尾随信息（计时）落在 auto 列。
+ * F3：turn 里所有行共用 rail 栅格，头像 / 图标 / live 心跳环全部落在 26px rail 列，
+ * 文本落在第二列。行尾没有计时/操作，用两列版（--turn-grid-2）。
  */
 .msg-row.assistant .msg-body {
   position: relative;
   display: grid;
-  grid-template-columns: var(--turn-grid);
+  grid-template-columns: var(--turn-grid-2);
   column-gap: var(--sp-2);
 }
 
@@ -170,7 +170,7 @@
 
 .sys-body {
   display: grid;
-  grid-template-columns: var(--turn-grid);
+  grid-template-columns: var(--turn-grid-2);
   column-gap: var(--sp-2);
   align-items: start;
   width: 100%;
@@ -198,7 +198,8 @@
   border-radius: var(--r);
   background: var(--bg-elev);
   color: var(--text);
-  font-size: var(--fs-sm);
+  /* 错误/重试是正文级信息，按 --fs-sm（12）排会先于正文失去可读性。 */
+  font-size: var(--fs-base);
   line-height: var(--lh-body);
 }
 
@@ -334,16 +335,21 @@
 .u-clock {
   align-self: center;
   margin-left: var(--sp-1);
-  color: var(--text-faint);
+  /* 同 .ta-clock：11px 用 faint 在浅色只有 4.19:1，改 dim 后 5.02。 */
+  color: var(--text-dim);
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
 }
 
 .ghost-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: var(--sp-1);
-  padding: 2px 9px;
+  /* 20px = 块间 --sp-5：操作条绝对定位在气泡下方，比行距高 1.9px 就会压到下一行
+     （改前 21.9px，实测重叠 -1.9px）。定死 20 后刚好贴住下一行的上沿。 */
+  height: 20px;
+  padding: 0 var(--sp-2);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   background: transparent;
@@ -354,6 +360,19 @@
   cursor: pointer;
   transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
     background var(--dur-fast) var(--ease);
+}
+
+/* 20px 的可见高度低于 24px 最小目标：用伪元素把可点范围抬到 28px，
+   视觉与行距不变（改前实测 56×20，热区 20）。 */
+.ghost-btn::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: max(100%, 28px);
+  transform: translateY(-50%);
+  border-radius: inherit;
 }
 
 @media (hover: hover) {
@@ -506,6 +525,63 @@
   overflow-wrap: normal;
 }
 
+/*
+ * 代码块容器 + 复制键。
+ *
+ * 容器只做定位基准：pre 的间距提到容器上，避免 pre 的 margin 和按钮的定位框各算一次。
+ * 按钮常驻在注入的 HTML 里，靠透明度收起（pointer-events 一起关），是「有复制入口」和
+ * 「默认不抢注意力」两个要求的交点；触屏没有 hover，所以只在 hover 设备上藏。
+ */
+.md :deep(.md-code) {
+  position: relative;
+  margin: var(--sp-2) 0;
+}
+
+.md :deep(.md-code pre) {
+  margin: 0;
+}
+
+.md :deep(.md-copy) {
+  position: absolute;
+  top: var(--sp-2);
+  right: var(--sp-2);
+  /* 全局 button 有 min-height:--row-h(36)，不压回来这颗键会变成 40×36 的卡片。 */
+  height: 20px;
+  min-height: 20px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-elev);
+  color: var(--text-faint);
+  font: inherit;
+  font-size: var(--fs-xs);
+  line-height: var(--lh-tight);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+.md :deep(.md-copy.is-copied) {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 40%, var(--border));
+}
+
+@media (hover: hover) {
+
+  .md :deep(.md-copy) {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+      border-color var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease);
+  }
+
+  .md :deep(.md-code:hover .md-copy),
+  .md :deep(.md-copy:focus-visible) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 /* 宽表格自持横向滚动，宽度不外溢到 .msgs。 */
 .md :deep(table) {
   display: block;
@@ -526,6 +602,8 @@
 .md :deep(th) {
   background: var(--bg-elev);
   font-weight: var(--fw-semibold);
+  /* 窄视口下「改前」会被逐字竖排；表头保持单行，放不下就交给 table 自身的横向滚动。 */
+  white-space: nowrap;
 }
 
 /* F20：.crow-label / .crow-pre / .crow-aside / .crow-out / .crow-btn 已收回 CollapsibleRow.css。 */
@@ -816,7 +894,9 @@
  */
 .ta-clock {
   margin-left: var(--sp-1);
-  color: var(--text-faint);
+  /* --text-faint 11px 在浅色实测 4.19:1（<4.5）；时间戳是正文级信息，提到
+     --text-dim（浅 5.02 / 深 7.61），弱化层级由字号承担，不靠压对比度。 */
+  color: var(--text-dim);
   font-size: var(--fs-xs);
   font-variant-numeric: tabular-nums;
 }
@@ -866,7 +946,8 @@
    D-15：脚注也是可读文本，下限 12px。 */
 .msg-usage {
   margin-top: var(--sp-2);
-  color: var(--text-faint);
+  /* --text-faint 对 --bg 实测 4.19:1（低于小字 4.5）；用量是数字，读不清等于没有。 */
+  color: var(--text-dim);
   font-family: var(--mono);
   font-size: var(--fs-sm);
   line-height: var(--lh-tight);
@@ -875,7 +956,7 @@
 
 /* 中断回执：与收据同位同形，只把语义染成 warn（dsh 落定态里被叫停的那一档）。 */
 .msg-stopped {
-  color: var(--warn);
+  color: var(--warn-ink);
 }
 
 @keyframes blink {
@@ -1020,42 +1101,5 @@
   border-top: 1px solid var(--border-soft);
   font-size: var(--fs-sm);
   color: var(--text-dim);
-}
-
-/* 请求气泡下的链路入口：一行，点开跳到轨迹抽屉里的节点图。 */
-.run-entry {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  width: 100%;
-  min-width: 0;
-  margin-top: var(--sp-2);
-  padding: var(--sp-1) var(--sp-2);
-  border: 1px solid var(--border-soft);
-  border-radius: var(--r-full);
-  background: transparent;
-  color: var(--text-dim);
-  font-size: var(--fs-micro);
-  text-align: left;
-  cursor: pointer;
-}
-
-.run-entry:hover {
-  border-color: var(--border-strong);
-  color: var(--text);
-}
-
-.re-text {
-  flex: none;
-  font-weight: 600;
-}
-
-.re-sum {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-faint);
 }
 

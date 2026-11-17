@@ -79,6 +79,39 @@ describe('applyEvent · text_delta', () => {
     applyEvent(c, { type: 'message_update' })
     expect(c.messages).toHaveLength(0)
   })
+
+  it('text_end 带全文：delta 被节流吞掉时兜回正文', () => {
+    const c = ctx([{ id: 'u1', role: 'user', text: '只回复 OK' }])
+    applyEvent(c, {
+      type: 'message_update',
+      assistantMessageEvent: { type: 'text_end', content: 'OK' },
+    })
+    expect(c.messages).toHaveLength(2)
+    expect(c.messages[1].role).toBe('assistant')
+    expect(c.messages[1].text).toBe('OK')
+  })
+
+  it('text_end 补齐半截 delta，不重复追加', () => {
+    const c = ctx()
+    applyEvent(c, textDelta('O'))
+    applyEvent(c, {
+      type: 'message_update',
+      assistantMessageEvent: { type: 'text_end', content: 'OK' },
+    })
+    expect(c.messages).toHaveLength(1)
+    expect(c.messages[0].text).toBe('OK')
+  })
+
+  it('只有 message_end 没有增量时也落正文', () => {
+    const c = ctx([{ id: 'u1', role: 'user', text: '只回复 OK' }])
+    applyEvent(c, {
+      type: 'message_end',
+      message: { role: 'assistant', content: [{ type: 'text', text: 'OK' }] },
+    })
+    expect(c.messages).toHaveLength(2)
+    expect(c.messages[1].role).toBe('assistant')
+    expect(c.messages[1].text).toBe('OK')
+  })
 })
 
 describe('applyEvent · 工具事件与收尾', () => {
@@ -165,7 +198,7 @@ describe('applyEvent · 正文聚合（工具切碎修复）', () => {
     assistantMessageEvent: { type: 'toolcall_start', toolCall: name ? { id, name } : { id } },
   })
 
-  it('文本 → 工具 → 文本：聚合成一条正文 + 一条 chip（不再每段各成一个气泡）', () => {
+  it('文本 → 工具 → 文本：按工具调用切段，顺序与事件一致（收尾不被顶到前面）', () => {
     const c = ctx()
     applyEvent(c, textDelta('## 步骤\n'))
     applyEvent(c, toolStart('c1', 'edit'))
@@ -173,15 +206,15 @@ describe('applyEvent · 正文聚合（工具切碎修复）', () => {
     applyEvent(c, toolStart('c2', 'bash'))
     applyEvent(c, textDelta('2. 再跑测试'))
 
-    expect(c.messages).toHaveLength(3)
-    const body = c.messages.filter((m) => !m.tool)
-    const chips = c.messages.filter((m) => m.tool)
-    expect(body).toHaveLength(1)
-    expect(chips).toHaveLength(2)
-    // 五段 delta 全落在同一条 streaming 消息里，markdown 结构不被工具调用拦腰截断
-    expect(body[0].text).toBe('## 步骤\n1. 先改 a\n2. 再跑测试')
-    expect(body[0].streaming).toBe(true)
-    expect(chips.map((m) => m.tool)).toEqual(['edit', 'bash'])
+    expect(c.messages.map((m) => (m.tool ? `tool:${m.tool}` : `text:${m.text}`))).toEqual([
+      'text:## 步骤\n',
+      'tool:edit',
+      'text:1. 先改 a\n',
+      'tool:bash',
+      'text:2. 再跑测试',
+    ])
+    expect(c.messages.filter((m) => m.tool)).toHaveLength(2)
+    expect(c.messages.filter((m) => !m.tool && m.text.trim())).toHaveLength(3)
   })
 
   it('工具先于文本：首个 delta 建正文，后续 delta 跳过 chip 续写同一条', () => {
@@ -194,22 +227,23 @@ describe('applyEvent · 正文聚合（工具切碎修复）', () => {
     expect(c.messages[1].text).toBe('调用完再解释一句')
   })
 
-  it('agent_settled 清的是正文消息的 streaming，chip 不受影响', () => {
+  it('agent_settled 清掉整轮所有正文段的 streaming，chip 不受影响', () => {
     const c = ctx()
     applyEvent(c, textDelta('前半'))
     applyEvent(c, toolStart('c1', 'edit'))
     applyEvent(c, textDelta('后半'))
     applyEvent(c, { type: 'agent_settled' })
 
-    const body = c.messages.find((m) => !m.tool)!
+    const bodies = c.messages.filter((m) => !m.tool)
     const chip = c.messages.find((m) => m.tool)!
-    expect(body.text).toBe('前半后半')
-    expect(body.streaming).toBe(false)
+    expect(bodies.map((m) => m.text)).toEqual(['前半', '后半'])
+    // 分段后前一段也在本轮里，只清最后一条会让它永远挂着流式光标
+    expect(bodies.every((m) => m.streaming === false)).toBe(true)
     // chip 本来就没有 streaming 语义：收尾不该给它凭空补一个 false 光标位
     expect(chip.streaming).toBeUndefined()
   })
 
-  it('message_end 的 usage 挂正文消息，不挂在末尾空 chip 上', () => {
+  it('message_end 的 usage 挂本轮收尾正文，不挂在末尾空 chip 上', () => {
     const c = ctx()
     applyEvent(c, textDelta('正文'))
     applyEvent(c, toolStart('c1', 'edit'))
@@ -219,9 +253,10 @@ describe('applyEvent · 正文聚合（工具切碎修复）', () => {
       message: { role: 'assistant', usage: usage({ input: 7, output: 8, totalTokens: 15 }) },
     })
 
-    const body = c.messages.find((m) => !m.tool)!
+    const bodies = c.messages.filter((m) => !m.tool)
     const chip = c.messages.find((m) => m.tool)!
-    expect(body.usage?.totalTokens).toBe(15)
+    expect(bodies[bodies.length - 1].text).toBe('续写')
+    expect(bodies[bodies.length - 1].usage?.totalTokens).toBe(15)
     expect(chip.usage).toBeUndefined()
   })
 })
@@ -764,5 +799,96 @@ describe('statsSegments · dsh 式统计行', () => {
   it('cacheHitPercent：分母为 0 → null（「没数据」不等于「命中 0%」）', () => {
     expect(cacheHitPercent(u({ input: 0, cacheRead: 0, cacheWrite: 0 }))).toBeNull()
     expect(cacheHitPercent(u())).toBe(67)
+  })
+})
+
+describe("applyEvent · 正文分段时序（回放顺序回归）", () => {
+  const toolStart = (id: string, name: string) => ({
+    type: "message_update",
+    assistantMessageEvent: { type: "toolcall_start", toolCall: { id, name } },
+  })
+
+  it("文本 → 工具 → 收尾文本：收尾落在工具行之后，不回填到本轮开头", () => {
+    const c = ctx()
+    applyEvent(c, textDelta("我来看一下"))
+    applyEvent(c, toolStart("c1", "bash"))
+    applyEvent(c, textDelta("收尾结论"))
+    expect(c.messages.map((m) => (m.tool ? `tool:${m.tool}` : `text:${m.text}`))).toEqual([
+      "text:我来看一下",
+      "tool:bash",
+      "text:收尾结论",
+    ])
+  })
+
+  it("连续工具调用之间的正文各自成段，顺序与事件一致", () => {
+    const c = ctx()
+    applyEvent(c, textDelta("A"))
+    applyEvent(c, toolStart("c1", "bash"))
+    applyEvent(c, toolStart("c2", "read"))
+    applyEvent(c, textDelta("B"))
+    applyEvent(c, toolStart("c3", "grep"))
+    applyEvent(c, textDelta("C"))
+    expect(c.messages.map((m) => (m.tool ? `tool:${m.tool}` : `text:${m.text}`))).toEqual([
+      "text:A",
+      "tool:bash",
+      "tool:read",
+      "text:B",
+      "tool:grep",
+      "text:C",
+    ])
+  })
+
+  it("text_end 只补齐本段：多段时不会把整条消息全文追加到末段", () => {
+    const c = ctx()
+    applyEvent(c, textDelta("第一段"))
+    applyEvent(c, toolStart("c1", "bash"))
+    applyEvent(c, textDelta("第二段"))
+    applyEvent(c, {
+      type: "message_update",
+      assistantMessageEvent: { type: "text_end", content: "第二段收尾" },
+    })
+    expect(c.messages.filter((m) => !m.tool).map((m) => m.text)).toEqual(["第一段", "第二段收尾"])
+  })
+
+  it("多条用户消息 + 多轮工具 + 收尾正文：用户消息不丢、末尾是收尾正文", () => {
+    const c = ctx()
+    c.replay = true
+    applyEvent(c, { type: "user_prompt", text: "第一问", mode: "prompt" })
+    applyEvent(c, textDelta("先查一下"))
+    applyEvent(c, toolStart("c1", "bash"))
+    applyEvent(c, {
+      type: "message_end",
+      message: { role: "assistant", content: [{ type: "text", text: "先查一下中间结论" }] },
+    })
+    applyEvent(c, { type: "user_prompt", text: "第二问", mode: "follow_up" })
+    applyEvent(c, toolStart("c2", "grep"))
+    applyEvent(c, textDelta("第二问的收尾正文"))
+    applyEvent(c, {
+      type: "message_end",
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "第二问的收尾正文" }],
+      },
+    })
+    expect(c.messages.filter((m) => m.role === "user").map((m) => m.text)).toEqual(["第一问", "第二问"])
+    const tail = c.messages[c.messages.length - 1]
+    expect(tail.role).toBe("assistant")
+    expect(tail.tool).toBeUndefined()
+    expect(tail.text).toBe("第二问的收尾正文")
+    // 正文一字不差：assistant 正文段按序拼接后与事件流一致
+    expect(
+      c.messages
+        .filter((m) => m.role === "assistant" && !m.tool && m.text)
+        .map((m) => m.text)
+        .join("|"),
+    ).toBe("先查一下中间结论|第二问的收尾正文")
+  })
+
+  it("回放重复喂同一桩事件不会产生重复正文", () => {
+    const c = ctx()
+    applyEvent(c, textDelta("收尾"))
+    applyEvent(c, { type: "message_update", assistantMessageEvent: { type: "text_end", content: "收尾" } })
+    applyEvent(c, { type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "收尾" }] } })
+    expect(c.messages.filter((m) => m.text).map((m) => m.text)).toEqual(["收尾"])
   })
 })

@@ -7,6 +7,7 @@ import ProjectWorkspace from '@/views/ProjectWorkspace.vue'
 import LibraryPanel from '@/components/panels/LibraryPanel.vue'
 import CapabilitiesView from '@/views/CapabilitiesView.vue'
 import PluginsView from '@/views/PluginsView.vue'
+import LocalModelsView from '@/views/LocalModelsView.vue'
 import SettingsView from '@/views/SettingsView.vue'
 import NotFoundView from '@/views/NotFoundView.vue'
 
@@ -54,6 +55,13 @@ const routes = [
     name: 'plugins',
     component: PluginsView,
     meta: { title: t('插件'), icon: 'puzzle' },
+  },
+  {
+    // 本地模型一级入口：引擎探测 / 模型下载 / 接入既有模型体系。
+    path: '/local-models',
+    name: 'local-models',
+    component: LocalModelsView,
+    meta: { title: t('本地模型'), icon: 'cpu' },
   },
   {
     path: '/settings',
