@@ -50,6 +50,18 @@
             <i v-if="trackCalls" class="trace-badge">{{ trackCalls }}</i>
           </AppButton>
 
+          <!-- 工作区（并行 agent 的 worktree）：属于当前会话的执行环境，
+               因此挂在对话页抽屉里做页签，不占一级菜单。 -->
+          <AppButton
+            variant="secondary"
+            class="wt-toggle"
+            :title="t('工作区：并行 agent 的 worktree（分支 / 端口 / 合并 / 派发）')"
+            @click="openWorktreePanel"
+          >
+            <AppIcon name="layers" :size="14" />
+            <span>{{ t('并行工作区') }}</span>
+          </AppButton>
+
           <!-- G5 计划模式（对齐 Cursor Plan mode）：开启后发送的任务先出分步计划卡，
                点「开始执行」才真正动工具。 -->
           <AppButton
@@ -264,7 +276,11 @@
       :turns="chatCounts.turns"
       :steps="chatCounts.steps"
       :project-id="activeProjectId"
+      :focus-tab="drawerTab"
+      :root="cwd"
+      :cwd="cwd"
       @close="traceOpen = false"
+      @enter-worktree="enterWorktree"
     />
   </div>
 </template>
@@ -327,6 +343,7 @@ import {
 import { buildExecPrompt, withPlanInstruction } from '@/utils/planMode'
 import { attachmentIcon, attachmentMeta } from '@/utils/attachmentMeta'
 import { useRunFocus } from '@/composables/useRunFocus'
+import { listOf } from '@/utils/ipc'
 
 const { messages, streaming, usage, ensure, start, stop, send, noteUser, pushUser, pushSystem, rpc, abortTurn, suppressExitNotice, timeoutTick, beginTurn, rewindTurn, planPending, queue, followUp, steerTurn, clearQueue } = usePi()
 
@@ -335,6 +352,30 @@ const cwd = ref('')
 const route = useRoute()
 /** 过程抽屉（会话树 / 轨迹 / 工作流 / 连接器）是否展开。 */
 const traceOpen = ref(false)
+/** 抽屉页签的外部指令：顶栏「工作区」按钮把它落到 worktree 页签。 */
+const drawerTab = ref<string | undefined>(undefined)
+function openWorktreePanel() {
+  drawerTab.value = 'worktree'
+  traceOpen.value = true
+}
+
+/**
+ * 把会话切进某个 worktree。
+ *
+ * Pi 的 cwd 在进程启动时固定、协议里没有 set_cwd，所以换工作区只能停内核重起；
+ * 旧对话里全是主仓路径，换区必须清上下文，否则模型会照着旧路径改文件。
+ */
+async function enterWorktree(payload: { path: string; branch: string }) {
+  const { path, branch } = payload
+  traceOpen.value = false
+  await stop().catch(() => {})
+  messages.value = []
+  cwd.value = path
+  // 留一条系统标记：消息清空后仍停在会话态（不会退回落地页），
+  // 且用户能看出「上下文从这一刻换了工作区」。
+  // 内核重启交给 watch(cwd) —— cwd 变了就重起（Pi 的 cwd 只能在进程启动时定）。
+  pushSystem(t('会话已切入 worktree：{branch}（新会话，工作目录 {path}）', { branch, path }))
+}
 const { focusSeq } = useRunFocus()
 const { state: activity, interrupt } = useActivity(messages, streaming)
 
@@ -631,7 +672,7 @@ let stopArtifacts: (() => void) | null = null
  * 查这个项目的目录 —— 清单还没就位的话，它只能当「查不到」处理。
  */
 async function loadActive() {
-  projects.value = await invoke<any[]>('projects_list').catch(() => [])
+  projects.value = await listOf(invoke<any[]>('projects_list'))
   await loadActiveProject()
   // 重新挂载时活动项目往往**没变**（共享 ref 不变 → watcher 不触发），
   // 所以这里必须自己补一次，否则从项目页回到对话页就会停在空白首页。

@@ -16,6 +16,7 @@ import { t } from '@/i18n'
  *   4. 单文件 50 MiB / 合计 5 GiB 由后端卡，前端只负责显示用量。
  */
 import { invoke } from '@tauri-apps/api/core'
+import { listOf } from '@/utils/ipc'
 
 export type AssetKind = 'markdown' | 'text' | 'html' | 'pdf' | 'docx' | 'pptx' | 'other'
 
@@ -184,7 +185,7 @@ export function formatTime(ms: number): string {
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-export const libraryList = () => invoke<LibraryAssetView[]>('library_list')
+export const libraryList = () => listOf(invoke<LibraryAssetView[]>('library_list'))
 
 export const libraryMarks = (kind: 'recent' | 'written') =>
   invoke<LibraryAssetView[]>('library_marks', { kind })

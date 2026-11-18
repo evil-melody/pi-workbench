@@ -28,6 +28,7 @@ import { toolsActivate, toolsList } from '@/composables/useTools'
 import { describeConnectorError } from '@/composables/useConnectors'
 import { expertsList, type ExpertSummary } from '@/composables/useExperts'
 import { PI_SESSION_ID, activeProjectId } from '@/composables/useProject'
+import { listOf } from '@/utils/ipc'
 
 type Tab = 'expert' | 'skill' | 'connector' | 'team' | 'market' | 'browser'
 type SubTab = 'local' | 'hub'
@@ -154,7 +155,7 @@ async function load() {
   busy.value = true
   error.value = ''
   try {
-    skills.value = await invoke<SkillEntry[]>('skills_list', { root: null }).catch(() => [])
+    skills.value = await listOf(invoke<SkillEntry[]>('skills_list', { root: null }))
   } catch {
     skills.value = []
   }
@@ -165,7 +166,7 @@ async function load() {
     activeTools.value = []
   }
   try {
-    projects.value = await invoke<{ id: string; path: string | null }[]>('projects_list').catch(() => [])
+    projects.value = await listOf(invoke<{ id: string; path: string | null }[]>('projects_list'))
   } catch {
     projects.value = []
   }

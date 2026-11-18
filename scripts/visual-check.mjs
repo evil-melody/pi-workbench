@@ -25,6 +25,7 @@ const PORT = Number(process.env.VISUAL_CHECK_PORT ?? 4321)
 
 // 起服务 / 找 Chrome / 载 playwright 与 simulate-run-chain.mjs 共用一份实现。
 const { findChrome, loadPlaywright, serveDist, inspectRunGraph } = await import('./lib/preview.mjs')
+const { PI_STUB_SCRIPT: STUB_SCRIPT } = await import('./lib/pi-stub.mjs')
 
 /** 断言收集器：全部通过才算成功，任一失败以非零码退出，可直接接 CI。 */
 const results = []
@@ -340,344 +341,7 @@ async function main() {
   page2.on('console', (m) => {
     if (m.type() === 'error') flowErrors.push(m.text())
   })
-  const PI_STUB_SCRIPT = `
-(() => {
-  let cbId = 0
-  const projects = [
-    { id: 'p-flow-a', name: '产品需求全流程', path: null, archived: false, updated_at: Date.now() - 3 * 86_400_000 },
-    { id: 'p-flow-b', name: 'pi-workbench', path: '/Users/tatsuma/Documents/GIT/pi-workbench', archived: false, updated_at: Date.now() - 2 * 3_600_000 },
-  ]
-  window.__PI_STUB__ = { calls: [], rpcTypes: [], emitted: [], bound: null, replayMode: !!window.__PI_REPLAY_MODE__, scripted: !!window.__PI_SCRIPTED__, slow: !!window.__PI_SLOW__, listeners: {}, lastSent: '', q: { steering: [], followUp: [] }, experts: [], drafts: {}, active: (window.__PI_REPLAY_ACTIVE__ || window.__PI_SCRIPTED__) ? 'p-flow-b' : null }
-  // 字段完整性自检（AUDIT-001 回归）：漏字段立刻抛明确错误，
-  // 而不是等 emitPi 用到时才静默崩在半路（Cannot read properties of undefined）。
-  ;(() => {
-    const required = ['calls', 'rpcTypes', 'emitted', 'listeners', 'q']
-    for (const k of required) {
-      if (!(k in window.__PI_STUB__)) {
-        throw new Error('__PI_STUB__ 初始化缺字段 "' + k + '"：stub 契约被破坏，请补上再跑')
-      }
-    }
-  })()
-  // 事件插件退订时要回调这个内部对象；不打桩会在「离开对话页」时抛
-  // unregisterListener of undefined —— 又是空桩自己造出来的假崩溃。
-  window.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() {}, registerListener() {} }
-  // 非 scripted 页（page2 主流程）不会自动收尾——真实内核每条 prompt 必发
-  // agent_settled，这里给测试一个手动收尾入口，避免 streaming 卡死掩盖后续路径。
-  window.__PI_STUB__.emitSettled = function () {
-    emitPi({ type: 'agent_settled' })
-  }
-  // 压测钩子：轨迹面板要验证「300 条调用」这种真实体量，需从外部灌事件。
-  window.__PI_STUB__.emitPi = emitPi
-  // G5 桩内事件发射：listen 的 handler 经 transformCallback 注册在 window['_'+id]，
-  // 反向调用即「内核推了一条 pi://event」。scripted 流程的 assistant 回复靠它。
-  function emitPi(rec) {
-    const ids = window.__PI_STUB__.listeners['pi://event'] || []
-    window.__PI_STUB__.emitted.push(rec.type)
-    for (const id of ids) {
-      const fn = window['_' + id]
-      if (fn) fn({ event: 'pi://event', payload: rec, id: 0 })
-    }
-  }
-  // scripted 回复：带计划指令前缀 → 编号分步计划；执行 prompt → 执行汇报；其他 → 普通回复。
-  // 只发一条 message_update（增量语义下的完整文本），避开 60ms 节流丢中间 delta。
-  // 时序必须模仿真实内核：message_end / agent_settled 要等节流把 text_delta 落下去之后再发，
-  // 否则 usage 挂不到消息、agent_settled 也收不了 streaming（实测：同步全发会卡在「执行中」）。
-  // slow 模式（G6 队列用）：首轮 1.4s 才 settled，留出 streaming 窗口发第二条。
-  function replyScripted(body) {
-    const text = String(body).includes('[计划模式]')
-      ? '好的，先出计划不动手。计划如下：\\n1. 定位索引死锁根因（持锁调 save 重入）\\n2. 改成锁外调用并补回归测试\\n3. 跑全量测试确认无回归'
-      : String(body).includes('计划已确认')
-        ? '已按批准的计划执行：修改完成，测试通过。'
-        : '收到，已处理。'
-    const usage = { input: 120, output: 42, cacheRead: 0, cacheWrite: 0, totalTokens: 162, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }
-    // 链路信封：桥侧 pi_run 会给每条事件补 runId/spanId/起止时间，
-    // 这里按同一形状补上，测试界面走的就不是「老事件降级路径」。
-    const stub = window.__PI_STUB__
-    const n = (stub.runs = (stub.runs ?? 0) + 1)
-    const runId = 'run-test-' + n
-    const t0 = Date.now()
-    const turnId = 'turn-' + n
-    const modelId = 'model-' + n
-    if (!stub.kernelSent) {
-      stub.kernelSent = true
-      emitPi({ type: 'kernel_start', agentId: 'main', pid: 4242, extensions: ['agent-tool-gate', 'agent-teams'], cwd: '/tmp/flow-demo-repo', pi_ts: t0 - 500 })
-    }
-    emitPi({ type: 'run_start', runId, agentId: 'main', runStartedAt: t0, prompt: String(body).slice(0, 160), pi_ts: t0 })
-    emitPi({ type: 'turn_start', runId, agentId: 'main', spanId: turnId, spanKind: 'turn', spanStartedAt: t0 + 1, pi_ts: t0 + 1 })
-    setTimeout(() => {
-      emitPi({ type: 'message_start', message: { role: 'assistant', content: [] }, runId, agentId: 'main', spanId: modelId, parentSpanId: turnId, spanKind: 'model', spanStartedAt: t0 + 120, pi_ts: t0 + 120 })
-      emitPi({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: text }, usage, runId, agentId: 'main', spanId: modelId, parentSpanId: turnId, spanKind: 'model', spanStartedAt: t0 + 120, pi_ts: t0 + 130 })
-    }, 120)
-    // 普通回复里塞一次失败的工具调用：验证「失败环节标红」与独立状态，不混进「完成」。
-    if (text === '收到，已处理。') {
-      setTimeout(() => {
-        emitPi({ type: 'tool_execution_start', toolCallId: 'c-' + n, toolName: 'bash', args: { command: 'pnpm test -- --runInBand' }, runId, agentId: 'main', spanId: 'tool-' + n, parentSpanId: modelId, spanKind: 'tool', spanStartedAt: t0 + 150, pi_ts: t0 + 150 })
-      }, 150)
-      setTimeout(() => {
-        emitPi({ type: 'tool_execution_end', toolCallId: 'c-' + n, toolName: 'bash', isError: true, result: { content: [{ type: 'text', text: 'Command failed with exit code 1' }] }, runId, agentId: 'main', spanId: 'tool-' + n, parentSpanId: modelId, spanKind: 'tool', spanStartedAt: t0 + 150, spanEndedAt: t0 + 210, pi_ts: t0 + 210 })
-      }, 210)
-    }
-    setTimeout(() => {
-      emitPi({ type: 'message_end', message: { role: 'assistant', content: [], usage }, runId, agentId: 'main', spanId: modelId, parentSpanId: turnId, spanKind: 'model', spanStartedAt: t0 + 120, spanEndedAt: t0 + 260, pi_ts: t0 + 260 })
-      emitPi({ type: 'agent_settled', runId, agentId: 'main', spanId: turnId, spanKind: 'turn', spanStartedAt: t0 + 1, spanEndedAt: t0 + 262, runEndedAt: t0 + 262, runStatus: 'ok', pi_ts: t0 + 262 })
-      deliverQueue()
-    }, window.__PI_STUB__.slow ? 4000 : 320)
-  }
-  // 队列消费（模仿内核语义：steer 优先于 followUp——插话在下次 LLM 调用前注入，
-  // followUp 在本轮完全结束后才交付）。每条交付都回推 queue_update + user 消息 + 简短回复。
-  function deliverQueue() {
-    const q = window.__PI_STUB__.q
-    const next = q.steering.length ? q.steering.shift() : q.followUp.length ? q.followUp.shift() : null
-    emitPi({ type: 'queue_update', steering: q.steering, followUp: q.followUp })
-    if (next == null) return
-    setTimeout(() => {
-      const usage = { input: 80, output: 20, cacheRead: 0, cacheWrite: 0, totalTokens: 100, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } }
-      emitPi({ type: 'message_end', message: { role: 'user', content: [{ type: 'text', text: next }] } })
-      emitPi({ type: 'message_start', message: { role: 'assistant', content: [] } })
-      emitPi({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: '已处理：' + next }, usage })
-      setTimeout(() => {
-        emitPi({ type: 'message_end', message: { role: 'assistant', content: [], usage } })
-        emitPi({ type: 'agent_settled' })
-        deliverQueue()
-      }, 250)
-    }, 60)
-  }
-  window.__TAURI_INTERNALS__ = {
-    transformCallback(cb, once) {
-      const id = ++cbId
-      Object.defineProperty(window, '_' + id, { value: (...a) => { if (once) delete window['_' + id]; cb(...a) }, writable: true, configurable: true })
-      return id
-    },
-    convertFileSrc: (s) => s,
-    metadata: { currentWindow: { label: 'main' }, currentWebview: { label: 'main' } },
-    invoke(cmd, args) {
-      window.__PI_STUB__.calls.push(cmd)
-      // pi_call 是 RPC 统一入口：把行内 type 也记下来，断言才能说清
-      // 「follow_up / steer 被调用了」（calls 里只有 pi_call 这个壳）。
-      if (cmd === 'pi_call') {
-        try {
-          window.__PI_STUB__.rpcTypes.push(JSON.parse(args.json).type)
-        } catch {}
-      }
-      const r = (v) => Promise.resolve(v)
-      if (cmd === 'projects_list') return r(projects)
-      if (cmd === 'project_active') return r(window.__PI_STUB__.active ?? null)
-      if (cmd === 'project_set_active') { window.__PI_STUB__.active = args.id; return r(null) }
-      if (cmd === 'project_set_path') {
-        const p = projects.find((x) => x.id === args.id)
-        if (p) p.path = args.path
-        window.__PI_STUB__.bound = { id: args.id, path: args.path }
-        return r(null)
-      }
-      // 项目工作台要真实快照形状：空桩会让它渲染成「项目不存在」，
-      // 那样断言的是「空桩没炸」，而不是「工具面真的挂上了」。
-      if (cmd === 'project_get') {
-        const p = projects.find((x) => x.id === args.id) || projects[0]
-        return r({
-          project: { ...p, description: '本地工作目录', archived: false, updated_at: Date.now() },
-          config: {
-            id: 'cfg-flow',
-            project_id: p.id,
-            number: 3,
-            instruction: '保持最小改动',
-            capabilities: [],
-            created_by: 'me',
-            created_at: Date.now(),
-          },
-          work_items: [],
-          assets: [],
-          tasks: [],
-          activity: [],
-          instruction_usage: { tokens: 120, budget: 4000 },
-        })
-      }
-      if (cmd === 'plugin:dialog|open') return r('/tmp/flow-demo-repo')
-      // 这几个命令在真实后端返回数组/对象；打桩必须给同样的形状，
-      // 否则空桩自己会造出 null.length，把真缺陷淹掉。
-      if (cmd === 'role_list') return r([])
-      if (cmd === 'role_current') return r({ id: 'general', name: '通用', description: '', prompt: '' })
-      if (cmd === 'fs_read_dir') return r([])
-      if (cmd === 'fs_read_file') return r('')
-      if (cmd === 'settings_load') return r({ models: [] })
-      // 后台与启动：真实后端返回 BackgroundInfo，null 会让设置页后台分区渲染崩掉。
-      if (cmd === 'background_get' || cmd === 'background_set_close_action' || cmd === 'background_set_paused')
-        return r({ close_action: 'ask', paused: false, autostart: false })
-      if (cmd === 'background_set_autostart') return r(false)
-      // 内核自检：桌面进程 PATH 里常没有 pi，设置页要显示探测结果。
-      if (cmd === 'pi_doctor') return r({ found: true, path: '/opt/homebrew/bin/pi', probed: 12, error: null })
-      // 发消息：failSend 打开时模拟「内核未启动」，用来验证失败不是静默的。
-      if (cmd === 'pi_note_user') return r(null)
-      if (cmd === 'pi_send') {
-        if (window.__PI_STUB__.failSend) return Promise.reject('pi 未启动')
-        let type = ''
-        let body = ''
-        try {
-          const req = JSON.parse(args.json)
-          type = req.type ?? ''
-          body = req.message ?? ''
-        } catch {}
-        // G6：follow_up / steer 走 pi_send 下发（与真实后端同一通道）。
-        // 桩同样立刻回推 queue_update——chip 以内核回推为权威，不本地维护副账。
-        if (type === 'follow_up' || type === 'steer') {
-          const q = window.__PI_STUB__.q
-          if (type === 'follow_up') q.followUp.push(body)
-          else q.steering.push(body)
-          window.__PI_STUB__.lastQueued = body
-          window.__PI_STUB__.rpcTypes.push(type)
-          emitPi({ type: 'queue_update', steering: q.steering, followUp: q.followUp })
-          return r(null)
-        }
-        // scripted 模式：记下发的正文，并按内容推一轮流式回复（G5 plan 流程用）。
-        if (window.__PI_STUB__.scripted) {
-          window.__PI_STUB__.lastSent = body
-          replyScripted(body)
-        }
-        return r(null)
-      }
-      // G3 checkpoint：开轮返回递增 seq；rewind 回一份真实形状的报告。
-      if (cmd === 'checkpoint_begin_turn') {
-        window.__PI_STUB__.turnSeq = (window.__PI_STUB__.turnSeq ?? 0) + 1
-        return r(window.__PI_STUB__.turnSeq)
-      }
-      // G6 队列走 pi_call 统一入口：follow_up 入队（本轮结束执行）/
-      // steer 插话（下次 LLM 调用前注入）。都立刻回推 queue_update——
-      // 前端 chip 以内核回推为权威，不本地维护副账。
-      if (cmd === 'pi_call') {
-        let type = ''
-        let body = ''
-        try {
-          const req = JSON.parse(args.json)
-          type = req.type ?? ''
-          body = req.message ?? ''
-        } catch {}
-        if (type === 'follow_up' || type === 'steer') {
-          const q = window.__PI_STUB__.q
-          if (type === 'follow_up') q.followUp.push(body)
-          else q.steering.push(body)
-          window.__PI_STUB__.lastQueued = body
-          emitPi({ type: 'queue_update', steering: q.steering, followUp: q.followUp })
-          return r(null)
-        }
-        if (type === 'clear_queue') {
-          const cleared = { steering: window.__PI_STUB__.q.steering, followUp: window.__PI_STUB__.q.followUp }
-          window.__PI_STUB__.q = { steering: [], followUp: [] }
-          emitPi({ type: 'queue_update', steering: [], followUp: [] })
-          return r(cleared)
-        }
-      }
-      if (cmd === 'checkpoint_rewind') {
-        window.__PI_STUB__.rewound = args
-        return r({
-          seq: args.seq,
-          restored: ['/Users/tatsuma/Documents/GIT/pi-workbench/src/demo.ts'],
-          failed: [],
-          fork_entry_id: 'entry-abc',
-        })
-      }
-      if (cmd === 'projects_templates') return r([])
-      if (typeof cmd === 'string' && cmd.startsWith('plugin:event|')) {
-        // G5：捕获事件监听 handler——桩要能反向推流式事件（plan 流程的 assistant 回复）。
-        if (cmd === 'plugin:event|listen' && args && args.handler) {
-          const list = (window.__PI_STUB__.listeners[args.event] ??= [])
-          if (!list.includes(args.handler)) list.push(args.handler)
-          return r(args.handler)
-        }
-        return r(0)
-      }
-      if (typeof cmd === 'string' && cmd.includes('|listen')) return r(0)
-      // ── 已有功能「真跑通」验证：返回真实形状的清单数据，证明 UI 接到的是真结构而非空壳 ──
-      if (cmd === 'extensions_list') return r([
-        { id: 'agent-codebase.ts', name: '代码库索引', description: '用 codebase-memory-mcp 为项目建图并支持对话检索', kind: 'tool', path: '/cfg/extensions/agent-codebase.ts', tools: ['codebase_search', 'codebase_architecture', 'codebase_query', 'codebase_status'], enabled: true },
-        { id: 'agent-memory.ts', name: '长期记忆', description: '把对话要点追加进 .pi/memory 的 ts/text 流', kind: 'tool', path: '/cfg/extensions/agent-memory.ts', tools: ['memory_store', 'memory_recall'], enabled: true },
-        { id: 'agent-browser-session.ts', name: '浏览器会话', description: '开真实浏览器并维护会话状态', kind: 'tool', path: '/cfg/extensions/agent-browser-session.ts', tools: ['browser_open', 'browser_fetch', 'browser_screenshot'], enabled: false },
-      ])
-      if (cmd === 'library_list') return r([
-        { id: 'a1', name: '会议纪要.md', rel_path: '/docs/会议纪要.md', kind: 'markdown', dir: '/docs', origin: { kind: 'local' }, enabled: true, searchable: true, draft: false, revision: 2, size: 2048, updated_at: Date.now() },
-        { id: 'a2', name: '需求.doc', rel_path: '/docs/需求.doc', kind: 'docx', dir: '/docs', origin: { kind: 'import' }, enabled: true, searchable: true, draft: false, revision: 1, size: 4096, updated_at: Date.now() },
-      ])
-      if (cmd === 'library_stats') return r({ asset_count: 2, used_bytes: 6144, max_file_bytes: 52428800, max_total_bytes: 104857600 })
-      // 失败批次：真实后端返回空数组。返回 null 会让「空值归一化」缺失时整页崩掉，
-      // 掩盖掉目录树和配额卡的其它缺陷。
-      if (cmd === 'library_archive_failures') return r([])
-      // 记忆层：给空清单与未建索引状态，验证空态/骨架切换而不是永久骨架。
-      if (cmd === 'agent_memory_list') return r([])
-      if (cmd === 'agent_memory_trash') return r([])
-      if (cmd === 'agent_profile_get') return r({ generated_at: 0, source_mtime: 0 })
-      if (cmd === 'memory_vec_status') return r({ table: 'memory_vectors', exists: false, rows: 0, embedding: { base_url: '', model: '' }, agent_tool_note: '' })
-      if (cmd === 'library_tree') return r([ { path: '/', name: '', is_dir: true, asset_id: null }, { path: '/docs', name: 'docs', is_dir: true, asset_id: null }, { path: '/docs/会议纪要.md', name: '会议纪要.md', is_dir: false, asset_id: 'a1' } ])
-      if (cmd === 'library_marks') return r([ { id: 'a1', name: '会议纪要.md', dir: '/docs' } ])
-      if (cmd === 'library_search') return r([ { asset_id: 'a1', name: '会议纪要.md', dir: '/docs', kind: 'markdown', origin: { kind: 'local' }, revision: 2, location: '摘要', snippet: '本次会议决定了…', convert_status: 'ready' } ])
-      if (cmd === 'skills_list') return r([ { name: 'pdf', description: 'PDF 读写与转换', kind: 'skill', path: '/skills/pdf', via: 'local', scope: 'user', origin: 'local' }, { name: 'docx', description: 'Word 文档处理', kind: 'skill', path: '/skills/docx', via: 'local', scope: 'user', origin: 'local' } ])
-      // 专家域：清单可变，用来验证「新建 → 表单 → 保存 → 列表回显」整条链路。
-      // 返新数组：与 Vue ref 里的数组保持不同引用，否则同一实例的 push 不触发重渲染。
-      if (cmd === 'experts_list') return r(window.__PI_STUB__.experts.map((e) => ({ ...e })))
-      if (cmd === 'tools_list') return r({
-        active: [],
-        catalog: ['read', 'edit', 'write', 'bash', 'grep', 'glob', 'codebase_search', 'web_search'],
-        settings_path: '/tmp/flow-demo-repo/.pi/settings.json',
-      })
-      if (cmd === 'expert_draft_load') return r(window.__PI_STUB__.drafts[args.id] ?? null)
-      if (cmd === 'expert_validate') return r([])
-      if (cmd === 'expert_draft_save') {
-        const draft = { definition: args.definition, revision: 1, digest: 'd'.repeat(16), updated_at: Date.now() }
-        window.__PI_STUB__.drafts[args.id] = draft
-        const rows = window.__PI_STUB__.experts
-        const row = {
-          id: args.id,
-          name: args.definition.name,
-          description: args.definition.description,
-          role: args.definition.role,
-          tags: args.definition.tags || [],
-          published: false,
-          draft_revision: 1,
-          digest: draft.digest,
-          tool_count: (args.definition.allowed_tools || []).length,
-          last_run: { run_id: 'run-e1', status: 'ok', at: Date.now() - 60_000 },
-        }
-        const i = rows.findIndex((e) => e.id === args.id)
-        if (i >= 0) rows[i] = row
-        else rows.push(row)
-        return r(draft)
-      }
-      if (cmd === 'expert_delete') {
-        window.__PI_STUB__.experts = window.__PI_STUB__.experts.filter((e) => e.id !== args.id)
-        delete window.__PI_STUB__.drafts[args.id]
-        return r(null)
-      }
-      // 智能体分道：给一份真实形状的团队 + 调度日志，空桩会让「有成员」的分支永远测不到。
-      if (cmd === 'agent_teams_list') return r([
-        { id: 'crew-frontend', name: '前端专家团', members: ['架构师', '实现者'], strategy: 'sequential', created_at: Date.now(), runs: 2 },
-      ])
-      if (cmd === 'agent_team_runs') return r([
-        { run_id: '8f3a1c', strategy: 'sequential', real: true, at: Date.now() - 120000 },
-        { run_id: '8f3a1c', member: '架构师', ok: true, output: '拆分为三个改动点：轨迹抽屉新增页签、分道视图、后端日志读取。', at: Date.now() - 118000 },
-        { run_id: '8f3a1c', member: '实现者', ok: false, output: '类型检查失败：AgentLanes 里 payload 可能为 null。', at: Date.now() - 60000 },
-        { run_id: '7c21de', strategy: 'debate', real: true, note: 'plan-only', at: Date.now() - 300000 },
-      ])
-      if (cmd === 'project_index_status') return r({ indexed: true, nodes: 3130, edges: 8836, project_name: 'Users-tatsuma-Documents-GIT-pi-workbench', error: null, indexing: false })
-      // G4：journal 回放。多项目共用一个 events.jsonl，按 session_open 的 cwd 分段；
-      // 只有 pi-workbench 段的消息应该被回放，别的项目段一条都不能出现。
-      // replayMode 关时返回空——主流程断言 hero/发送链路，不能被回放消息干扰。
-      if (cmd === 'pi_journal_read') {
-        if (!window.__PI_STUB__.replayMode) return r([])
-        return r([
-          { type: 'session_open', cwd: '/tmp/other-project' },
-          { type: 'message_end', message: { role: 'user', content: [{ type: 'text', text: '别的项目探过去的历史消息' }] } },
-          { type: 'session_open', cwd: '/Users/tatsuma/Documents/GIT/pi-workbench' },
-          { type: 'message_end', message: { role: 'user', content: [{ type: 'text', text: '[项目上下文]\\npi-workbench 的上下文\\n\\n---\\n\\n上次让我改索引' }] } },
-          { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: '上次的回复：索引已修好。' } },
-          { type: 'message_end', message: { role: 'assistant', content: [], usage: { input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } } } },
-          { type: 'agent_settled' },
-        ])
-      }
-      if (cmd === 'conversations_list' || cmd === 'conversation_list') return r([ { id: 'c1', title: '产品需求补全', updated_at: Date.now() } ])
-      // 收件箱/定时任务：真实后端永远返回完整快照，桩缺这条会让页面渲染 null.unread 崩溃。
-      if (cmd === 'proactive_snapshot') return r({ jobs: [], inbox: [], unread: 0, running_job: null, grant_usage: null })
-      return r(null)
-    },
-  }
-})()
-`
+const PI_STUB_SCRIPT = STUB_SCRIPT
   await page2.addInitScript(PI_STUB_SCRIPT)
   await page2.goto(`http://localhost:${PORT}/#/chat`, { waitUntil: 'load' })
   await page2.waitForTimeout(700)
@@ -946,6 +610,69 @@ async function main() {
     drawerTabs.map((t) => t.replace(/\s+/g, '')).join('/'),
   )
   await page2.screenshot({ path: path.join(OUT, '33-flow-chat-trace.png') })
+
+  // 并行工作区：入口在对话页顶栏（不占一级菜单），点开落在抽屉的 worktree 页签。
+  const wtBtn = page2.locator('.wt-toggle').first()
+  assert(
+    '并行工作区：对话页顶栏有入口按钮',
+    (await wtBtn.count()) === 1,
+    `count=${await wtBtn.count()}`,
+  )
+  await wtBtn.click()
+  await page2.waitForTimeout(320)
+  const wtPane = page2.locator('.trace-drawer.open .wtp').first()
+  assert(
+    '并行工作区：点击后抽屉落在 worktree 页签并渲染面板',
+    (await wtPane.count()) === 1,
+    `pane=${await wtPane.count()}`,
+  )
+  const wtPaneText = (await wtPane.innerText().catch(() => '')).replace(/\s+/g, ' ')
+  const wtBranchInput = wtPane.locator('input[placeholder*="新分支名"]')
+  assert(
+    '并行工作区：面板含分支创建入口与并行舰队',
+    (await wtBranchInput.count()) >= 1 && wtPaneText.includes('并行舰队'),
+    `input=${await wtBranchInput.count()} text=${wtPaneText.slice(0, 80)}`,
+  )
+  assert(
+    '并行工作区：卡片渲染出分支、状态徽章与端口',
+    wtPaneText.includes('main') && wtPaneText.includes('feat/pi-kernel') && wtPaneText.includes('端口'),
+    wtPaneText.slice(0, 160),
+  )
+  await page2.screenshot({ path: path.join(OUT, '33b-flow-chat-worktree.png') })
+  // 抽屉页签仍应完整（工作区是新增页签，不是替换）
+  const wtTabs = await page2.locator('.trace-drawer .td-tab').allInnerTexts()
+  assert(
+    '并行工作区：抽屉页签齐全（会话树 / 轨迹 / 智能体 / 工作流 / 连接器 / 并行工作区）',
+    ['会话树', '轨迹', '智能体', '工作流', '连接器', '并行工作区'].every((l) =>
+      wtTabs.some((t) => t.replace(/\s+/g, '').startsWith(l)),
+    ),
+    wtTabs.map((t) => t.replace(/\s+/g, '')).join('/'),
+  )
+
+  // 「在此对话」= 会话切入 worktree：点了必须真换内核工作目录（Pi 的 cwd 只能重启内核换）。
+  // 目标卡 = 非当前会话所在的那张（当前会话所在卡的按钮是禁用的）。
+  const enterBtn = wtPane
+    .locator('.wtp-card', { hasText: 'feat/pi-kernel' })
+    .locator('button', { hasText: '在此对话' })
+    .first()
+  assert('并行工作区：卡片有「在此对话」入口', (await enterBtn.count()) === 1, `count=${await enterBtn.count()}`)
+  await enterBtn.click()
+  await page2.waitForTimeout(600)
+  const afterEnter = await page2.evaluate(() => window.__PI_STUB__.argCalls)
+  const piStarts = afterEnter.filter((c) => c.cmd === 'pi_start')
+  assert(
+    '并行工作区：切入后重启内核并带上 worktree 路径',
+    piStarts.some((c) => String(c.args?.cwd ?? '').includes('feat-pi-kernel')),
+    JSON.stringify(piStarts.slice(-3)),
+  )
+  await page2.screenshot({ path: path.join(OUT, '33c-flow-chat-worktree-entered.png') })
+  // 切入 worktree 后抽屉应自动收起（对话区让位给新工作区）。
+  const drawerAfterEnter = await page2.locator('.trace-drawer.open').count()
+  assert('并行工作区：切入后抽屉自动收起', drawerAfterEnter === 0, `open=${drawerAfterEnter}`)
+
+  // 抽屉页签断言已在上面做过；重新打开供后续断言使用。
+  await page2.locator('.trace-toggle').first().click()
+  await page2.waitForTimeout(300)
 
   // 智能体分道：内容来自内核事件 + 团队日志，必须真渲染一次，不能只靠类型检查。
   await page2.locator('.trace-drawer .td-tab').filter({ hasText: '智能体' }).first().click()

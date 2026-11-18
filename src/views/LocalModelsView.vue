@@ -12,6 +12,7 @@ import AppButton from '@/components/ui/AppButton.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
 import { currentLocale, t } from '@/i18n'
+import { listOf } from '@/utils/ipc'
 
 interface ProbeReport {
   found: boolean
@@ -287,7 +288,7 @@ async function refreshPaths() {
 async function refreshModels() {
   loadingModels.value = true
   try {
-    installed.value = await invoke<InstalledModel[]>('local_models_list')
+    installed.value = await listOf(invoke<InstalledModel[]>('local_models_list'))
   } catch (e) {
     error.value = t('读取失败：{message}', { message: toText(e) })
   } finally {
@@ -296,7 +297,7 @@ async function refreshModels() {
 }
 
 async function refreshCatalog() {
-  catalog.value = await invoke<CatalogModel[]>('local_models_catalog').catch(() => [])
+  catalog.value = await listOf(invoke<CatalogModel[]>('local_models_catalog'))
 }
 
 async function refreshHardware() {
@@ -310,7 +311,7 @@ async function refreshDownloadSource() {
 }
 
 async function refreshDownloads() {
-  const tasks = await invoke<DownloadSnapshot[]>('local_downloads').catch(() => [])
+  const tasks = await listOf(invoke<DownloadSnapshot[]>('local_downloads'))
   const next: Record<string, DownloadSnapshot> = {}
   for (const task of tasks) next[task.id] = task
   downloads.value = next

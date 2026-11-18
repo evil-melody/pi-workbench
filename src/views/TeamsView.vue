@@ -30,6 +30,7 @@ import {
   type TeamEntry,
   type TeamRunEvent,
 } from '@/composables/useAgentOps'
+import { listOf } from '@/utils/ipc'
 
 interface SkillEntry {
   name: string
@@ -126,7 +127,7 @@ async function loadCandidates() {
   try {
     const [exps, skills, cons] = await Promise.all([
       expertsList().catch(() => [] as ExpertSummary[]),
-      invoke<SkillEntry[]>('skills_list', { root: null }).catch(() => [] as SkillEntry[]),
+      listOf(invoke<SkillEntry[]>('skills_list', { root: null })),
       connectorsList().catch(() => [] as ConnectorSummary[]),
     ])
     const list: Candidate[] = []

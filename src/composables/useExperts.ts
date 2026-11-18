@@ -10,6 +10,7 @@ import { t } from '@/i18n'
  * 中间任何一步内容变了，后面的 proof 立即作废，绝不因为模型自称已确认就放行。
  */
 import { invoke } from '@tauri-apps/api/core'
+import { listOf } from '@/utils/ipc'
 
 export interface ExpertExample {
   id: string
@@ -228,7 +229,7 @@ export function resolveImportedTools(
 }
 
 export async function expertsList(): Promise<ExpertSummary[]> {
-  return invoke<ExpertSummary[]>('experts_list')
+  return listOf(invoke<ExpertSummary[]>('experts_list'))
 }
 
 export async function expertDraftLoad(id: string): Promise<ExpertDraft | null> {

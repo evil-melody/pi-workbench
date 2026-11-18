@@ -27,6 +27,7 @@
     "typecheck": "vue-tsc --noEmit",
     "check:undefined": "node scripts/check-undefined.mjs",
     "verify:ui": "node scripts/visual-check.mjs",
+    "verify:pages": "node scripts/visual-patrol.mjs",
     "tauri": "tauri",
     "check:skills": "node scripts/check-skills.mjs",
     "check:extensions": "node scripts/check-extensions.mjs",

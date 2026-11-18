@@ -33,6 +33,7 @@ mod skills;
 mod state;
 mod terminal;
 mod tools;
+mod worktrees;
 
 use connectors::ConnectorRuntimeState;
 use library::LibraryState;
@@ -218,6 +219,12 @@ pub fn run() {
             artifacts::artifacts_open,
             browser::browser_open,
             terminal::term_exec,
+            worktrees::wt_list,
+            worktrees::wt_create,
+            worktrees::wt_remove,
+            worktrees::wt_merge,
+            worktrees::wt_diff,
+            worktrees::wt_agent,
             projects::projects_list,
             projects::projects_templates,
             projects::project_add,

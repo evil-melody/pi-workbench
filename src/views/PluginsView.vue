@@ -18,6 +18,7 @@ import AppModal from '@/components/ui/AppModal.vue'
 import { toolsActivate } from '@/composables/useTools'
 import { currentTheme, toggleTheme, type Theme } from '@/theme'
 import { APP_VERSION, PI_VERSION } from '@/version'
+import { listOf } from '@/utils/ipc'
 
 type Tab = 'discover' | 'themes' | 'favorites' | 'installed' | 'advanced'
 
@@ -158,7 +159,7 @@ async function load() {
   error.value = ''
   marketNote.value = ''
   try {
-    installed.value = await invoke<ExtensionInfo[]>('extensions_list')
+    installed.value = await listOf(invoke<ExtensionInfo[]>('extensions_list'))
   } catch (e) {
     error.value = e instanceof Error ? e.message : t('插件清单不可用')
     installed.value = []

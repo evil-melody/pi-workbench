@@ -14,6 +14,7 @@ import ActivityPanel from '@/components/chat/ActivityPanel.vue'
 import AgentLanes from '@/components/chat/AgentLanes.vue'
 import WorkflowPanel from '@/components/chat/WorkflowPanel.vue'
 import ConnectorPanel from '@/components/connectors/ConnectorPanel.vue'
+import WorktreePanel from '@/components/worktrees/WorktreePanel.vue'
 import type { ActivityState } from '@/composables/useActivity'
 import type { PiUsage } from '@/composables/piEvents'
 import type { PiMsg } from '@/composables/usePi'
@@ -33,11 +34,20 @@ const props = defineProps<{
   turns?: number
   steps?: number
   projectId?: string | null
+  /** 外部指定的页签（如顶栏「工作区」按钮直接落到这一页）。 */
+  focusTab?: string
+  /** 仓库根目录：工作区页签据此列 worktree。 */
+  root?: string
+  /** 当前会话的内核工作目录：用于标出「当前会话」所在 worktree。 */
+  cwd?: string
 }>()
 
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{
+  close: []
+  'enter-worktree': [payload: { path: string; branch: string }]
+}>()
 
-type Tab = 'tree' | 'activity' | 'agents' | 'workflow' | 'connector'
+type Tab = 'tree' | 'activity' | 'agents' | 'workflow' | 'connector' | 'worktree'
 
 const TABS = computed<Array<{ key: Tab; label: string; icon: string }>>(() => [
   { key: 'tree', label: t('会话树'), icon: 'clock' },
@@ -45,9 +55,18 @@ const TABS = computed<Array<{ key: Tab; label: string; icon: string }>>(() => [
   { key: 'agents', label: t('智能体'), icon: 'users' },
   { key: 'workflow', label: t('工作流'), icon: 'list' },
   { key: 'connector', label: t('连接器'), icon: 'plug' },
+  { key: 'worktree', label: t('并行工作区'), icon: 'layers' },
 ])
 
 const tab = ref<Tab>('activity')
+
+/** 顶栏「工作区」按钮：打开抽屉并直接落在工作区页签。 */
+watch(
+  () => props.focusTab,
+  (v) => {
+    if (v && props.open && (TABS.value.some((x) => x.key === v))) tab.value = v as Tab
+  },
+)
 
 /** 气泡下的「运行链路」入口只指向轨迹页签：抽屉已开着时也要切回来。 */
 const { focusSeq } = useRunFocus()
@@ -55,11 +74,18 @@ watch(focusSeq, () => {
   tab.value = 'activity'
 })
 
-// 收起时记住 tab 没意义，下次打开还是先看轨迹（最常用）。
+// 收起时记住 tab 没意义，下次打开还是先看轨迹（最常用）；
+// 但外部指定了页签（顶栏「工作区」按钮）时以它为准。
 watch(
   () => props.open,
   (open) => {
-    if (!open) tab.value = 'activity'
+    if (!open) {
+      tab.value = 'activity'
+      return
+    }
+    if (props.focusTab && TABS.value.some((x) => x.key === props.focusTab)) {
+      tab.value = props.focusTab as Tab
+    }
   },
 )
 
@@ -159,6 +185,9 @@ watch(
       <WorkflowPanel v-else-if="tab === 'workflow'" :state="state" :running="running" :messages="messages" />
       <div v-else-if="tab === 'connector'" class="td-pane">
         <ConnectorPanel :session-id="sessionId" />
+      </div>
+      <div v-else-if="tab === 'worktree'" class="td-pane">
+        <WorktreePanel :root="root" :cwd="cwd" @enter="emit('enter-worktree', $event)" />
       </div>
     </div>
   </aside>

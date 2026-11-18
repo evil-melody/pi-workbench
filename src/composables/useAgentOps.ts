@@ -19,7 +19,9 @@ const needTauri = () =>
 
 function read<T>(cmd: string, fallback: T): Promise<T> {
   if (!isTauriRuntime()) return Promise.resolve(fallback)
-  return invoke<T>(cmd)
+  // 后端可能回 null（Option 序列化 / 桩未实现）：fallback 只在「非 Tauri」时用，
+  // 这里补上「返回 null」这一路，否则页面的 `.length` 直接把组件渲染打断。
+  return invoke<T>(cmd).then((r) => r ?? fallback)
 }
 
 function write<T>(cmd: string, args: Record<string, unknown>): Promise<T> {
@@ -139,7 +141,7 @@ export interface BrowserStatus {
 export const agentTeamsList = () => read<TeamEntry[]>('agent_teams_list', [])
 export const agentTeamRuns = (teamId: string) =>
   isTauriRuntime()
-    ? invoke<TeamRunEvent[]>('agent_team_runs', { team_id: teamId })
+    ? invoke<TeamRunEvent[]>('agent_team_runs', { team_id: teamId }).then((r) => r ?? [])
     : Promise.resolve([] as TeamRunEvent[])
 export const agentMemoryList = () => read<MemoryEntry[]>('agent_memory_list', [])
 export const agentMemoryTrash = () => read<MemoryTrashEntry[]>('agent_memory_trash', [])

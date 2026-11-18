@@ -1,6 +1,7 @@
 import { t } from '@/i18n'
 import { invoke } from '@tauri-apps/api/core'
 import { ref } from 'vue'
+import { listOf } from '@/utils/ipc'
 
 export interface Project {
   id: string
@@ -180,7 +181,7 @@ export function loadActiveProject() {
         activeProjectPath.value = ''
         return
       }
-      const list = await invoke<Project[]>('projects_list').catch(() => [])
+      const list = await listOf(invoke<Project[]>('projects_list'))
       activeProjectPath.value = list.find((p) => p.id === id)?.path ?? ''
     })
 }

@@ -28,6 +28,7 @@ import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
+import { listOf } from '@/utils/ipc'
 
 const router = useRouter()
 
@@ -62,10 +63,14 @@ async function refresh() {
   loading.value = true
   loadError.value = ''
   try {
-    projects.value = await invoke<Project[]>('projects_list')
+    projects.value = await listOf(invoke<Project[]>('projects_list'))
   } catch (e) {
     projects.value = []
-    loadError.value = t('读取项目列表失败: {0}', [e])
+    // 浏览器预览无 Tauri IPC：原始 TypeError 对用户毫无信息量，降级成可操作的提示。
+    loadError.value =
+      typeof e === 'object' && e !== null && String((e as Error).message ?? '').includes('invoke')
+        ? t('项目数据存在本机，请在桌面 App 中查看。')
+        : t('读取项目列表失败: {0}', [e])
   }
   try {
     activeId.value = (await invoke<string | null>('project_active')) ?? null
@@ -73,7 +78,7 @@ async function refresh() {
     activeId.value = null
   }
   try {
-    templates.value = await invoke<Template[]>('projects_templates')
+    templates.value = await listOf(invoke<Template[]>('projects_templates'))
   } catch {
     templates.value = []
   }

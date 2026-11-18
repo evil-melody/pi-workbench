@@ -23,6 +23,7 @@ import { focusFirstMenuItem, onMenuKeydown } from '@/composables/useMenuKeys'
 import { menuStyleFor, settleMenu } from '@/composables/useCtxMenu'
 // 与首页共用同一份透明吉祥物：品牌图只有一处真源。
 import mascotUrl from '@/assets/mascot.png'
+import { listOf } from '@/utils/ipc'
 
 interface Project {
   id: string
@@ -72,7 +73,7 @@ async function onWindowFocus() {
 }
 
 async function refreshProjects() {
-  projects.value = await invoke<Project[]>('projects_list').catch(() => [])
+  projects.value = await listOf(invoke<Project[]>('projects_list'))
   await loadActiveProject()
 }
 

@@ -27,6 +27,7 @@ import {
 } from '@/composables/useProactive'
 import type { Project } from '@/composables/useProject'
 import { timeAgo } from '@/utils/timeAgo'
+import { listOf } from '@/utils/ipc'
 
 const route = useRoute()
 const {
@@ -136,7 +137,7 @@ const projectOptions = computed(() =>
 )
 
 async function loadProjects() {
-  projects.value = await invoke<Project[]>('projects_list').catch(() => [])
+  projects.value = await listOf(invoke<Project[]>('projects_list'))
   if (!draftProject.value) draftProject.value = projectOptions.value[0]?.value ?? ''
 }
 

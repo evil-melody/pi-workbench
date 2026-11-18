@@ -116,6 +116,8 @@ export const projects: Record<string, string> = {
   '资产 · {0}': 'Assets · {0}',
   '资产 id': 'Asset id',
   '资产名称': 'Asset name',
+  '项目数据存在本机，请在桌面 App 中查看。':
+    'Project data lives on this machine. Open the desktop app to view it.',
   'kind:id 名称': 'kind:id name',
   'skill:pdf-tools 解析 PDF expert:reviewer 代码评审': 'skill:pdf-tools Parse PDF expert:reviewer Code review',
 }

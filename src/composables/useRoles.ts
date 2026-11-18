@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { ref } from 'vue'
+import { listOf } from '@/utils/ipc'
 
 export interface Role {
   id: string
@@ -14,7 +15,7 @@ export function useRoles(root: () => string) {
   const applying = ref(false)
 
   async function load() {
-    roles.value = await invoke<Role[]>('role_list').catch(() => [])
+    roles.value = await listOf(invoke<Role[]>('role_list'))
     return roles.value
   }
 

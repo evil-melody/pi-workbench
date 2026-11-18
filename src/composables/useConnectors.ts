@@ -13,6 +13,7 @@ import { t } from '@/i18n'
  *   3. 会话选择不是「记一下」，要显式 apply_scope 才会真的改写注入内核的白名单。
  */
 import { invoke } from '@tauri-apps/api/core'
+import { listOf } from '@/utils/ipc'
 
 export type ConnectorTransport = 'stdio' | 'streamable-http'
 
@@ -74,7 +75,8 @@ export function emptyInput(): ConnectorInput {
   }
 }
 
-export const connectorsList = (): Promise<ConnectorSummary[]> => invoke<ConnectorSummary[]>('connectors_list')
+export const connectorsList = (): Promise<ConnectorSummary[]> =>
+  listOf(invoke<ConnectorSummary[]>('connectors_list'))
 
 export const connectorsConfig = (id: string): Promise<ConnectorConfigView> =>
   invoke<ConnectorConfigView>('connectors_config', { id })

@@ -3,6 +3,7 @@ import { chat } from './chat'
 import { library } from './library'
 import { localModels } from './localModels'
 import { projects } from './projects'
+import { worktrees } from './worktrees'
 import { settings } from './settings'
 import { memory } from './memory'
 import { experiments } from './experiments'
@@ -14,6 +15,7 @@ const enUS: Record<string, string> = {
   ...library,
   ...localModels,
   ...projects,
+  ...worktrees,
   ...settings,
   ...memory,
   ...experiments,
