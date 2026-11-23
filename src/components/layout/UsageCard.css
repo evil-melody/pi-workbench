@@ -8,7 +8,7 @@
   border: 1px solid var(--border);
   border-radius: var(--r);
   background: var(--bg-elev);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 
 .usage-card.live {
@@ -38,55 +38,58 @@
   border-radius: var(--r-full);
   background: var(--ok-soft);
   color: var(--ok);
-  font-size: 10.5px;
-  font-weight: 700;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
 }
 
+/* F11 动画收敛：侧栏用量点的脉冲删掉（本轮只静态化，卡片形态归批 3）。 */
 .uc-live::before {
   content: '';
   width: 5px;
   height: 5px;
   border-radius: 50%;
   background: currentColor;
-  animation: uc-pulse 1.6s ease-in-out infinite;
 }
 
-@keyframes uc-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.25; }
-}
-
+/* KPI 行解剖：label 走 auto 轨、数值独占 1fr 轨并右对齐 ——
+   四行数值右缘落在同一条对齐线上（原先 2×2 等宽栅格做不到）。 */
 .uc-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px 8px;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 3px var(--sp-3);
 }
 
+/* ponytail: display:contents 让每个 .uc-cell 的两个 span 直接落进父栅格，
+   代价是 .uc-cell 自己不再是盒子（背景/边框加在它身上会失效）。 */
 .uc-cell {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
-  min-width: 0;
+  display: contents;
 }
 
 .uc-k {
   color: var(--text-faint);
-  font-size: 11px;
-  flex-shrink: 0;
-}
-
-.uc-v {
-  color: var(--text);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-xs);
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.uc-v {
+  color: var(--text);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Σ/合计是计数值，不是状态：回到主文本色，accent 只留给 delta/状态。 */
 .uc-v.strong {
-  color: var(--accent);
+  color: var(--text);
 }
 
 /* 输入 / 输出占比条：只在有数据时出现 */
@@ -104,7 +107,7 @@
   /* AUDIT-018：宽度由模板经 --bar-in-w / --bar-out-w 传入
      （功能性动态值，豁免纯样式抽离铁律）。 */
   width: var(--bar-in-w, 0%);
-  transition: width 0.25s ease;
+  transition: width var(--dur) var(--ease);
 }
 
 .uc-bar i.bar-out {
@@ -121,14 +124,14 @@
 
 .uc-foot {
   margin: 0;
-  font-size: 10.5px;
+  font-size: var(--fs-xs);
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
 
 .uc-empty {
   margin: 0;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   line-height: 1.5;
   color: var(--text-faint);
 }
@@ -148,17 +151,20 @@
 .uc-link {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   align-self: flex-start;
   padding: 2px 0;
   border: 0;
   background: transparent;
   color: var(--text-faint);
-  font-size: 10.5px;
+  font-size: var(--fs-xs);
   cursor: pointer;
-  transition: color 0.15s ease;
+  transition: color var(--dur-fast) var(--ease);
 }
 
-.uc-link:hover {
-  color: var(--accent);
+@media (hover: hover) {
+
+  .uc-link:hover {
+    color: var(--accent);
+}
 }

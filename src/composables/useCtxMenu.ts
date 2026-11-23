@@ -1,4 +1,20 @@
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+
+/** 锚点下方定位：右侧对齐，左右钳制在视口内。 */
+export function menuStyleFor(anchor: HTMLElement, width: number) {
+  const r = anchor.getBoundingClientRect()
+  const left = Math.min(Math.max(8, r.right - width), window.innerWidth - width - 8)
+  return { left: `${left}px`, top: `${r.bottom + 6}px`, width: `${width}px` }
+}
+
+/** 渲染后按实际高度收回视口：贴底的行向上翻，菜单不被截断。 */
+export function settleMenu(anchor: HTMLElement, style: Record<string, string>) {
+  const el = document.querySelector('.ctx-menu') as HTMLElement | null
+  if (!el) return style
+  const h = el.getBoundingClientRect().height
+  const top = Math.max(8, Math.min(anchor.getBoundingClientRect().bottom + 6, window.innerHeight - h - 8))
+  return { ...style, top: `${top}px` }
+}
 
 /**
  * 公共「···」菜单的开合/定位/关闭逻辑（样式在 ui/ContextMenu.css）。
@@ -12,21 +28,23 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 export function useCtxMenu(width = 180) {
   const open = ref(false)
   const style = ref<Record<string, string>>({})
+  /** Esc 关闭后焦点回到打开菜单的元素，键盘用户不丢位置。 */
+  let returnFocus: HTMLElement | null = null
 
   /** 在锚点元素下方打开菜单（锚点取整行高亮的行容器/列表项）。 */
   function openAt(anchor: HTMLElement) {
-    const r = anchor.getBoundingClientRect()
-    const left = Math.min(Math.max(8, r.right - width), window.innerWidth - width - 8)
-    style.value = {
-      left: `${left}px`,
-      top: `${r.bottom + 6}px`,
-      width: `${width}px`,
-    }
+    returnFocus = (document.activeElement as HTMLElement | null) ?? anchor
+    style.value = menuStyleFor(anchor, width)
     open.value = true
+    void nextTick(() => {
+      style.value = settleMenu(anchor, style.value)
+    })
   }
 
-  function close() {
+  function close(restoreFocus = false) {
     open.value = false
+    if (restoreFocus) returnFocus?.focus()
+    returnFocus = null
   }
 
   function onDocClick(e: MouseEvent) {
@@ -34,7 +52,7 @@ export function useCtxMenu(width = 180) {
   }
 
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape') close()
+    if (e.key === 'Escape') close(true)
   }
 
   onMounted(() => {

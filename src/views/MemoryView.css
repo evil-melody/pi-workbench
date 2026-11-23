@@ -1,33 +1,49 @@
-/* 记忆层视图专属样式（共享容器样式见 agent-ops.css）。 */
+/* 记忆层视图专属样式（共享容器样式见 agent-ops.css；embedded 收拢在那边）。 */
 
-.agent-ops.memory.embedded {
-  height: auto;
-  padding: 0;
-  max-width: none;
+/* 骨架条按卡片宽度分档收窄，避免整行拉到 900px 的灰色长条 */
+.mem-skeleton .sk-line {
+  max-width: 520px;
 }
 
+.mem-skeleton .sk-line.w-40 {
+  max-width: 200px;
+}
+
+.mem-skeleton .sk-line.w-60 {
+  max-width: 320px;
+}
+
+/* 一条记忆 = 容器里的一行：整页只留一个边框，行间用 hairline 分隔。
+   每行独立成卡时，10 条记忆就是 10 个圆角框，边框比内容更抢眼。 */
 .mem-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-3);
+  border: var(--stroke);
+  border-radius: var(--r-lg);
+  background: var(--bg-elev);
+  overflow: hidden;
 }
 
 .mem-card {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  padding: var(--sp-4);
   display: flex;
   flex-direction: column;
   gap: var(--sp-2);
-  transition: border-color 0.15s ease;
+  padding: var(--sp-3) var(--sp-4);
+  background: transparent;
 }
 
-.mem-card:hover {
-  border-color: var(--border-strong);
+.mem-card + .mem-card {
+  border-top: 1px solid var(--border-soft);
+}
+
+@media (hover: hover) {
+
+  .mem-card:hover {
+    background: var(--bg-hover);
+}
 }
 
 .mem-top {
@@ -41,15 +57,21 @@
 }
 
 .mem-time {
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
+  /* 390 下时间被挤成两行会把整张卡撑高 6px：时间不换行。 */
+  white-space: nowrap;
 }
 
 .mem-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
   margin: 0;
-  font-size: 13.5px;
-  line-height: 1.55;
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
   color: var(--text);
   white-space: pre-wrap;
   word-break: break-word;
@@ -58,14 +80,14 @@
 .mem-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--sp-2);
 }
 
 .chip {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
-  background: var(--accent-dim);
-  border: 1px solid var(--accent-soft);
+  background: var(--bg-hover);
+  border: 1px solid transparent;
   padding: 2px 8px;
   border-radius: var(--r-full);
 }
@@ -85,7 +107,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13.5px;
+  font-size: var(--fs-ui);
   font-weight: 600;
   color: var(--text);
 }
@@ -94,7 +116,7 @@
 }
 .vec-sub {
   font-weight: 400;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .vec-bar {
@@ -110,31 +132,34 @@
 .vec-bar .vec-input {
   flex: 1;
   min-width: 0;
-  height: auto;
-  background: var(--bg-input, var(--bg));
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  padding: 7px 10px;
+  /* 与同页 .mem-search .app-input 同几何：36 高、0/12 内衬。 */
+  height: var(--row-h);
+  background: var(--bg-field);
+  border: var(--stroke-field);
+  border-radius: var(--r);
+  padding: 0 var(--sp-3);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   outline: none;
   box-shadow: none;
-  transition: border-color 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease);
 }
 .vec-bar .vec-input:focus {
   border-color: var(--accent);
   box-shadow: none;
 }
 
-.vec-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  font-size: 12px;
-}
 .vec-warn {
-  color: var(--warn, #d9a23b);
+  color: var(--warn);
+}
+
+/* 同页其余控件（写入记忆 / 搜索框 / 检索）都是 36，唯独两枚刷新键是 28：
+   同一行里两种尺寸的图标键并排，视觉上像被压扁了一档。按 --row-h 对齐。 */
+.aops-meta .tool-btn,
+.vec-bar .tool-btn {
+  width: var(--row-h);
+  height: var(--row-h);
+  min-height: var(--row-h);
 }
 
 .vec-list {
@@ -148,31 +173,241 @@
 .vec-card {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
   background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border: var(--stroke);
+  border-radius: var(--r);
 }
 .vec-score {
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   color: var(--accent);
-  min-width: 38px;
+  min-width: 40px;
   text-align: right;
 }
 .vec-text {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--fs-ui);
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .vec-tags {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-faint);
   white-space: nowrap;
+}
+
+/* 24 小时撤销窗口 */
+.mem-del {
+  margin-left: auto;
+}
+
+.trash-panel {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  background: var(--bg-elev);
+}
+
+.trash-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.trash-head .app-icon {
+  color: var(--text-faint);
+}
+
+.trash-sub {
+  font-weight: 400;
+  font-size: var(--fs-meta);
+}
+
+.trash-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.trash-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-panel);
+}
+
+.trash-card .mem-text {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
+
+.trash-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.trash-tip {
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
+}
+
+.del-note {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-ui);
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.del-preview {
+  margin: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg);
+  font-size: var(--fs-ui);
+  line-height: 1.55;
+  color: var(--text);
+  max-height: 120px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 检索 / 纠正 / 永久删除 */
+.mem-search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: 1;
+  min-width: 160px;
+  max-width: 320px;
+  color: var(--text-faint);
+}
+
+.mem-edit,
+.mem-purge {
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
+}
+
+@media (hover: hover) {
+
+  .mem-edit:hover, .mem-purge:hover {
+    color: var(--text);
+}
+}
+
+.mem-now {
+  color: var(--danger);
+}
+
+@media (hover: hover) {
+
+  .mem-purge:hover {
+    color: var(--danger);
+}
+}
+
+/* 画像：只读视图，改 = 写一条带保留标签的记忆 */
+.prof-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  background: var(--bg-elev);
+}
+
+.prof-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.prof-head .app-icon {
+  color: var(--accent);
+}
+
+.prof-sub {
+  font-weight: 400;
+  font-size: var(--fs-meta);
+}
+
+.prof-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.prof-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+  font-size: var(--fs-ui);
+}
+
+.prof-label {
+  width: 80px;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+}
+
+.prof-value {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.prof-edit {
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
+}
+
+@media (hover: hover) {
+
+  .prof-edit:hover {
+    color: var(--text);
+}
+}
+
+/* 390：检索条整行放不下，输入框先占满一行，两个按钮换到下一行右对齐。
+   否则输入框被压到 120px，占位文案截半。 */
+@media (max-width: 640px) {
+  .vec-bar {
+    flex-wrap: wrap;
+  }
+
+  .vec-bar .vec-input {
+    flex: 1 1 160px;
+  }
 }

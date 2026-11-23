@@ -14,22 +14,26 @@
 .ws-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   height: 26px;
   max-width: 100%;
   padding: 0 7px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--r);
   background: transparent;
   color: var(--text);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
-.ws-trigger:hover:not(:disabled) {
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .ws-trigger:hover:not(:disabled) {
+    background: var(--bg-hover);
+}
 }
 
 .ws-trigger.open {
@@ -37,11 +41,20 @@
   border-color: var(--border);
 }
 
-/* 还没绑定目录：虚线描边 = 「先做这件事」，而不是又一枚灰按钮。 */
+/* 还没绑定目录：虚线描边 = 「先做这件事」。用中性描边而不是品牌蓝——
+   蓝虚线紧挨一排白按钮时会被读成校验错误。 */
 .ws-trigger.emphasis {
   border-style: dashed;
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+@media (hover: hover) {
+
+  .ws-trigger.emphasis:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--text);
+}
 }
 
 .ws-trigger:disabled {
@@ -68,7 +81,7 @@
 .ws-caret {
   flex-shrink: 0;
   color: var(--text-faint);
-  font-size: 10px;
+  font-size: var(--fs-micro);
   line-height: 1;
 }
 
@@ -79,17 +92,18 @@
   max-height: 320px;
   overflow: auto;
   padding: 5px;
-  border: 1px solid var(--border);
+  /* 浮层：--sh-2 内含 hairline，不再叠 border。 */
+  border: 0;
   border-radius: var(--r);
   background: var(--bg-panel);
-  box-shadow: var(--sh-2, 0 10px 28px rgba(16, 40, 80, 0.16));
+  box-shadow: var(--sh-2);
   text-align: left;
 }
 
 .ws-menu-title {
   margin: 2px 6px 5px;
   color: var(--text-faint);
-  font-size: 10.5px;
+  font-size: var(--fs-micro);
   font-weight: 600;
   letter-spacing: 0.04em;
 }
@@ -101,16 +115,19 @@
   gap: 8px;
   padding: 6px 8px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--text);
   text-align: left;
   cursor: pointer;
-  transition: background 0.13s ease;
+  transition: background-color var(--dur-fast) var(--ease);
 }
 
-.ws-opt:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .ws-opt:hover {
+    background: var(--bg-hover);
+}
 }
 
 .ws-opt.on {
@@ -126,8 +143,11 @@
   color: var(--text-faint);
 }
 
-.ws-opt.action:hover .app-icon {
-  color: var(--accent);
+@media (hover: hover) {
+
+  .ws-opt.action:hover .app-icon {
+    color: var(--accent);
+}
 }
 
 .ws-opt-main {
@@ -142,8 +162,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12.5px;
-  font-weight: 550;
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-medium);
 }
 
 .ws-opt-path {
@@ -152,7 +172,7 @@
   white-space: nowrap;
   color: var(--text-faint);
   font-family: var(--mono);
-  font-size: 10.5px;
+  font-size: var(--fs-micro);
 }
 
 /* 未绑目录：说清楚缺什么，而不是留一行空白让人猜 */
@@ -164,7 +184,7 @@
 .ws-empty {
   margin: 2px 6px 6px;
   color: var(--text-faint);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
 }
 
 .ws-divider {
@@ -189,18 +209,21 @@
   border-radius: var(--r-sm);
   background: transparent;
   color: var(--text-dim);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   cursor: pointer;
 }
 
-.ws-cancel:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) {
+
+  .ws-cancel:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
 }
 
 .ws-note {
   margin: 4px 6px 2px;
   color: var(--warn);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   line-height: 1.45;
 }

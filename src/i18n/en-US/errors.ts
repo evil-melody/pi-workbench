@@ -1,0 +1,66 @@
+/** 后端错误码对应的中文源文 → 英文。查不到错误码时前端回退 `detail`。 */
+export const errors: Record<string, string> = {
+  '读写失败：{detail}': 'Read/write failed: {detail}',
+  '未找到：{detail}': 'Not found: {detail}',
+  '设置无效：{detail}': 'Invalid settings: {detail}',
+  '保存设置失败：{detail}': 'Failed to save settings: {detail}',
+  '项目不存在：{detail}': 'Project not found: {detail}',
+  '项目路径无效：{detail}': 'Invalid project path: {detail}',
+  '项目名称不能为空': 'Project name is required',
+  '项目名称无效': 'Invalid project name',
+  '项目标题无效': 'Invalid project title',
+  '项目还没有绑定目录': 'The project has no folder yet',
+  '项目模板不存在': 'Project template not found',
+  '内容已在别处修改，请刷新后重试': 'This was changed elsewhere. Refresh and try again.',
+  '引用的资料或能力已失效，请刷新后重试':
+    'A referenced asset or capability is no longer valid. Refresh and try again.',
+  '该项目未绑定该能力': 'This capability is not bound to the project',
+  '项目指令超出长度上限': 'Project instructions exceed the length limit',
+  '资料不存在：{detail}': 'Asset not found: {detail}',
+  '资料已停用：{detail}': 'Asset is disabled: {detail}',
+  '路径无效：{detail}': 'Invalid path: {detail}',
+  '路径过长': 'Path is too long',
+  '该路径已被占用：{detail}': 'That path is already taken: {detail}',
+  '源文件已不存在': 'The source file no longer exists',
+  '该修订不存在': 'Revision not found',
+  '该文件已在资料库中': 'This file is already in the library',
+  '名称含非法字符': 'Name contains invalid characters',
+  '文件过大': 'File is too large',
+  '资料库配额已满': 'Library quota is full',
+  '文件过大（上限 {limit} MB）': 'File is too large (limit {limit} MB)',
+  '路径不在资料库范围内：{detail}': 'Path is outside the library: {detail}',
+  '内容不能为空': 'Content is required',
+  '专家不存在：{detail}': 'Expert not found: {detail}',
+  '需要先确认再执行': 'Confirm before running',
+  '确认已过期，请重新发起': 'Confirmation expired. Please start again.',
+  '连接器不存在：{detail}': 'Connector not found: {detail}',
+  '服务名只能包含字母、数字、- 和 _': 'Server name may only contain letters, digits, - and _',
+  'URL 不能为空': 'URL is required',
+  'URL 无效：{detail}': 'Invalid URL: {detail}',
+  '命令不能为空': 'Command is required',
+  '必填项缺失：{detail}': 'Required field missing: {detail}',
+  '定义数量超出上限': 'Too many definitions',
+  '模板花括号不匹配': 'Template braces do not match',
+  '标签重复：{detail}': 'Duplicate tag: {detail}',
+  '示例 ID 重复：{detail}': 'Duplicate example id: {detail}',
+  '能力清单不可用：{detail}': 'Capability manifest unavailable: {detail}',
+  'Pi 内核未运行': 'Pi kernel is not running',
+  '拉起内核失败：{detail}': 'Failed to start the kernel: {detail}',
+  '权限不足，当前账户无法访问该文件或目录。请换一个可写路径，或在系统设置里授予访问权限后重试。':
+    'Permission denied: this account cannot access that file or folder. Choose a writable path, or grant access in System Settings, then retry.',
+  '找不到对应的文件或命令。请确认路径是否正确，或重新选择文件后再试。':
+    'The file or command could not be found. Check the path, or choose the file again, then retry.',
+  '等待后端响应超时。请稍后重试；若一直超时，重启应用再试。':
+    'The back end did not respond in time. Try again shortly; if it keeps timing out, restart the app.',
+  '网络连接失败，无法访问目标服务。请检查网络与地址配置后重试。':
+    'Network connection failed and the target service is unreachable. Check your network and address settings, then retry.',
+  '当前版本还不支持这个操作。请更新到最新版本后重试。':
+    'This version does not support that action yet. Update to the latest version and try again.',
+  '资源正被占用，另一个操作可能还没结束。请稍候重试。':
+    'A resource is busy, likely because another action is still running. Wait a moment and retry.',
+  '{action}失败：{reason}': 'Failed to {action}: {reason}',
+  '{action}失败：{detail}。请重试；若持续出现，可在日志里查看详细信息。':
+    'Failed to {action}: {detail}. Try again; if it keeps happening, check the logs for details.',
+  '{action}失败：发生了未预期的错误。请重试；若持续出现，可在日志里查看详细信息。':
+    'Failed to {action}: something unexpected happened. Try again; if it keeps happening, check the logs for details.',
+}

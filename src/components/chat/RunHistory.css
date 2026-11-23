@@ -1,5 +1,6 @@
 /* 运行记录列表：侧栏 / 过程抽屉共用一块板子，样式只随主题变量走。
- * 对齐 WorkBuddy：无整行标题、条目无前导图标；hover 整行高亮，右侧才露「···」。 */
+ * 对齐 WorkBuddy：无整行标题、行首只留 12px 置顶槽；hover 整行高亮，
+ * 当前会话浅强调底 + 标题加重，右侧才露「···」。 */
 
 .run-history {
   display: flex;
@@ -14,47 +15,92 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--sp-1);
 }
 
 .rh-item {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-2);
   width: 100%;
-  padding: 7px 8px;
+  min-height: 30px;
+  padding: var(--sp-1) var(--sp-2);
   border: 1px solid transparent;
-  border-radius: var(--r-sm);
-  font-size: 12.5px;
+  border-radius: var(--r);
+  /* WorkBuddy 紧凑行：14px 标题 + 30px 行高。与项目行同一字号，
+     嵌套列表不再出现 13/14 两种标题。 */
+  font-size: var(--fs-body);
+  line-height: var(--lh-tight);
   color: var(--text);
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
-.rh-item:hover,
+/* hover 只提一层底色 + 最弱描边：边框用 --border-soft 而非 --border，
+   避免整行在 hover 瞬间出现明显硬边（列表密集时像抖动）。 */
 .rh-item:focus-visible {
   background: var(--bg-hover);
-  border-color: var(--border);
+  border-color: var(--border-soft);
   outline: none;
 }
+@media (hover: hover) {
+  .rh-item:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-soft);
+    outline: none;
+}
+}
 
-/* 批量多选态：勾中的行高亮（accent-dim 底 + accent 边），与 hover 态区分 */
+.rh-item:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+/* 批量多选态：勾中的行 two-tone —— 弱底 + 左边轨 2px（与侧栏项目行同一语言）。 */
 .rh-item.checked {
   background: var(--accent-dim);
   border-color: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* 选中 + 键盘焦点两条 box-shadow 会互相吃掉，这里显式合并。 */
+.rh-item.checked:focus-visible {
+  box-shadow: inset 2px 0 0 var(--accent), 0 0 0 2px var(--accent-soft);
+}
+
+/* 当前会话：浅强调底 + 标题加重（对齐 WorkBuddy 的 selected：只做这两件事）。
+   底色与 hover 的灰底区分；不改内边距与边框宽度，三态切换不位移。 */
+.rh-item.selected {
+  background: var(--bg-active);
+  border-color: transparent;
+}
+
+.rh-item.selected .rh-title {
+  font-weight: 600;
 }
 
 /* 归档记录：整行置灰，但仍可点开 / 取消归档（不是删除） */
 .rh-item.archived {
-  opacity: 0.55;
+  opacity: 0.6;
 }
 
-/* 置顶标记：行首星标（后端合并置顶，这里只做视觉确认） */
+/* 行首槽位固定 12px：置顶行放星标，普通行留空。
+   置顶星标若临时插入会把这行标题推右 20px，置顶/取消时整行文字横向跳动。 */
+.rh-lead {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
+}
+
+/* 置顶标记：星标（后端合并置顶，这里只做视觉确认）。
+   置顶是排序提示，没有成败语义，用中性弱色，占用的注意力让给状态色。 */
 .rh-pin {
   flex-shrink: 0;
-  color: var(--warn);
+  color: var(--text-faint);
 }
 
 /* 多选态行首 checkbox（公共 AppCheckbox，禁原生控件） */
@@ -62,9 +108,14 @@
   flex-shrink: 0;
 }
 
-/* 多选态下「···」让位给勾选，行高回落一点保持整齐 */
+/* 多选态下「···」让位给勾选，行高回落一点保持整齐；
+   勾选框本身占位，置顶槽不再重复留白。 */
 .rh-item:has(.rh-check) {
-  padding-left: 6px;
+  padding-left: var(--sp-1);
+}
+
+.rh-item:has(.rh-check) .rh-lead {
+  display: none;
 }
 
 .rh-title {
@@ -78,17 +129,42 @@
 .rh-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sp-1);
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--fs-xs);
   color: var(--text-faint);
 }
 
-/* hover 才显「···」（对齐 WorkBuddy：常态不占空间，鼠标滑上去才露操作入口） */
+/* 运行中：持续旋转的状态图标（不占固定宽度，结束时整块消失）。 */
+.rh-live {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent);
+  animation: rh-spin var(--loop-spin) linear infinite;
+}
+
+/* 全局 44px 命中扩展伪元素会盖住行尾徽标；紧凑行内退回按钮自身几何。 */
+@keyframes rh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rh-live {
+    animation-duration: 3s;
+  }
+}
+
+/* hover 才显「···」（常态不占视觉空间，滑上才露操作入口）。 */
 .rh-more-btn {
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
+  /* 图标键 20px：28px 的公共图标键会把 30px 行撑到 36px。
+     公共图标键的内容盒比按钮宽，不裁掉会把列表 scrollWidth 顶出 3px。 */
+  min-height: 20px;
+  overflow: hidden;
   display: grid;
   place-items: center;
   border: 0;
@@ -96,20 +172,31 @@
   background: transparent;
   color: var(--text-faint);
   opacity: 0;
-  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition: opacity var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 
-.rh-item:hover .rh-more-btn,
+/* 全局 44px 命中扩展伪元素会盖住行尾按钮；紧凑行内退回按钮自身几何。 */
+.rh-more-btn::before {
+  pointer-events: none;
+}
+
 .rh-item:focus-within .rh-more-btn {
   opacity: 1;
 }
 
-.rh-more-btn:hover {
-  background: var(--bg-active);
-  color: var(--text);
+@media (hover: hover) {
+  .rh-item:hover .rh-more-btn {
+    opacity: 1;
+  }
+
+  .rh-more-btn:hover {
+    background: var(--bg-active);
+    color: var(--text);
+  }
 }
 
-/* 「···」菜单本体样式已抽到 ui/ContextMenu.css（与侧栏项目菜单共用） */
+/* 菜单本体样式已抽到 ui/ContextMenu.css（与侧栏项目菜单共用）。 */
 
 /* 行内 toast：Teleport 到 body 的固定底栏，2.6s 自消失 */
 .rh-toast {
@@ -119,12 +206,13 @@
   transform: translateX(-50%);
   z-index: 60;
   margin: 0;
-  padding: 7px 14px;
-  border: 1px solid var(--border);
+  padding: var(--sp-1) var(--sp-3);
+  /* 浮层：--sh-2 内含 hairline，不再叠 border。 */
+  border: 0;
   border-radius: var(--r-full);
   background: var(--bg-elev);
   box-shadow: var(--sh-2);
-  font-size: 12.5px;
+  font-size: var(--fs-base);
   color: var(--text);
   pointer-events: none;
 }
@@ -133,22 +221,22 @@
 .rh-dialog-row {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 12.5px;
+  gap: var(--sp-1);
+  font-size: var(--fs-base);
   color: var(--text-dim);
 }
 
 .rh-dialog-text {
   margin: 0;
-  font-size: 12.5px;
-  line-height: 1.7;
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
   color: var(--text-dim);
 }
 
 .rh-btn {
-  padding: 6px 14px;
+  padding: var(--sp-1) var(--sp-3);
   border-radius: var(--r-sm);
-  font-size: 12.5px;
+  font-size: var(--fs-base);
 }
 
 .rh-btn.primary {
@@ -157,10 +245,13 @@
   color: var(--accent-ink);
 }
 
-.rh-btn.primary:hover:not(:disabled) {
-  background: var(--accent);
-  border-color: var(--accent);
-  filter: brightness(1.08);
+@media (hover: hover) {
+
+  .rh-btn.primary:hover:not(:disabled) {
+    background: var(--accent);
+    border-color: var(--accent);
+    filter: brightness(1.08);
+}
 }
 
 .rh-btn.danger {
@@ -168,23 +259,26 @@
   border-color: var(--danger-soft);
 }
 
-.rh-btn.danger:hover:not(:disabled) {
-  background: var(--danger-soft);
-  border-color: var(--danger);
+@media (hover: hover) {
+
+  .rh-btn.danger:hover:not(:disabled) {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+}
 }
 
 /* 分享降级：手动复制的摘要文本（等宽 + 保换行 + 限高滚动） */
 .rh-share-pre {
   max-height: 220px;
   overflow: auto;
-  margin: 10px 0 0;
-  padding: 10px;
+  margin: var(--sp-2) 0 0;
+  padding: var(--sp-2);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   background: var(--bg);
   font-family: var(--mono);
-  font-size: 11.5px;
-  line-height: 1.6;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-code);
   color: var(--text-dim);
   white-space: pre-wrap;
   word-break: break-all;
@@ -193,14 +287,17 @@
 
 .rh-more {
   align-self: flex-start;
-  padding: 4px 10px;
+  padding: var(--sp-1) var(--sp-2);
   border-radius: var(--r-sm);
-  font-size: 12px;
+  font-size: var(--fs-sm);
   color: var(--text-dim);
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
-.rh-more:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .rh-more:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }

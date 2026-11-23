@@ -1,0 +1,300 @@
+/* 运行链路全景图：节点卡 + 左侧轨道连线。所有颜色/间距走既有令牌。 */
+.run-graph {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-panel);
+  min-width: 0;
+}
+
+.rg-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.rg-title-main {
+  font-size: var(--fs-meta);
+  color: var(--text);
+  font-weight: 600;
+  flex: none;
+}
+
+.rg-summary {
+  font-size: var(--fs-micro);
+  color: var(--text-dim);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  flex: 1 1 auto;
+}
+
+.rg-duration {
+  font-size: var(--fs-micro);
+  color: var(--text-faint);
+  font-family: var(--mono);
+  flex: none;
+}
+
+.rg-trunk {
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--fs-micro);
+  padding: 2px var(--sp-2);
+  cursor: pointer;
+}
+
+.rg-trunk:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.rg-note {
+  margin: 0;
+  font-size: var(--fs-micro);
+  color: var(--warn);
+  line-height: var(--lh-section);
+}
+
+.rg-host {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.rg-svg {
+  display: block;
+  width: 100%;
+}
+
+/* ── 连线：只走节点左侧的独立轨道，任何宽度都不会压到节点 ── */
+.rg-rail {
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+
+.rg-rail.is-handoff {
+  stroke: var(--warn);
+  stroke-dasharray: 3 3;
+}
+
+.rg-stub {
+  stroke: var(--border-strong);
+  stroke-width: 1.5;
+}
+
+.rg-arrow {
+  fill: var(--border-strong);
+  stroke: none;
+}
+
+.rg-lane {
+  font-size: var(--fs-micro);
+  fill: var(--text-dim);
+  font-weight: 600;
+}
+
+.rg-lane-rule {
+  stroke: var(--border-soft);
+  stroke-width: 1;
+}
+
+.rg-handoff-text {
+  font-size: var(--fs-micro);
+  fill: var(--warn);
+}
+
+/* ── 节点卡 ── */
+.rg-node {
+  cursor: pointer;
+}
+
+.rg-box {
+  fill: var(--bg-elev);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.rg-node:hover .rg-box,
+.rg-node.is-selected .rg-box {
+  stroke: var(--accent);
+}
+
+.rg-node.is-selected .rg-box {
+  stroke-width: 1.5;
+}
+
+.rg-bar {
+  fill: var(--text-faint);
+}
+
+/* 层级：主干（请求/内核/结束）用底板色退后，模型/专家用主色，工具保持中性灰。 */
+.rg-node.is-backbone .rg-box {
+  fill: var(--bg);
+  stroke: var(--border-soft);
+}
+
+.rg-node.is-backbone .rg-node-title {
+  fill: var(--text-dim);
+  font-weight: 500;
+}
+
+.rg-node.is-backbone .rg-bar {
+  fill: var(--border-strong);
+}
+
+.rg-node.is-model .rg-bar,
+.rg-node.is-expert .rg-bar {
+  fill: var(--accent);
+}
+
+.rg-node.is-run .rg-bar {
+  fill: var(--accent);
+}
+
+.rg-node.is-failed .rg-bar {
+  fill: var(--danger);
+}
+
+.rg-node.is-blocked .rg-bar,
+.rg-node.is-timeout .rg-bar {
+  fill: var(--warn);
+}
+
+.rg-node.is-cancelled .rg-bar {
+  fill: var(--text-faint);
+}
+
+.rg-node.is-failed .rg-box {
+  stroke: var(--danger);
+}
+
+.rg-node.is-blocked .rg-box,
+.rg-node.is-timeout .rg-box {
+  stroke: var(--warn);
+}
+
+.rg-node.is-long .rg-box {
+  stroke: var(--accent);
+  stroke-dasharray: 4 2;
+}
+
+.rg-node-title {
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  fill: var(--text);
+}
+
+/* 副行 = 这一步在干什么；耗时单独贴右，与页面其它数值同源（--text-faint + tabular-nums）。 */
+.rg-node-meta {
+  font-size: var(--fs-micro);
+  fill: var(--text-dim);
+}
+
+.rg-node-dur {
+  font-size: var(--fs-micro);
+  fill: var(--text-faint);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.rg-node.is-failed .rg-node-meta {
+  fill: var(--danger);
+}
+
+.rg-node.is-blocked .rg-node-meta,
+.rg-node.is-timeout .rg-node-meta {
+  fill: var(--warn);
+}
+
+/* ── 点开节点后的细节（HTML，不塞进 SVG，长文本可滚） ── */
+.rg-detail {
+  border-top: 1px solid var(--border-soft);
+  padding-top: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+  /* 点节点后 scrollIntoView({block:'nearest'})：留出与图边缘的呼吸。 */
+  scroll-margin: var(--sp-3);
+}
+
+.rg-detail-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.rg-detail-title {
+  font-size: var(--fs-meta);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.rg-detail-meta {
+  font-size: var(--fs-micro);
+  color: var(--text-dim);
+  font-family: var(--mono);
+}
+
+.rg-detail-body {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--sp-1) var(--sp-2);
+  font-size: var(--fs-micro);
+}
+
+.rg-detail-body dt {
+  color: var(--text-faint);
+}
+
+.rg-detail-body dd {
+  margin: 0;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.rg-detail-body dd.is-error {
+  color: var(--danger);
+}
+
+/* 空值不写 `—`：把「没有数据」的原因写出来，否则读者分不清是没渲染还是没数据。 */
+.rg-detail-body dd.is-why {
+  color: var(--text-faint);
+}
+
+/* 参数 / stdout / 原始事件：限高自滚动。右侧面板空间窄，压到 96/112px
+   （原 160/180px 会把一屏挤成两行 JSON，对齐 WorkBuddy 紧凑详情）。 */
+.rg-pre,
+.rg-raw {
+  margin: 0;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  line-height: var(--lh-tight);
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.rg-pre {
+  max-height: 96px;
+}
+
+.rg-raw {
+  max-height: 112px;
+}

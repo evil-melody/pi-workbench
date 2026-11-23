@@ -14,7 +14,7 @@
   flex: 1;
   color: var(--text-dim);
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: var(--fs-micro);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -23,15 +23,96 @@
   flex: none;
   padding: 3px 9px;
   border: 1px solid var(--accent);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: transparent;
   color: var(--accent);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   cursor: pointer;
 }
 
-.ext:hover:not(:disabled) {
-  background: rgba(110, 168, 254, 0.14);
+/* ── #66 M9 工具条 ────────────────────────────────────────────
+ * 视图切换（预览/代码）与动作键（引用/复制/保存）同一族：
+ * hairline 描边 + elev 底，和 .ext 拉开层级但不再造第三种样式。 */
+.ap-seg {
+  display: inline-flex;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.ap-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+
+.ap-seg-btn + .ap-seg-btn {
+  border-left: 1px solid var(--border);
+}
+
+.ap-seg-btn.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.ap-act {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+
+  .ap-act:hover:not(:disabled),
+  .ap-seg-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+}
+
+.ap-act:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 复制失败之类的瞬时状态说明，走 status 语义而不是错误红。 */
+.ap-note {
+  margin: 0 0 8px;
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+}
+
+/* 源码视图：等宽、可滚动，不裁字。 */
+.ap-code {
+  max-height: 60vh;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-elev);
+}
+
+@media (hover: hover) {
+
+  .ext:hover:not(:disabled) {
+    background: var(--accent-soft);
+}
 }
 
 .ext:disabled {
@@ -45,7 +126,7 @@
   border-bottom: 1px solid var(--border);
   background: var(--bg-elev);
   color: var(--text-dim);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
 }
 
 .caveat b {
@@ -60,7 +141,7 @@
 .state {
   padding: 32px 0;
   color: var(--text-dim);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   text-align: center;
 }
 
@@ -74,7 +155,7 @@
   display: block;
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: var(--bg);
 }
 
@@ -91,7 +172,7 @@
 
 .md {
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   line-height: 1.65;
 }
 
@@ -99,7 +180,7 @@
 .md h2,
 .md h3 {
   margin: 16px 0 8px;
-  font-size: 15px;
+  font-size: var(--fs-section);
 }
 
 .md p {
@@ -107,24 +188,24 @@
 }
 
 .md code {
-  padding: 1px 4px;
-  border-radius: 4px;
+  padding: 1px var(--sp-2);
+  border-radius: var(--r-sm);
   background: var(--bg-elev);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .md pre {
   overflow: auto;
   padding: 10px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: var(--bg-elev);
 }
 
 .md pre code,
 .raw {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .raw {
@@ -135,21 +216,21 @@
 
 .office {
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   line-height: 1.65;
 }
 
 .office .sname {
   margin: 14px 0 6px;
   color: var(--text-dim);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   font-weight: 600;
 }
 
 /* sheet_to_html 生成的表格自带内联样式，这里只补边框与滚动。 */
 .office table {
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .office td,
@@ -164,8 +245,8 @@
 .trunc {
   margin: 10px 0 0;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: var(--bg-elev);
   color: var(--text-dim);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
 }

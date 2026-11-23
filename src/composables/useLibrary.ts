@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 /**
  * 资料库域前端封装。
  *
@@ -6,7 +7,7 @@
  *   library_read / library_write / library_create / library_import
  *   library_rename / library_move / library_remove / library_set_enabled
  *   library_publish / library_revisions / library_rollback
- *   library_search / library_open
+ *   library_search / library_open / library_bytes
  *
  * 界面上必须体现的四条语义（不是「记一下」，是真会报错的）：
  *   1. 停用的资产读正文一律被拒（library/disabled），历史任务引用也不例外；
@@ -15,6 +16,7 @@
  *   4. 单文件 50 MiB / 合计 5 GiB 由后端卡，前端只负责显示用量。
  */
 import { invoke } from '@tauri-apps/api/core'
+import { listOf } from '@/utils/ipc'
 
 export type AssetKind = 'markdown' | 'text' | 'html' | 'pdf' | 'docx' | 'pptx' | 'other'
 
@@ -73,6 +75,11 @@ export interface LibraryContent {
   total_bytes: number
 }
 
+export interface LibraryBytes {
+  kind: string
+  content: string
+}
+
 export interface LibraryStats {
   asset_count: number
   used_bytes: number
@@ -87,52 +94,80 @@ export interface LibraryRevision {
   size: number
 }
 
+/** 一批自动归档失败：保留源路径，用户可在资料库重试。 */
+export interface ArchiveFailure {
+  id: string
+  session_id: string
+  session_title: string
+  date: string
+  paths: string[]
+  error: string
+  at: number
+}
+
+export interface ArchiveReport {
+  imported: number
+  skipped: number
+  failed: number
+}
+
 /** 来源文案：写清楚这条资料是怎么进来的，别让用户猜。 */
-export const ORIGIN_TEXT: Record<string, string> = {
-  created: '新建',
-  imported: '导入',
-  written: '正文保存',
-  'draft-published': '草稿发布',
-  rollback: '回滚',
+export function originText(kind: string): string {
+  const table: Record<string, string> = {
+    created: t('新建'),
+    imported: t('导入'),
+    written: t('正文保存'),
+    'draft-published': t('草稿发布'),
+    rollback: t('回滚'),
+    'auto-archive': t('自动归档'),
+  }
+  return table[kind] ?? kind
 }
 
-export const KIND_TEXT: Record<string, string> = {
-  markdown: 'Markdown',
-  text: '文本',
-  html: 'HTML',
-  pdf: 'PDF',
-  docx: 'Word',
-  pptx: 'PPT',
-  other: '其它',
+export function kindText(kind: string): string {
+  const table: Record<string, string> = {
+    markdown: 'Markdown',
+    text: t('文本'),
+    html: 'HTML',
+    pdf: 'PDF',
+    docx: 'Word',
+    pptx: 'PPT',
+    other: t('其它'),
+  }
+  return table[kind] ?? kind
 }
 
-export const CONVERT_TEXT: Record<string, string> = {
-  ready: '可检索',
-  failed: '转换失败',
-  skipped: '未转换',
+export function convertStatusText(status: string): string {
+  const table: Record<string, string> = {
+    ready: t('可检索'),
+    failed: t('转换失败'),
+    skipped: t('未转换'),
+  }
+  return table[status] ?? status
 }
 
-export function describeLibraryError(err: unknown, fallback = '操作失败'): string {
+export function describeLibraryError(err: unknown, fallback = t('操作失败')): string {
   const raw = err instanceof Error ? err.message : typeof err === 'string' ? err : ''
   if (!raw) return fallback
   // 浏览器预览没有 Tauri IPC，invoke 会抛底层 TypeError；转成可读说明，
   // 而不是让它退化成一无所指的「操作失败」。
   if (raw.includes("reading 'invoke'") || raw.includes('__TAURI_INTERNALS__')) {
-    return '需在桌面 App（pnpm tauri dev）中运行：浏览器预览没有 Tauri 通道，资料库不可用。'
+    return t('需在桌面 App（pnpm tauri dev）中运行：浏览器预览没有 Tauri 通道，资料库不可用。')
   }
-  if (raw.includes('library/disabled')) return '该资料已停用，启用后才能读取正文'
-  if (raw.includes('library/not-found')) return '资料不存在，可能已被删除'
-  if (raw.includes('library/already-registered')) return '同一位置已经有同名资料了'
-  if (raw.includes('library/path-taken')) return '目标位置已存在同名文件'
-  if (raw.includes('library/path-invalid')) return '路径不合法：不允许空段、. 或 ..'
-  if (raw.includes('library/name-invalid')) return '名称不合法：不能含路径分隔符，且不能以点开头'
-  if (raw.includes('library/name-required')) return '请填写名称'
-  if (raw.includes('library/file-too-large')) return '文件超过 50 MiB 上限'
-  if (raw.includes('library/quotas-exceeded')) return '超过资料库 5 GiB 合计上限'
-  if (raw.includes('library/binary-body')) return '该格式不按文本读取，请用「打开原件」'
-  if (raw.includes('library/revision-missing')) return '该修订的快照已被清理'
-  if (raw.includes('library/source-missing')) return '导入的源文件已不存在'
-  if (raw.includes('library/missing')) return '原件缺失，可能已被外部删除'
+  if (raw.includes('library/disabled')) return t('该资料已停用，启用后才能读取正文')
+  if (raw.includes('library/not-found')) return t('资料不存在，可能已被删除')
+  if (raw.includes('library/already-registered')) return t('同一位置已经有同名资料了')
+  if (raw.includes('library/path-taken')) return t('目标位置已存在同名文件')
+  if (raw.includes('library/path-invalid')) return t('路径不合法：不允许空段、. 或 ..')
+  if (raw.includes('library/name-invalid')) return t('名称不合法：不能含路径分隔符，且不能以点开头')
+  if (raw.includes('library/name-required')) return t('请填写名称')
+  if (raw.includes('library/file-too-large')) return t('文件超过 50 MiB 上限')
+  if (raw.includes('library/quotas-exceeded')) return t('超过资料库 5 GiB 合计上限')
+  if (raw.includes('library/binary-body')) return t('该格式不按文本读取，请用「打开原件」')
+  if (raw.includes('library/too-large')) return t('文件超过 12 MiB 预览上限，请用「原件」打开')
+  if (raw.includes('library/revision-missing')) return t('该修订的快照已被清理')
+  if (raw.includes('library/source-missing')) return t('导入的源文件已不存在')
+  if (raw.includes('library/missing')) return t('原件缺失，可能已被外部删除')
   return fallback
 }
 
@@ -150,7 +185,7 @@ export function formatTime(ms: number): string {
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-export const libraryList = () => invoke<LibraryAssetView[]>('library_list')
+export const libraryList = () => listOf(invoke<LibraryAssetView[]>('library_list'))
 
 export const libraryMarks = (kind: 'recent' | 'written') =>
   invoke<LibraryAssetView[]>('library_marks', { kind })
@@ -175,7 +210,7 @@ export const libraryRename = (id: string, name: string) =>
   invoke<LibraryAssetView>('library_rename', { id, name })
 
 export const libraryMove = (id: string, targetDir: string) =>
-  invoke<LibraryAssetView>('library_move', { id, targetDir })
+  invoke<LibraryAssetView>('library_move', { id, target_dir: targetDir })
 
 export const libraryRemove = (id: string) => invoke<void>('library_remove', { id })
 
@@ -195,3 +230,27 @@ export const librarySearch = (query: string) =>
   invoke<LibraryHit[]>('library_search', { query })
 
 export const libraryOpen = (id: string) => invoke<void>('library_open', { id })
+
+export const libraryBytes = (id: string) => invoke<LibraryBytes>('library_bytes', { id })
+
+export const libraryArchiveSession = (
+  sessionId: string,
+  sessionTitle: string,
+  date: string,
+  paths: string[],
+) =>
+  invoke<ArchiveReport>('library_archive_session', {
+    session_id: sessionId,
+    session_title: sessionTitle,
+    date,
+    paths,
+  })
+
+export const libraryArchiveFailures = () =>
+  invoke<ArchiveFailure[]>('library_archive_failures')
+
+export const libraryArchiveRetry = (id: string) =>
+  invoke<ArchiveReport>('library_archive_retry', { id })
+
+export const libraryArchiveDismiss = (id: string) =>
+  invoke<void>('library_archive_dismiss', { id })

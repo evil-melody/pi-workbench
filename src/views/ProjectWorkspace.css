@@ -5,9 +5,16 @@
   height: 100%;
   min-height: 0;
   overflow: auto;
+  /* 页面壳定律：内容列统一封顶 --page-max 居中（页头 sticky 横条随壳收窄，
+     与其余页的整壳形态一致）。工具面同样随壳封顶：横切标签时内容边线不跳
+     （见 .pw.tool .pw-body 的既有注释——贴边曾导致整块左右位移）。 */
+  max-width: var(--page-max);
+  margin: 0 auto;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.5 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  line-height: var(--lh-body);
 }
 
 .pw-head {
@@ -16,27 +23,35 @@
   z-index: 5;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px 28px;
-  border-bottom: 1px solid var(--border);
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--page-x);
+  border-bottom: var(--stroke);
   background: var(--bg-panel);
 }
 
 .pw-back {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: var(--row-h);
+  height: var(--row-h);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r);
   background: var(--bg-elev);
   color: var(--text-dim);
   cursor: pointer;
 }
 
-.pw-back:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+/* 模式切换器贴右侧：标题列吃掉剩余空间，档位与「在对话中打开」并排。 */
+.pw-head .mode-switcher {
+  margin-left: auto;
+}
+
+@media (hover: hover) {
+
+  .pw-back:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 /* 读取失败 / 项目不存在时的兜底态：不静默隐藏整页，给一句人话和退路。 */
@@ -44,8 +59,8 @@
   display: grid;
   place-content: center;
   justify-items: center;
-  gap: 12px;
-  padding: 40px;
+  gap: var(--sp-3);
+  padding: var(--sp-8);
   text-align: center;
 }
 
@@ -56,14 +71,17 @@
 .pw-back-btn {
   padding: 8px 16px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r);
   background: var(--bg-elev);
   color: var(--text);
   cursor: pointer;
 }
 
-.pw-back-btn:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .pw-back-btn:hover {
+    background: var(--bg-hover);
+}
 }
 
 .pw-icon {
@@ -71,7 +89,7 @@
   place-items: center;
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: var(--r);
   background: var(--bg-elev);
   color: var(--text);
 }
@@ -83,7 +101,10 @@
 
 .pw-title strong {
   display: block;
-  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-section);
   font-weight: 600;
 }
 
@@ -93,131 +114,144 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .pw-open-chat {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border: 1px solid var(--border-strong);
-  border-radius: 9px;
-  background: var(--bg-elev);
-  color: var(--text);
-  font-size: 13px;
+  gap: var(--sp-1);
+  /* 与同页 .pw-primary 一致：主按钮横向内衬 16。 */
+  padding: 0 var(--sp-4);
+  border-radius: var(--r);
+  font-size: var(--fs-ui);
   cursor: pointer;
-}
-
-.pw-open-chat:hover {
-  background: var(--bg-hover);
 }
 
 .pw-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  padding: 12px 28px 0;
+  gap: var(--sp-2);
+  /* 元信息紧贴页头：它是标题的补充，不该单独占一条 12px 上边的带。 */
+  padding: var(--sp-2) var(--page-x) 0;
 }
 
 .pw-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 9px;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: var(--r-xl);
   background: var(--bg-panel);
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
+/* 路径与时间戳是只读元信息：不加描边、不加底色，避免被读成一个输入框。 */
 .pw-chip-path {
   font-family: var(--mono);
   max-width: 340px;
+  padding: 0;
+  border: 0;
+  background: none;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
 .pw-chip-muted {
-  border-style: dashed;
+  padding: 0;
+  border: 0;
+  background: none;
 }
 
 .pw-chip-btn {
   border: 0;
   background: transparent;
   color: var(--accent);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   cursor: pointer;
   padding: 0;
 }
 
 .pw-error,
 .pw-ok {
-  margin: 10px 28px 0;
-  padding: 8px 12px;
-  border-radius: 9px;
-  font-size: 13px;
+  margin: var(--sp-2) var(--page-x) 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r);
+  font-size: var(--fs-md);
 }
 
 .pw-error {
-  border: 1px solid var(--danger, #e5484d);
-  background: color-mix(in srgb, var(--danger, #e5484d) 10%, transparent);
-  color: var(--danger, #e5484d);
+  border: 1px solid var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
 }
 
 .pw-ok {
-  border: 1px solid var(--ok, #30a46c);
-  background: color-mix(in srgb, var(--ok, #30a46c) 10%, transparent);
-  color: var(--ok, #30a46c);
+  border: 1px solid var(--ok);
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+  color: var(--ok);
 }
 
+/* 标签页统一为胶囊分段（与资料库/能力中心同一形态），不再用下划线。 */
 .pw-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 14px 28px 0;
+  display: inline-flex;
+  gap: var(--sp-1);
+  margin: var(--sp-3) var(--page-x) 0;
+  padding: var(--sp-1);
+  border: var(--stroke);
+  /* 与能力中心/插件/资料库同一套分段容器。 */
+  border-radius: var(--r);
+  background: var(--bg-panel);
+  max-width: calc(100% - var(--page-x) * 2);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .pw-tab {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
+  gap: var(--sp-1);
+  /* 高度显式写 36：7px 上下内衬是旧值，且会被全局 button min-height 顶回。 */
+  height: var(--row-h);
+  padding: 0 var(--sp-3);
   border: 0;
-  border-radius: 9px 9px 0 0;
+  border-radius: var(--r);
   background: transparent;
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   cursor: pointer;
 }
 
-.pw-tab:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .pw-tab:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 .pw-tab.on {
   background: var(--bg-elev);
   color: var(--text);
-  font-weight: 500;
-  box-shadow: inset 0 -2px 0 var(--accent);
 }
 
 .pw-tab i {
   font-style: normal;
-  font-size: 11px;
-  padding: 0 5px;
-  border-radius: 8px;
+  font-size: var(--fs-micro);
+  padding: 0 var(--sp-1);
+  border-radius: var(--r);
   background: var(--bg-hover);
   color: var(--text-faint);
 }
 
 .pw-body {
-  margin: 0 28px 40px;
-  padding: 20px;
-  border: 1px solid var(--border);
-  border-top: 0;
-  border-radius: 0 0 12px 12px;
+  margin: var(--sp-3) var(--page-x) var(--page-bottom);
+  padding: var(--pad-card-lg);
+  border: var(--stroke);
+  border-radius: var(--r-lg);
   background: var(--bg-panel);
 }
 
@@ -233,7 +267,9 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  margin: 0;
+  /* 高度让给工具，但左右仍与 .pw-tabs 同缩进：原先 margin:0 让文件/浏览器
+     贴到侧栏边（截图 x197 vs 标签 x235），横切标签时内容整块左右跳。 */
+  margin: 0 var(--page-x);
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -243,37 +279,37 @@
 .pw-pane {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--sp-4);
 }
 
 .pw-pane-block {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--sp-2);
 }
 
 .pw-label {
-  font-size: 13px;
+  font-size: var(--fs-ui);
   font-weight: 600;
 }
 
 .pw-hint {
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .pw-hint code {
-  padding: 1px 5px;
-  border-radius: 4px;
+  padding: 2px var(--sp-1);
+  border-radius: var(--r-sm);
   background: var(--bg-elev);
   font-family: var(--mono);
 }
 
 /* ── token 预算条 ─────────────────────────────────────────────── */
 .pw-budget {
-  padding: 12px 14px;
+  padding: var(--sp-3) var(--sp-4);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r);
   background: var(--bg-elev);
 }
 
@@ -281,20 +317,25 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 13px;
+  margin-bottom: var(--sp-2);
+  font-size: var(--fs-ui);
 }
 
 .pw-budget-head span {
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   font-family: var(--mono);
 }
 
 .pw-bar {
-  height: 6px;
-  border-radius: 3px;
-  background: var(--bg-hover);
+  /* 只跟在右侧 token 计数下方，不横贯整卡；否则 3% 的填充看起来像一条下划线。 */
+  width: 240px;
+  max-width: 100%;
+  margin: var(--sp-2) 0 0 auto;
+  height: 4px;
+  border-radius: var(--r-sm);
+  /* 轨道必须比卡片亮一档，否则细填充会读成孤立的下划线。 */
+  background: var(--bg-active);
   overflow: hidden;
 }
 
@@ -303,48 +344,51 @@
   height: 100%;
   /* AUDIT-016②：宽度由模板经 --budget-w 传入（功能性动态值，豁免铁律）。 */
   width: var(--budget-w, 0%);
-  border-radius: 3px;
+  min-width: 3px;
+  border-radius: var(--r-sm);
   background: var(--accent);
-  transition: width 0.2s ease;
+  transition: width var(--dur) var(--ease);
 }
 
 .pw-budget.warn .pw-bar i {
-  background: var(--warn, #f5a524);
+  background: var(--warn);
 }
 
 .pw-budget.over .pw-bar i {
-  background: var(--danger, #e5484d);
+  background: var(--danger);
 }
 
 .pw-warn-text {
   display: block;
-  margin-top: 6px;
-  color: var(--danger, #e5484d);
-  font-size: 12px;
+  margin-top: var(--sp-2);
+  color: var(--danger);
+  font-size: var(--fs-meta);
 }
 
 /* ── 列表 ─────────────────────────────────────────────────────── */
 .pw-addrow {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--sp-2);
   flex-wrap: wrap;
 }
 
 .pw-addrow :deep(.app-input) {
   flex: 1;
   min-width: 140px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  padding: 9px 12px;
-  background: var(--bg-panel);
+  height: var(--row-h);
+  /* 与全站输入框同材质：field 底 + field 描边，按下不再是和面板同色的一块。 */
+  border: var(--stroke-field);
+  border-radius: var(--r);
+  padding: 0 var(--sp-3);
+  background: var(--bg-field);
   color: var(--text);
   outline: none;
-  font-size: 13px;
+  font-size: var(--fs-ui);
 }
 
 .pw-addrow :deep(.app-input:focus) {
-  border-color: var(--border-strong);
+  border-color: var(--accent);
 }
 
 .pw-asset-form :deep(.app-input) {
@@ -356,15 +400,15 @@
   margin: 0;
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r);
   overflow: hidden;
 }
 
 .pw-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 11px 14px;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
   border-bottom: 1px solid var(--border);
 }
 
@@ -372,8 +416,11 @@
   border-bottom: 0;
 }
 
-.pw-row:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .pw-row:hover {
+    background: var(--bg-hover);
+}
 }
 
 .pw-row-main {
@@ -383,65 +430,77 @@
 
 .pw-row-main strong {
   display: block;
-  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-ui);
   font-weight: 500;
 }
 
 .pw-row-main small {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .pw-row-del {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: var(--row-h);
+  height: var(--row-h);
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--r);
   background: transparent;
   color: var(--text-faint);
   cursor: pointer;
 }
 
-.pw-row-del:hover {
-  background: var(--bg-elev);
-  color: var(--text);
+@media (hover: hover) {
+
+  .pw-row-del:hover {
+    background: var(--bg-elev);
+    color: var(--text);
+}
 }
 
 .pw-empty {
   margin: 0;
-  padding: 28px;
+  padding: var(--sp-7);
   text-align: center;
   color: var(--text-faint);
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 
 .pw-pane-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--sp-3);
 }
 
 .pw-muted {
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .pw-primary {
-  padding: 9px 16px;
+  padding: 0 var(--sp-4);
   border: 0;
-  border-radius: 9px;
+  border-radius: var(--r);
   background: var(--accent);
   color: var(--accent-ink);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   cursor: pointer;
 }
 
-.pw-primary:hover:not(:disabled) {
-  filter: brightness(1.08);
+@media (hover: hover) {
+
+  .pw-primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+}
 }
 
 .pw-primary:disabled {
@@ -457,17 +516,17 @@
   margin: 0;
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--r);
   overflow: hidden;
 }
 
 .pw-activity li {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 14px;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-4);
   border-bottom: 1px solid var(--border);
-  font-size: 13px;
+  font-size: var(--fs-ui);
 }
 
 .pw-activity li:last-child {
@@ -476,20 +535,126 @@
 
 .pw-activity-kind {
   flex-shrink: 0;
-  padding: 1px 8px;
-  border-radius: 20px;
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-xl);
   background: var(--bg-elev);
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-micro);
 }
 
 .pw-activity-text {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pw-activity-time {
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   font-family: var(--mono);
+}
+
+/* 并行工作区入口：与「在对话中打开」同排，次要样式。 */
+.pw-open-wt {
+  flex: 0 0 auto;
+}
+
+/* 计划项筛选条 */
+.pw-filterbar {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 2px;
+}
+
+.pw-filter-note {
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+}
+
+/* 行内编辑：主区可点，光标提示「这是入口」而不是死文本。 */
+.pw-row-editable {
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .pw-row-editable:hover strong {
+    color: var(--accent);
+  }
+}
+
+/* 就地编辑弹窗字段 */
+.pw-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.pw-edit-field > span {
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+}
+
+.pw-edit-row {
+  display: flex;
+  gap: 10px;
+}
+
+.pw-edit-row .pw-edit-field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* D-04：390 下页头固定子项合计超过可用宽度，标题被压成 0；窄屏允许换行，
+   标题保底 140px，模式选择留在首行，「在对话中打开」落到第二行右对齐。
+   tab 条改为横向滚动，末位 tab 不再越界。 */
+@media (max-width: 640px) {
+  .pw-head {
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding: 12px var(--sp-4);
+  }
+
+  .pw-title {
+    flex: 1 1 140px;
+  }
+
+  .pw-head .mode-switcher {
+    margin-left: 0;
+  }
+
+  .pw-open-chat {
+    margin-left: auto;
+  }
+
+  .pw-meta {
+    padding: 12px var(--sp-4) 0;
+  }
+
+  .pw-chip-path {
+    max-width: 100%;
+    min-width: 0;
+    /* 390 下列宽 288 < 路径 314：允许换行显示全文，不做省略号截断。 */
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+  }
+
+  .pw-tabs {
+    flex-wrap: nowrap;
+    padding: 12px var(--sp-4) 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .pw-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pw-tab {
+    flex-shrink: 0;
+  }
 }

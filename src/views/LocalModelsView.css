@@ -1,0 +1,371 @@
+/**
+ * 本地模型页版式：引擎卡 / 路径卡 / 模型行 / 下载进度。
+ * 只引 base.css 令牌与 ui-kit.css 原语（.card / .empty-state / .skeleton），不另造材质。
+ */
+
+/* ── 顶部两列：引擎状态 + 路径规则 ──────────────────────────── */
+.lm-top {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--gap-card);
+  margin-top: var(--gap-card);
+}
+
+.lm-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+.lm-card-title {
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-section);
+  line-height: var(--lh-section);
+  font-weight: var(--fw-semibold);
+  color: var(--text);
+}
+
+.lm-card-head .lm-card-title {
+  margin: 0;
+}
+
+/* 四态指示点：运行 / 可接管 / 装了但起不来 / 未检测到 */
+.lm-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: var(--r-full);
+  background: var(--text-faint);
+}
+
+.lm-dot.is-live,
+.lm-dot.is-ok {
+  background: var(--ok);
+}
+
+.lm-dot.is-warn {
+  background: var(--warn);
+}
+
+.lm-dot.is-err {
+  background: var(--danger);
+}
+
+.lm-dot.is-checking {
+  animation: lm-pulse var(--loop-pulse) var(--ease) infinite;
+}
+
+@keyframes lm-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.lm-state {
+  margin-left: auto;
+  padding: 1px var(--sp-2);
+  border-radius: var(--r-full);
+  background: var(--bg-hover);
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+  white-space: nowrap;
+}
+
+.lm-state.is-live,
+.lm-state.is-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.lm-state.is-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.lm-state.is-err {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* ── 事实表：标签 + 值，长路径可断行 ────────────────────────── */
+.lm-facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.lm-fact {
+  display: grid;
+  grid-template-columns: minmax(88px, auto) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--sp-2) var(--sp-3);
+}
+
+.lm-fact.is-column {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-1);
+}
+
+.lm-fact dt {
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+.lm-fact dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-dim);
+  font-size: var(--fs-ui);
+  line-height: var(--lh-meta);
+}
+
+.lm-mono {
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  word-break: break-all;
+}
+
+.lm-wrap {
+  word-break: break-word;
+}
+
+.lm-live {
+  color: var(--ok);
+}
+
+/* 引擎不可用的原因：可读文案，不是裸错误 */
+.lm-reason {
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+.lm-reason.is-muted {
+  background: var(--bg-panel);
+  color: var(--text-dim);
+}
+
+.lm-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.lm-hint {
+  margin: var(--sp-3) 0 0;
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+/* ── 接入 / 重启提示 ────────────────────────────────────────── */
+.lm-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--gap-card);
+  padding: var(--sp-3) var(--sp-4);
+  border: var(--stroke);
+  border-radius: var(--r-lg);
+  background: var(--accent-dim);
+}
+
+.lm-notice .app-icon {
+  flex: none;
+  color: var(--accent);
+}
+
+.lm-notice-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.lm-notice-title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
+}
+
+.lm-notice-hint {
+  margin: 2px 0 0;
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+.lm-count {
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+}
+
+/* ── 模型行：一列卡片，行内左信息右动作 ─────────────────────── */
+.lm-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lm-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
+.lm-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  flex: 1;
+  min-width: 0;
+}
+
+.lm-row-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.lm-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: var(--fs-body);
+  font-weight: var(--fw-semibold);
+}
+
+.lm-badge {
+  flex: none;
+  padding: 1px var(--sp-2);
+  border-radius: var(--r-sm);
+  background: var(--bg-hover);
+  color: var(--text-dim);
+  font-size: var(--fs-micro);
+}
+
+.lm-badge.is-live {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.lm-badge.is-warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.lm-badge.is-err {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.lm-row-meta {
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-meta);
+}
+
+.lm-row-actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: var(--sp-2);
+}
+
+.lm-row-error {
+  margin: var(--sp-1) 0 0;
+  color: var(--danger);
+  font-size: var(--fs-meta);
+}
+
+.lm-done {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  color: var(--ok);
+  font-size: var(--fs-meta);
+}
+
+/* ── 下载进度 ──────────────────────────────────────────────── */
+.lm-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  max-width: 560px;
+  margin-top: var(--sp-2);
+}
+
+.lm-progress-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+}
+
+.lm-bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--r-full);
+  background: var(--bg-hover);
+}
+
+.lm-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width var(--dur) var(--ease);
+}
+
+.lm-progress-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+}
+
+.lm-progress-msg {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--fs-meta);
+}
+
+/* ── 窄容器：两列收单列，行内动作落到第二行 ──────────────────── */
+@container (max-width: 860px) {
+  .lm-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lm-row {
+    flex-wrap: wrap;
+    row-gap: var(--sp-2);
+  }
+
+  .lm-row-main {
+    flex: 1 1 100%;
+  }
+
+  .lm-row-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .lm-notice {
+    flex-wrap: wrap;
+  }
+}

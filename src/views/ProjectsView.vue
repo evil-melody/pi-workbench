@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 /**
  * 项目主页 —— 卡片式项目列表与归档 / 绑定目录入口。
  *
@@ -15,6 +16,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { PICK_TIMEOUT_NOTE, pickDirectoryGuarded } from '@/composables/useDirPicker'
+import { timeAgo } from '@/utils/timeAgo'
 import {
   describeProjectError,
   type Project,
@@ -22,10 +24,11 @@ import {
   type ProjectTemplate as Template,
 } from '@/composables/useProject'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
-import AppModal from '@/components/ui/AppModal.vue'
+import { listOf } from '@/utils/ipc'
 
 const router = useRouter()
 
@@ -45,6 +48,7 @@ const pickingDir = ref(false)
 const dirError = ref('')
 const loadError = ref('')
 const createError = ref('')
+const loading = ref(true)
 
 const visible = computed(() => {
   const k = keyword.value.trim().toLowerCase()
@@ -56,12 +60,17 @@ const visible = computed(() => {
 })
 
 async function refresh() {
+  loading.value = true
   loadError.value = ''
   try {
-    projects.value = await invoke<Project[]>('projects_list')
+    projects.value = await listOf(invoke<Project[]>('projects_list'))
   } catch (e) {
     projects.value = []
-    loadError.value = `读取项目列表失败: ${e}`
+    // 浏览器预览无 Tauri IPC：原始 TypeError 对用户毫无信息量，降级成可操作的提示。
+    loadError.value =
+      typeof e === 'object' && e !== null && String((e as Error).message ?? '').includes('invoke')
+        ? t('项目数据存在本机，请在桌面 App 中查看。')
+        : t('读取项目列表失败: {0}', [e])
   }
   try {
     activeId.value = (await invoke<string | null>('project_active')) ?? null
@@ -69,10 +78,11 @@ async function refresh() {
     activeId.value = null
   }
   try {
-    templates.value = await invoke<Template[]>('projects_templates')
+    templates.value = await listOf(invoke<Template[]>('projects_templates'))
   } catch {
     templates.value = []
   }
+  loading.value = false
 }
 
 function openCreate(template?: Template) {
@@ -101,7 +111,7 @@ async function chooseDirectory() {
   const { dir, timedOut } = await pickDirectoryGuarded()
   pickingDir.value = false
   if (timedOut) {
-    dirError.value = PICK_TIMEOUT_NOTE
+    dirError.value = PICK_TIMEOUT_NOTE()
     return
   }
   if (dir) draftPath.value = dir
@@ -120,7 +130,7 @@ async function create() {
     const snap = await invoke<ProjectSnapshot>('project_add', {
       name,
       description: '',
-      templateId: draftTemplate.value || null,
+      template_id: draftTemplate.value || null,
       path: draftPath.value.trim() || null,
     })
     // 后端建项目时指令取自模板；用户在弹窗里改过就补一次配置修订，避免输入被丢掉。
@@ -131,8 +141,8 @@ async function create() {
         id: snap.project.id,
         instruction,
         capabilities: cfg.capabilities ?? [],
-        expectedRevisionId: cfg.id,
-        expectedRevisionNumber: cfg.number,
+        expected_revision_id: cfg.id,
+        expected_revision_number: cfg.number,
       }).catch(() => {})
     }
     await invoke('project_set_active', { id: snap.project.id }).catch(() => {})
@@ -140,21 +150,11 @@ async function create() {
     creating.value = false
     await refresh()
   } catch (e) {
-    createError.value = describeProjectError(e, `创建项目失败：${String(e)}`)
+    createError.value = describeProjectError(e, t('创建项目失败：{0}', [String(e)]))
   }
 }
 
-async function open(id: string) {
-  try {
-    await invoke('project_set_active', { id })
-  } catch {
-    /* 忽略 */
-  }
-  activeId.value = id
-  router.push('/chat')
-}
-
-function openWorkspace(id: string) {
+async function openWorkspace(id: string) {
   activeId.value = id
   router.push(`/projects/${id}`)
 }
@@ -175,40 +175,10 @@ async function unarchive(id: string) {
   }
 }
 
-/** 删除是不可逆操作（项目记录连同计划项/资产一起没了），必须二次确认。 */
-const removingId = ref<string | null>(null)
-const removeError = ref('')
-const removingName = computed(
-  () => projects.value.find((p) => p.id === removingId.value)?.name ?? '',
-)
-
-function askRemove(id: string) {
-  removeError.value = ''
-  removingId.value = id
-}
-
-async function doRemove() {
-  const id = removingId.value
-  if (!id) return
-  try {
-    projects.value = await invoke<Project[]>('project_remove', { id })
-    if (activeId.value === id) activeId.value = null
-    removingId.value = null
-  } catch (e) {
-    removeError.value = describeProjectError(e, `删除失败：${String(e)}`)
-  }
-}
-
 function stamp(ts?: number) {
-  if (!ts) return ''
-  const diff = Date.now() - ts
-  const min = 60_000
-  const hour = 60 * min
-  const day = 24 * hour
-  if (diff < min) return '刚刚'
-  if (diff < hour) return `${Math.floor(diff / min)} 分钟前`
-  if (diff < day) return `${Math.floor(diff / hour)} 小时前`
-  return new Date(ts).toLocaleDateString()
+  // 与侧栏/收件箱同一套相对时间，卡片不再各写一版（此前 3 天前会显示绝对日期）。
+  // 没有时间就返回空串，由模板决定不渲染这一行，而不是显示「更新于 —」。
+  return timeAgo(ts)
 }
 
 onMounted(refresh)
@@ -217,114 +187,128 @@ onMounted(refresh)
 <template>
   <section class="wd-projects">
     <div class="wd-p-center">
-      <p v-if="loadError" class="wd-p-load-error">{{ loadError }}</p>
-      <div class="wd-p-hero">
-        <div class="wd-p-hero-copy">
-          <h1>项目</h1>
-          <p>让资料、技能与 AI 任务，在项目中有序协作。</p>
-          <button class="wd-p-create" @click="openCreate()">
-            <AppIcon name="plus" :size="14" />
-            <span>新建项目</span>
-          </button>
+      <p v-if="loadError" class="state-error" role="alert">{{ loadError }}</p>
+      <!-- 页头一行：标题 + 说明 + 筛选 + 新建。原先 h1 与「我的项目」两层标题
+           在 168px 的 hero 里上下堆叠，筛选还被压到第二屏开头。 -->
+      <header class="wd-p-head">
+        <div class="wd-p-head-copy">
+          <h1>{{ t('项目') }}</h1>
+          <p>{{ t('让资料、技能与 AI 任务，在项目中有序协作。') }}</p>
         </div>
-        <div class="wd-p-hero-art" aria-hidden="true">
-          <span class="wd-p-art-node"><AppIcon name="file" :size="26" /></span>
-          <i />
-          <span class="wd-p-art-hub"><AppIcon name="share-network" :size="34" /></span>
-          <i />
-          <span class="wd-p-art-node"><AppIcon name="list" :size="26" /></span>
-        </div>
-      </div>
-
-      <div class="wd-p-section-head">
-        <h2>{{ status === 'active' ? '我的项目' : '已归档项目' }}</h2>
-        <div class="wd-p-center-filters">
+        <div class="wd-p-head-actions">
           <AppSelect
             v-model="status"
             :options="[
-              { value: 'active', label: '进行中' },
-              { value: 'archived', label: '已归档' },
+              { value: 'active', label: t('进行中') },
+              { value: 'archived', label: t('已归档') },
             ]"
           />
-          <AppInput v-model="keyword" placeholder="搜索项目" />
+          <AppInput v-model="keyword" class="wd-p-search" :placeholder="t('搜索项目')" />
+          <AppButton variant="primary" class="wd-p-create" @click="openCreate()">
+            <AppIcon name="plus" :size="14" />
+            <span>{{ t('新建项目') }}</span>
+          </AppButton>
+        </div>
+      </header>
+
+      <div
+        v-if="loading && !visible.length"
+        class="sk-list wd-p-panel"
+        role="status"
+        :aria-label="t('正在加载项目…')"
+      >
+        <div v-for="n in 3" :key="n" class="sk-row">
+          <span class="skeleton sk-ic-sm"></span>
+          <span class="skeleton sk-line sk-fill"></span>
+          <span class="skeleton sk-line w-20"></span>
+          <span class="skeleton sk-line w-10"></span>
         </div>
       </div>
 
-      <div class="wd-p-grid">
+      <!-- 列表与模板各收成一个容器：行之间用 hairline 分隔，不再每行一张卡。 -->
+      <section v-if="visible.length" class="wd-p-panel">
+        <header class="wd-p-panel-head">
+          <h2>{{ status === 'active' ? t('我的项目') : t('已归档项目') }}</h2>
+          <span class="wd-p-panel-count">{{ visible.length }}</span>
+        </header>
         <article
           v-for="p in visible"
           :key="p.id"
-          class="wd-p-card wd-p-project-card"
+          class="wd-p-row"
           :class="{ active: p.id === activeId }"
         >
-          <button class="wd-p-card-open" @click="openWorkspace(p.id)">
-            <span class="wd-p-card-icon"><AppIcon name="folder" :size="21" /></span>
-            <span>
-              <strong>{{ p.name }}</strong>
-              <small>
-                {{ p.path || '未绑定目录' }} · 更新于 {{ stamp(p.updated_at) }}
-              </small>
-            </span>
-          </button>
-          <button
+          <AppButton
+            variant="card"
+            class="wd-p-row-open"
+            :aria-current="p.id === activeId ? 'page' : undefined"
+            @click="openWorkspace(p.id)"
+          >
+            <AppIcon name="folder" :size="15" class="wd-p-row-icon" />
+            <strong :title="p.name">{{ p.name }}</strong>
+            <small v-if="p.path" class="wd-p-row-path" :title="p.path">{{ p.path }}</small>
+            <small v-if="stamp(p.updated_at)" class="wd-p-row-time">{{ stamp(p.updated_at) }}</small>
+          </AppButton>
+          <AppButton
             v-if="status === 'active'"
-            class="wd-p-card-archive"
-            title="归档"
+            variant="text"
+            class="wd-p-row-action"
+            :title="t('归档')"
             @click="archive(p.id)"
-          >
-            归档
-          </button>
-          <button
-            v-if="status === 'active'"
-            class="wd-p-card-chat"
-            title="在对话中打开"
-            @click.stop="open(p.id)"
-          >
-            <AppIcon name="chat" :size="14" />
-          </button>
-          <button v-else class="wd-p-card-archive" title="恢复" @click="unarchive(p.id)">恢复</button>
-          <button class="wd-p-card-del" title="删除项目" @click.stop="askRemove(p.id)">
-            <AppIcon name="trash" :size="14" />
-          </button>
+          >{{ t('归档') }}</AppButton>
+          <AppButton
+            v-else
+            variant="text"
+            class="wd-p-row-action"
+            :title="t('恢复')"
+            @click="unarchive(p.id)"
+          >{{ t('恢复') }}</AppButton>
         </article>
+      </section>
+
+      <div v-if="!loading && !visible.length" class="empty-state">
+        <span class="empty-icon"><AppIcon name="folder" :size="18" /></span>
+        <p class="empty-title">
+          {{ keyword ? t('没有匹配的项目') : projects.length ? t('没有已归档项目') : t('还没有项目') }}
+        </p>
+        <p class="empty-hint">{{ t('新建项目后，资料、技能与 AI 任务都在这里协同。') }}</p>
       </div>
 
-      <div v-if="!visible.length" class="wd-p-empty">
-        {{ keyword ? '没有匹配的项目' : projects.length ? '没有已归档项目' : '还没有项目' }}
-      </div>
-
-      <div class="wd-p-section-head">
-        <h2>从模板创建</h2>
-      </div>
-
-      <div class="wd-p-grid">
-        <button v-for="t in templates" :key="t.id" class="wd-p-card" @click="openCreate(t)">
-          <span class="wd-p-card-icon"><AppIcon name="sparkles" :size="21" /></span>
-          <span>
-            <strong>{{ t.name }}</strong>
-            <small>{{ t.description }}</small>
-          </span>
-        </button>
-      </div>
+      <section v-if="templates.length" class="wd-p-panel">
+        <header class="wd-p-panel-head">
+          <h2>{{ t('从模板创建') }}</h2>
+          <span class="wd-p-panel-count">{{ templates.length }}</span>
+        </header>
+        <AppButton
+          v-for="t in templates"
+          :key="t.id"
+          variant="card"
+          class="wd-p-row wd-p-row-open wd-p-template"
+          @click="openCreate(t)"
+        >
+          <AppIcon name="sparkles" :size="15" class="wd-p-row-icon" />
+          <strong>{{ t.name }}</strong>
+          <small class="wd-p-row-path">{{ t.description }}</small>
+        </AppButton>
+      </section>
     </div>
 
     <div v-if="creating" class="wd-p-modal-backdrop" @click.self="creating = false">
       <div class="wd-p-modal">
         <header>
-          <h2>新建项目</h2>
-          <button @click="creating = false"><AppIcon name="close" :size="15" /></button>
+          <h2>{{ t('新建项目') }}</h2>
+          <AppButton variant="icon" :aria-label="t('关闭新建项目')" @click="creating = false"><AppIcon name="close" :size="15" /></AppButton>
         </header>
         <div class="wd-p-modal-body wd-p-create-body">
           <label class="wd-p-create-label">
-            <b>项目名称</b>
-            <AppInput v-model="draftName" placeholder="请输入项目名称" />
+            <b>{{ t('项目名称') }}</b>
+            <AppInput v-model="draftName" :placeholder="t('请输入项目名称')" />
           </label>
           <div class="wd-p-create-instruction-head">
-            <b>模板</b>
+            <b>{{ t('模板') }}</b>
             <AppSelect
               :model-value="draftTemplate"
               :options="[
-                { value: '', label: '选择模板' },
+                { value: '', label: t('选择模板') },
                 ...templates.map((t) => ({ value: t.id, label: t.name })),
               ]"
               @update:model-value="applyTemplate"
@@ -334,55 +318,42 @@ onMounted(refresh)
             <AppTextarea
               v-model="draftInstruction"
               :rows="6"
-              placeholder="提供当前项目的背景信息和规范，让回答更精准；比如项目目标、团队习惯、风格偏好、输出约束等"
+              :placeholder="t('提供当前项目的背景信息和规范，让回答更精准；比如项目目标、团队习惯、风格偏好、输出约束等')"
             />
           </div>
           <label class="wd-p-create-label">
-            <b>目录（可选）</b>
+            <b>{{ t('目录（可选）') }}</b>
             <div class="wd-p-dir">
               <AppInput
                 v-model="draftPath"
-                placeholder="留空则不绑定目录，之后可在工作台里选择"
+                :placeholder="t('留空则不绑定目录，之后可在工作台里选择')"
                 mono
               />
-              <button
+              <AppButton
+                variant="secondary"
                 class="wd-p-dir-btn"
                 :disabled="pickingDir"
-                :title="pickingDir ? '正在选择…' : '打开系统目录选择器'"
+                :title="pickingDir ? t('正在选择…') : t('打开系统目录选择器')"
                 @click="chooseDirectory"
               >
                 <AppIcon name="folder" :size="14" />
-                <span>{{ pickingDir ? '选择中…' : '选择目录' }}</span>
-              </button>
-              <button v-if="draftPath" class="wd-p-dir-btn ghost" title="清除" @click="clearDirectory">
+                <span>{{ pickingDir ? t('选择中…') : t('选择目录') }}</span>
+              </AppButton>
+              <AppButton v-if="draftPath" variant="icon" class="wd-p-dir-btn ghost" :title="t('清除')" :aria-label="t('清除目录')" @click="clearDirectory">
                 <AppIcon name="close" :size="13" />
-              </button>
+              </AppButton>
             </div>
             <small v-if="dirError" class="wd-p-dir-error">{{ dirError }}</small>
           </label>
           <p v-if="createError" class="wd-p-dir-error">{{ createError }}</p>
         </div>
         <footer>
-          <span class="wd-p-muted">切换模板会覆盖当前名称和指令</span>
-          <button class="wd-p-outline" @click="creating = false">取消</button>
-          <button class="wd-p-primary" :disabled="!draftName.trim()" @click="create">确定</button>
+          <span class="wd-p-muted">{{ t('切换模板会覆盖当前名称和指令') }}</span>
+          <AppButton variant="secondary" class="wd-p-outline" @click="creating = false">{{ t('取消') }}</AppButton>
+          <AppButton variant="primary" class="wd-p-primary" :disabled="!draftName.trim()" @click="create">{{ t('确定') }}</AppButton>
         </footer>
       </div>
     </div>
-
-    <AppModal
-      :open="removingId !== null"
-      title="删除项目"
-      size="sm"
-      @close="removingId = null"
-    >
-      <p>删除「{{ removingName }}」会连同其计划项、资产与配置修订一起移除，无法恢复。</p>
-      <p v-if="removeError" class="wd-p-dir-error">{{ removeError }}</p>
-      <template #footer>
-        <button class="wd-p-outline" @click="removingId = null">取消</button>
-        <button class="wd-p-danger" @click="doRemove">确认删除</button>
-      </template>
-    </AppModal>
   </section>
 </template>
 

@@ -14,11 +14,13 @@
 .agent-ops {
   height: 100%;
   overflow-y: auto;
-  padding: var(--sp-6) var(--sp-7);
+  padding: var(--page-y) var(--page-x) var(--page-bottom);
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
-  max-width: 1100px;
+  /* 页面壳定律：内容列统一封顶 --page-max（旧 1100 硬编码与其余页边线不齐）。
+     独立路由已全部 redirect 进宿主页，此封顶只在非嵌入式兜底生效。 */
+  max-width: var(--page-max);
   margin: 0 auto;
   width: 100%;
 }
@@ -26,13 +28,31 @@
 /**
  * 内嵌进「能力中心 / 资料库」时：外层已有页面 padding 与标题层级，
  * 这里只保留内容本身的节奏，避免双层留白与空态过度下沉。
+ *
+ * 四个视图 scoped 里原来各写一份同样的三行（padding/max-width/height），
+ * 收拢到共享层一处；flex:1 让内嵌视图撑满外壳剩余高度——全屏窗口下
+ * 内容不再堆在上半截、下半页裸空（外核 .wd-market / .lib-memory-shell 已是 flex 列）。
  */
-.agent-ops.embedded .aops-empty {
-  margin-top: 0;
+.agent-ops.embedded {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  max-width: none;
 }
 
+.agent-ops.embedded .empty-state {
+  margin-top: 0;
+  /* 空态占满外壳剩余高度：图标与文案在真空区居中，不是贴上半截挂大片空白。
+     外层 .wd-market 是 height:100% 的非 flex 容器，flex:1 无处分配——
+     这里直接用视口剩余高度撑开（页头/子 tab 约 220px），全屏同样成立。 */
+  min-height: calc(100vh - 220px);
+}
+
+/* 标题统一由外层能力中心 .market-title 渲染（六个 tab 都在标签栏上方）。
+   内嵌视图保留副标题段落，但不再重复打印同名 h1。 */
 .agent-ops.embedded .aops-title h1 {
-  font-size: 18px;
+  display: none;
 }
 
 .aops-head {
@@ -47,17 +67,19 @@
 }
 
 .aops-title h1 {
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: 0.2px;
+  margin: 0;
+  font-size: var(--fs-xl);
+  line-height: var(--lh-page);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.2px;
 }
 
 .aops-title p {
-  margin: 6px 0 0;
+  margin: var(--sp-2) 0 0;
   max-width: 70ch;
   color: var(--text-dim);
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
 }
 
 .aops-meta {
@@ -75,32 +97,37 @@
  * 那些按钮会被压成方块、文字竖排换行（已复现并修复）。
  */
 .agent-ops .badge {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--r-full);
-  padding: 3px 10px;
+  padding: 2px var(--sp-2);
   white-space: nowrap;
 }
 
 .agent-ops .tool-btn {
-  width: 30px;
-  height: 30px;
+  /* 图标按钮统一 28：与 AppButton 的 v-icon 一致；--row-h 是 36 的文字按钮基座，
+     拿来做图标会把这排工具压成方块。 */
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
   padding: 0;
   border-radius: var(--r);
-  border: 1px solid var(--border);
+  border: var(--stroke);
   background: var(--bg-elev);
   color: var(--text-dim);
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
-.agent-ops .tool-btn:hover:not(:disabled) {
-  color: var(--text);
-  background: var(--bg-hover);
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .agent-ops .tool-btn:hover:not(:disabled) {
+    color: var(--text);
+    background: var(--bg-hover);
+    border-color: var(--border-strong);
+}
 }
 
 .aops-toolbar {
@@ -111,7 +138,7 @@
 }
 
 .aops-status {
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   color: var(--ok);
 }
 
@@ -122,11 +149,11 @@
 /* 行内 code：仅作用于本层视图内部，避免污染全局 */
 .agent-ops code {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
-  padding: 1px 5px;
+  padding: 2px var(--sp-1);
   color: var(--accent);
 }
 
@@ -134,29 +161,7 @@
   color: var(--text-dim);
 }
 
-.aops-empty {
-  margin-top: var(--sp-7);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: var(--sp-2);
-  color: var(--text-dim);
-  padding: var(--sp-7) var(--sp-4);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--r-lg);
-  background: var(--bg-panel);
-}
-
-.aops-empty .app-icon {
-  color: var(--text-faint);
-}
-
-.aops-empty strong {
-  color: var(--text);
-  font-size: 15px;
-  font-weight: 600;
-}
+/* 空态统一走 ui-kit 的 .empty-state；本层不再保留第三套空态。 */
 
 /**
  * 对话框内表单栅格：标签 + 控件两列。
@@ -174,7 +179,7 @@
 }
 
 .aops-row > span {
-  font-size: 13px;
+  font-size: var(--fs-ui);
   color: var(--text-dim);
 }
 
@@ -186,17 +191,21 @@
 
 /* 对话框内的次要按钮（取消）：`.agent-ops .tool-btn` 不覆盖 teleport 内容，故单列一个专属名。 */
 .aops-plain {
-  padding: 7px 12px;
+  height: var(--row-h);
+  padding: 0 var(--sp-3);
   border-radius: var(--r);
   border: 1px solid var(--border);
   background: var(--bg-elev);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
-.aops-plain:hover {
-  background: var(--bg-hover);
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .aops-plain:hover {
+    background: var(--bg-hover);
+    border-color: var(--border-strong);
+}
 }

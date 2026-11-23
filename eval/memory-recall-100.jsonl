@@ -1,0 +1,100 @@
+{"query":"电报体汇报","expect":"1780000000000-7f7b7b58","kind":"verbatim"}
+{"query":"汇报 结论","expect":"1780000000000-7f7b7b58","kind":"keyword"}
+{"query":"偏好","expect":"1780000000000-7f7b7b58","kind":"tag"}
+{"query":"说话简洁直接","expect":"1780000000000-7f7b7b58","kind":"paraphrase"}
+{"query":"不要用感叹号","expect":"1780086400000-bc36df0d","kind":"verbatim"}
+{"query":"感叹号 表情","expect":"1780086400000-bc36df0d","kind":"keyword"}
+{"query":"禁忌","expect":"1780086400000-bc36df0d","kind":"tag"}
+{"query":"别用 emoji","expect":"1780086400000-bc36df0d","kind":"paraphrase"}
+{"query":"单机可用的 Agent 宿主","expect":"1780172800000-13dfe6e8","kind":"verbatim"}
+{"query":"Agent 宿主","expect":"1780172800000-13dfe6e8","kind":"keyword"}
+{"query":"长期目标","expect":"1780172800000-13dfe6e8","kind":"tag"}
+{"query":"想把产品做成桌面智能体平台","expect":"1780172800000-13dfe6e8","kind":"paraphrase"}
+{"query":"先给设计再动代码","expect":"1780259200000-30e4f1b1","kind":"verbatim"}
+{"query":"设计 代码","expect":"1780259200000-30e4f1b1","kind":"keyword"}
+{"query":"工作方式","expect":"1780259200000-30e4f1b1","kind":"tag"}
+{"query":"动手前先对齐方案","expect":"1780259200000-30e4f1b1","kind":"paraphrase"}
+{"query":"5432 端口","expect":"1780345600000-0d318961","kind":"verbatim"}
+{"query":"连接池上限","expect":"1780345600000-0d318961","kind":"keyword"}
+{"query":"排障","expect":"1780345600000-0d318961","kind":"tag"}
+{"query":"数据库连不上怎么办","expect":"1780345600000-0d318961","kind":"paraphrase"}
+{"query":"pnpm typecheck","expect":"1780432000000-21b8aa86","kind":"verbatim"}
+{"query":"cargo test","expect":"1780432000000-21b8aa86","kind":"keyword"}
+{"query":"流程","expect":"1780432000000-21b8aa86","kind":"tag"}
+{"query":"提交代码前的检查","expect":"1780432000000-21b8aa86","kind":"paraphrase"}
+{"query":"memory.jsonl","expect":"1780518400000-a6fd9663","kind":"verbatim"}
+{"query":".pi/memory","expect":"1780518400000-a6fd9663","kind":"keyword"}
+{"query":"记忆","expect":"1780518400000-a6fd9663","kind":"tag"}
+{"query":"记忆存在哪","expect":"1780518400000-a6fd9663","kind":"paraphrase"}
+{"query":"10 秒","expect":"1780604800000-0fc105c9","kind":"verbatim"}
+{"query":"暂停态不执行","expect":"1780604800000-0fc105c9","kind":"keyword"}
+{"query":"调度","expect":"1780604800000-0fc105c9","kind":"tag"}
+{"query":"定时任务多久检查一次","expect":"1780604800000-0fc105c9","kind":"paraphrase"}
+{"query":"单次运行计","expect":"1780691200000-d8549345","kind":"verbatim"}
+{"query":"下次运行前可改","expect":"1780691200000-d8549345","kind":"keyword"}
+{"query":"预授权","expect":"1780691200000-d8549345","kind":"tag"}
+{"query":"额度什么时候生效","expect":"1780691200000-d8549345","kind":"paraphrase"}
+{"query":"5 分钟","expect":"1780777600000-acc7ceb2","kind":"verbatim"}
+{"query":"自动回收","expect":"1780777600000-acc7ceb2","kind":"keyword"}
+{"query":"内核","expect":"1780777600000-acc7ceb2","kind":"tag"}
+{"query":"空闲进程会关掉吗","expect":"1780777600000-acc7ceb2","kind":"paraphrase"}
+{"query":"12 MiB","expect":"1780864000000-b5a08675","kind":"verbatim"}
+{"query":"Office 预览","expect":"1780864000000-b5a08675","kind":"keyword"}
+{"query":"资料库","expect":"1780864000000-b5a08675","kind":"tag"}
+{"query":"大文件预览限制","expect":"1780864000000-b5a08675","kind":"paraphrase"}
+{"query":"piVersion","expect":"1780950400000-b28120e1","kind":"verbatim"}
+{"query":"静默降级","expect":"1780950400000-b28120e1","kind":"keyword"}
+{"query":"版本","expect":"1780950400000-b28120e1","kind":"tag"}
+{"query":"内核版本对不上会怎样","expect":"1780950400000-b28120e1","kind":"paraphrase"}
+{"query":"中文回复","expect":"1781036800000-97419054","kind":"verbatim"}
+{"query":"代码注释","expect":"1781036800000-97419054","kind":"keyword"}
+{"query":"偏好","expect":"1781036800000-97419054","kind":"tag"}
+{"query":"说中文","expect":"1781036800000-97419054","kind":"paraphrase"}
+{"query":"current.md","expect":"1781123200000-cecfa089","kind":"verbatim"}
+{"query":"role 注释","expect":"1781123200000-cecfa089","kind":"keyword"}
+{"query":"角色","expect":"1781123200000-cecfa089","kind":"tag"}
+{"query":"自定义角色怎么写","expect":"1781123200000-cecfa089","kind":"paraphrase"}
+{"query":"skills/","expect":"1781209600000-9110b70d","kind":"verbatim"}
+{"query":".pi/skills","expect":"1781209600000-9110b70d","kind":"keyword"}
+{"query":"技能","expect":"1781209600000-9110b70d","kind":"tag"}
+{"query":"技能放哪里","expect":"1781209600000-9110b70d","kind":"paraphrase"}
+{"query":"mcp__ 前缀","expect":"1781296000000-0fb7bab8","kind":"verbatim"}
+{"query":"工具名注入","expect":"1781296000000-0fb7bab8","kind":"keyword"}
+{"query":"连接器","expect":"1781296000000-0fb7bab8","kind":"tag"}
+{"query":"外部工具怎么命名","expect":"1781296000000-0fb7bab8","kind":"paraphrase"}
+{"query":"驻留后台","expect":"1781382400000-e9f7c3b1","kind":"verbatim"}
+{"query":"关闭询问","expect":"1781382400000-e9f7c3b1","kind":"keyword"}
+{"query":"驻留","expect":"1781382400000-e9f7c3b1","kind":"tag"}
+{"query":"关窗口会退出吗","expect":"1781382400000-e9f7c3b1","kind":"paraphrase"}
+{"query":"登录项","expect":"1781468800000-b98edce3","kind":"verbatim"}
+{"query":"设置页开启","expect":"1781468800000-b98edce3","kind":"keyword"}
+{"query":"启动","expect":"1781468800000-b98edce3","kind":"tag"}
+{"query":"开机自启默认开吗","expect":"1781468800000-b98edce3","kind":"paraphrase"}
+{"query":"未读数","expect":"1781555200000-d2be3cb1","kind":"verbatim"}
+{"query":"后端计算","expect":"1781555200000-d2be3cb1","kind":"keyword"}
+{"query":"收件箱","expect":"1781555200000-d2be3cb1","kind":"tag"}
+{"query":"红点数字哪来的","expect":"1781555200000-d2be3cb1","kind":"paraphrase"}
+{"query":"60 秒退避","expect":"1781641600000-4b33a0c9","kind":"verbatim"}
+{"query":"上限 3 次","expect":"1781641600000-4b33a0c9","kind":"keyword"}
+{"query":"重试","expect":"1781641600000-4b33a0c9","kind":"tag"}
+{"query":"任务失败会重跑吗","expect":"1781641600000-4b33a0c9","kind":"paraphrase"}
+{"query":"越界写入","expect":"1781728000000-e2655def","kind":"verbatim"}
+{"query":"直接 block","expect":"1781728000000-e2655def","kind":"keyword"}
+{"query":"安全","expect":"1781728000000-e2655def","kind":"tag"}
+{"query":"写文件出项目目录","expect":"1781728000000-e2655def","kind":"paraphrase"}
+{"query":"LanceDB","expect":"1781814400000-b0c8e7fb","kind":"verbatim"}
+{"query":"外壳进程","expect":"1781814400000-b0c8e7fb","kind":"keyword"}
+{"query":"向量","expect":"1781814400000-b0c8e7fb","kind":"tag"}
+{"query":"语义检索在哪跑","expect":"1781814400000-b0c8e7fb","kind":"paraphrase"}
+{"query":"24 小时撤销","expect":"1781900800000-6e3ffe63","kind":"verbatim"}
+{"query":"到期硬失效","expect":"1781900800000-6e3ffe63","kind":"keyword"}
+{"query":"记忆","expect":"1781900800000-6e3ffe63","kind":"tag"}
+{"query":"删错了能恢复吗","expect":"1781900800000-6e3ffe63","kind":"paraphrase"}
+{"query":"结论与依据","expect":"1781987200000-b855d834","kind":"verbatim"}
+{"query":"过程复盘","expect":"1781987200000-b855d834","kind":"keyword"}
+{"query":"偏好","expect":"1781987200000-b855d834","kind":"tag"}
+{"query":"别写复盘","expect":"1781987200000-b855d834","kind":"paraphrase"}
+{"query":"Ollama","expect":"1782073600000-84c088ad","kind":"verbatim"}
+{"query":"语义打分不可用","expect":"1782073600000-84c088ad","kind":"keyword"}
+{"query":"环境","expect":"1782073600000-84c088ad","kind":"tag"}
+{"query":"本机能跑本地模型吗","expect":"1782073600000-84c088ad","kind":"paraphrase"}

@@ -1,6 +1,6 @@
 <template>
   <div class="tree">
-    <div class="thead">文件树</div>
+    <div class="thead">{{ t('文件树') }}</div>
     <ul v-if="nodes.length">
       <TreeNode
         v-for="n in nodes"
@@ -10,11 +10,12 @@
         @open="$emit('open', $event)"
       />
     </ul>
-    <div v-else class="hint">未加载，请先在「项目」页选择活动项目</div>
+    <div v-else class="hint">{{ t('未加载，请先在「项目」页选择活动项目') }}</div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { onMounted, ref, watch } from 'vue'
 import { fsReadDir, type FileNode } from '@/composables/useFs'
 import TreeNode from './TreeNode.vue'

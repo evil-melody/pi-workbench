@@ -1,0 +1,85 @@
+/**
+ * 本地模型页文案（英文对照）。键为中文原文，缺译时自动回退中文。
+ */
+export const localModels: Record<string, string> = {
+  '本地模型': 'Local models',
+  '接管本机已有的 llama.cpp 引擎，不随应用打包；模型与日志统一放在应用数据目录。':
+    'Uses the llama.cpp engine already installed on this machine. Nothing is bundled. Models and logs live under the app data directory.',
+  '重新探测': 'Probe again',
+  '打开模型目录': 'Open models folder',
+  '推理引擎': 'Inference engine',
+  '代码': 'Code',
+  '检测中…': 'Checking…',
+  '可接管': 'Ready to use',
+  '接入内核': 'Connect to kernel',
+  '精选目录': 'Curated catalog',
+  '可流畅': 'Runs smoothly',
+  '路径规则': 'Path rules',
+  '轻量': 'Lightweight',
+  '尚未启动过': 'Never started',
+  '使用中': 'In use',
+  '停止引擎': 'Stop engine',
+  '未检测到': 'Not detected',
+  '下载': 'Download',
+  '下载进度': 'Download progress',
+  '许可': 'License',
+  '已安装，但无法启动': 'Installed, but cannot start',
+  '引擎路径': 'Engine path',
+  '检查了 {n} 个候选位置': 'Checked {n} candidate locations',
+  '最近退出': 'Last exit',
+  '已运行': 'Running',
+  '运行状态': 'Runtime status',
+  '启动于 {time}': 'Started {time}',
+  '端口 {port}': 'Port {port}',
+  '已安装模型': 'Installed models',
+  '已下载': 'Downloaded',
+  '引擎日志': 'Engine log',
+  '正在使用 {name}': 'Using {name}',
+  '推荐先安装 llama.cpp：brew install llama.cpp；也可以把 llama-server 放进 PATH 或设置 PI_LLAMA_SERVER。':
+    'Install llama.cpp first (brew install llama.cpp), or put llama-server on PATH / set PI_LLAMA_SERVER.',
+  '模型目录': 'Models',
+  '应用数据目录': 'App data',
+  '暂无已安装模型，从下方精选目录下载一个开始。':
+    'No models installed yet. Download one from the curated catalog below.',
+  '启动并接入': 'Start & connect',
+  '确定删除 {name}？该操作不可恢复。': 'Delete {name}? This cannot be undone.',
+  '只收录核对过的开源 GGUF，不接在线搜索。':
+    'Only verified open-weight GGUF files. No online search.',
+  '已完成 {done} / {total}': '{done} of {total}',
+  '剩余 {time}': '{time} left',
+  '正在取消…': 'Cancelling…',
+  '接入后会把本地端点写入模型配置，需要重启 Pi 内核才会生效。':
+    'Connecting writes the local endpoint into your model settings. Restart the Pi kernel to apply it.',
+  '已接入「{name}」。': 'Connected “{name}”.',
+  '立即重启内核': 'Restart kernel now',
+  '重启中…': 'Restarting…',
+  '内核已重启，本地模型已生效。': 'Kernel restarted. The local model is active.',
+  '上下文低于 12k 时 Pi 的系统提示会超限，首次请求会失败；建议保持 16k 或更高。':
+    'Below 12k context the Pi system prompt exceeds the window and the first request fails; keep 16k or higher.',
+  '内核当前未运行，配置已写入；下次发送会自动用新模型启动。':
+    'The kernel is not running. The configuration is saved; the next message starts it with the new model.',
+  '重启失败：{message}': 'Restart failed: {message}',
+  '读取失败：{message}': 'Failed to load: {message}',
+  '共 {n} 个': '{n} total',
+  '启动中…': 'Starting…',
+  '停止中…': 'Stopping…',
+  '接入中…': 'Connecting…',
+  '首次使用前先安装 llama.cpp，或把已有 llama-server 加入 PATH。':
+    'Install llama.cpp first, or add your existing llama-server to PATH.',
+  '删除失败：{message}': 'Delete failed: {message}',
+  '操作失败：{message}': 'Action failed: {message}',
+  '启动失败：{message}': 'Start failed: {message}',
+  '国内镜像': 'China mirror',
+  '直连官方': 'Direct official',
+  '下载源：{source}': 'Source: {source}',
+  '源 {host}': 'via {host}',
+  '有任务仍在用启动时的下载源，切换只对之后的新任务生效。':
+    'Some tasks still use the source they started with; switching applies to new tasks only.',
+  '勉强够用': 'Tight fit',
+  '内存不足': 'Not enough memory',
+  '预计占用 {size}': 'Est. {size}',
+  '适配判断按 16k 上下文与本机内存 {memory} 估算，未计入其他应用占用。':
+    'Fit is estimated at 16k context against {memory} of system memory, excluding other apps.',
+  'Mac 为统一内存，GPU 与系统共用同一池。':
+    'On Mac, unified memory is shared by the GPU and the system.',
+}

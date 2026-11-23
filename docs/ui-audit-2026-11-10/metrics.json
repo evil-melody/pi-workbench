@@ -1,0 +1,5431 @@
+{
+  "generatedAt": "2026-11-10T08:53:22.766Z",
+  "base": "http://localhost:5199/",
+  "routes": [
+    {
+      "id": "chat-hero",
+      "hash": "#/chat",
+      "tag": "1440",
+      "file": "chat-hero-1440.png",
+      "errors": [],
+      "viewport": {
+        "w": 1440,
+        "h": 900
+      },
+      "doc": {
+        "scrollW": 1440,
+        "scrollH": 900
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 1180,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".chat-hero",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 1180,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".hero-input-wrap",
+          "box": {
+            "x": 490,
+            "y": 442,
+            "w": 720,
+            "h": 110.2
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "12px 12px 8px",
+          "gap": "8px",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 333
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 739,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 1,
+        "13px": 11,
+        "11px": 6,
+        "12px": 14,
+        "27px": 1,
+        "12.5px": 2,
+        "10px": 3
+      }
+    },
+    {
+      "id": "chat-conversation",
+      "hash": "#/chat",
+      "tag": "1440",
+      "file": "chat-conversation-1440.png",
+      "errors": [
+        "pageerror: t2 is not a function",
+        "pageerror: t2 is not a function"
+      ],
+      "viewport": {
+        "w": 1440,
+        "h": 900
+      },
+      "doc": {
+        "scrollW": 1440,
+        "scrollH": 900
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [
+        {
+          "sel": "span.ws-label <- button.app-btn.v-secondary",
+          "sw": 85,
+          "cw": 42,
+          "sh": 15,
+          "ch": 15,
+          "text": "pi-workbench"
+        }
+      ],
+      "clippedCount": 1,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.user-actions",
+          "w": 58,
+          "h": 21.9,
+          "text": "复制"
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.user-actions",
+          "w": 80,
+          "h": 21.9,
+          "text": "回到此处"
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.user-actions",
+          "w": 58,
+          "h": 21.9,
+          "text": "复制"
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.user-actions",
+          "w": 80,
+          "h": 21.9,
+          "text": "回到此处"
+        }
+      ],
+      "tinyCount": 11,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 1180,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".chat-header",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 1180,
+            "h": 57
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "10px 230px",
+          "gap": "8px",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".msgs",
+          "box": {
+            "x": 260,
+            "y": 57,
+            "w": 1180,
+            "h": 743
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "24px 230px 20px",
+          "gap": "20px",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".composer",
+          "box": {
+            "x": 260,
+            "y": 800,
+            "w": 1180,
+            "h": 100
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "6px 230px 12px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".composer-status",
+          "box": {
+            "x": 543,
+            "y": 854,
+            "w": 614,
+            "h": 20
+          },
+          "fontSize": "12px",
+          "lineHeight": "17.4px",
+          "padding": "0px",
+          "gap": "8px",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 333
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 739,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 1,
+        "13px": 7,
+        "11px": 15,
+        "12px": 16,
+        "12.5px": 3,
+        "10px": 3,
+        "14px": 6
+      }
+    },
+    {
+      "id": "projects",
+      "hash": "#/projects",
+      "tag": "1440",
+      "file": "projects-1440.png",
+      "errors": [],
+      "viewport": {
+        "w": 1440,
+        "h": 900
+      },
+      "doc": {
+        "scrollW": 1440,
+        "scrollH": 900
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [
+        {
+          "sel": "strong <- span",
+          "sw": 98,
+          "cw": 17,
+          "sh": 20,
+          "ch": 20,
+          "text": "产品需求全流程"
+        },
+        {
+          "sel": "small <- span",
+          "sw": 161,
+          "cw": 17,
+          "sh": 20,
+          "ch": 20,
+          "text": "未绑定目录 · 更新于 1970/1/1"
+        },
+        {
+          "sel": "strong <- span",
+          "sw": 93,
+          "cw": 17,
+          "sh": 20,
+          "ch": 20,
+          "text": "pi-workbench"
+        },
+        {
+          "sel": "small <- span",
+          "sw": 368,
+          "cw": 17,
+          "sh": 20,
+          "ch": 20,
+          "text": "/Users/tatsuma/Documents/GIT/pi-workbenc"
+        }
+      ],
+      "clippedCount": 4,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 1180,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 333
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 739,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 1,
+        "13px": 8,
+        "11px": 5,
+        "12px": 8,
+        "38px": 1,
+        "17px": 1,
+        "16px": 2,
+        "10px": 1,
+        "14px": 2
+      }
+    },
+    {
+      "id": "project-workspace",
+      "hash": "#/projects/p-flow-b",
+      "tag": "1440",
+      "file": "project-workspace-1440.png",
+      "errors": [],
+      "viewport": {
+        "w": 1440,
+        "h": 900
+      },
+      "doc": {
+        "scrollW": 1440,
+        "scrollH": 900
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 1180,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 333
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 739,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 2,
+        "13.5px": 1,
+        "13px": 19,
+        "11px": 5,
+        "12px": 13,
+        "10px": 1
+      }
+    },
+    {
+      "id": "inbox",
+      "hash": "#/inbox",
+      "tag": "1440",
+      "file": "inbox-1440.png",
+      "errors": [],
+      "viewport": {
+        "w": 1440,
+        "h": 900
+      },
+      "doc": {
+        "scrollW": 1440,
+        "scrollH": 900
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 1180,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 333
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 739,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 1,
+        "13px": 13,
+        "11px": 5,
+        "12px": 4,
+        "27px": 1,
+        "16px": 2
+      }
+    },
+    {
+      "id": "settings",
+      "hash": "#/settings",
+      "tag": "1440",
+      "file": "settings-1440.png",
+      "errors": [],
+      "viewport": {
+        "w": 1440,
+        "h": 900
+      },
+      "doc": {
+        "scrollW": 1440,
+        "scrollH": 900
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 1180,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 333
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 739,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 6,
+        "13px": 8,
+        "11px": 5,
+        "12px": 6,
+        "20px": 1,
+        "17px": 1,
+        "10px": 1
+      }
+    },
+    {
+      "id": "capabilities-team",
+      "hash": "#/capabilities?tab=team",
+      "tag": "1440",
+      "file": "capabilities-team-1440.png",
+      "errors": [
+        "pageerror: Cannot read properties of null (reading 'length')"
+      ],
+      "viewport": {
+        "w": 1440,
+        "h": 900
+      },
+      "doc": {
+        "scrollW": 1440,
+        "scrollH": 900
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 1180,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 333
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 739,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 1,
+        "13px": 15,
+        "11px": 5,
+        "12px": 6,
+        "18px": 1,
+        "11.5px": 1
+      }
+    },
+    {
+      "id": "capabilities-market",
+      "hash": "#/capabilities?tab=market",
+      "tag": "1440",
+      "file": "capabilities-market-1440.png",
+      "errors": [
+        "pageerror: Cannot read properties of null (reading 'length')"
+      ],
+      "viewport": {
+        "w": 1440,
+        "h": 900
+      },
+      "doc": {
+        "scrollW": 1440,
+        "scrollH": 900
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 1180,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 333
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 739,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 1,
+        "13px": 15,
+        "11px": 5,
+        "12px": 6,
+        "18px": 1,
+        "11.5px": 2
+      }
+    },
+    {
+      "id": "library",
+      "hash": "#/library",
+      "tag": "1440",
+      "file": "library-1440.png",
+      "errors": [],
+      "viewport": {
+        "w": 1440,
+        "h": 900
+      },
+      "doc": {
+        "scrollW": 1440,
+        "scrollH": 900
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 1180,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".lib-quota",
+          "box": {
+            "x": 300,
+            "y": 102.5,
+            "w": 420,
+            "h": 18
+          },
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "padding": "0px",
+          "gap": "10px",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 333
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 739,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 1,
+        "13px": 13,
+        "11px": 6,
+        "12px": 5,
+        "22px": 1,
+        "12.5px": 4,
+        "14px": 2
+      }
+    },
+    {
+      "id": "memory",
+      "hash": "#/memory",
+      "tag": "1440",
+      "file": "memory-1440.png",
+      "errors": [],
+      "viewport": {
+        "w": 1440,
+        "h": 900
+      },
+      "doc": {
+        "scrollW": 1440,
+        "scrollH": 900
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 1180,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 333
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 739,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 1,
+        "13px": 9,
+        "11px": 5,
+        "12px": 4,
+        "40px": 1,
+        "18px": 1
+      }
+    },
+    {
+      "id": "plugins",
+      "hash": "#/plugins",
+      "tag": "1440",
+      "file": "plugins-1440.png",
+      "errors": [],
+      "viewport": {
+        "w": 1440,
+        "h": 900
+      },
+      "doc": {
+        "scrollW": 1440,
+        "scrollH": 900
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.market-section-title",
+          "w": 75.5,
+          "h": 21,
+          "text": "全部启用 (1)"
+        }
+      ],
+      "tinyCount": 8,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 1180,
+            "h": 900
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 333
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 739,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 2,
+        "13.5px": 1,
+        "13px": 17,
+        "11px": 12,
+        "12px": 7,
+        "12.5px": 6,
+        "22px": 1,
+        "16px": 3,
+        "14px": 3,
+        "11.5px": 6,
+        "10.5px": 2
+      }
+    },
+    {
+      "id": "chat-hero",
+      "hash": "#/chat",
+      "tag": "1024",
+      "file": "chat-hero-1024.png",
+      "errors": [],
+      "viewport": {
+        "w": 1024,
+        "h": 768
+      },
+      "doc": {
+        "scrollW": 1024,
+        "scrollH": 768
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 764,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".chat-hero",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 764,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".hero-input-wrap",
+          "box": {
+            "x": 284,
+            "y": 376,
+            "w": 716,
+            "h": 110.2
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "12px 12px 8px",
+          "gap": "8px",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 201
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 607,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 1,
+        "13px": 11,
+        "11px": 6,
+        "12px": 14,
+        "27px": 1,
+        "12.5px": 2,
+        "10px": 3
+      }
+    },
+    {
+      "id": "chat-conversation",
+      "hash": "#/chat",
+      "tag": "1024",
+      "file": "chat-conversation-1024.png",
+      "errors": [
+        "pageerror: t2 is not a function",
+        "pageerror: t2 is not a function"
+      ],
+      "viewport": {
+        "w": 1024,
+        "h": 768
+      },
+      "doc": {
+        "scrollW": 1024,
+        "scrollH": 768
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.user-actions",
+          "w": 58,
+          "h": 21.9,
+          "text": "复制"
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.user-actions",
+          "w": 80,
+          "h": 21.9,
+          "text": "回到此处"
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.user-actions",
+          "w": 58,
+          "h": 21.9,
+          "text": "复制"
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.user-actions",
+          "w": 80,
+          "h": 21.9,
+          "text": "回到此处"
+        }
+      ],
+      "tinyCount": 11,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 764,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".chat-header",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 764,
+            "h": 57
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "10px 22px",
+          "gap": "8px",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".msgs",
+          "box": {
+            "x": 260,
+            "y": 57,
+            "w": 764,
+            "h": 611
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "24px 22px 20px",
+          "gap": "20px",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".composer",
+          "box": {
+            "x": 260,
+            "y": 668,
+            "w": 764,
+            "h": 100
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "6px 22px 12px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".composer-status",
+          "box": {
+            "x": 335,
+            "y": 722,
+            "w": 614,
+            "h": 20
+          },
+          "fontSize": "12px",
+          "lineHeight": "17.4px",
+          "padding": "0px",
+          "gap": "8px",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 201
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 607,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 1,
+        "13px": 7,
+        "11px": 15,
+        "12px": 11,
+        "12.5px": 3,
+        "10px": 3,
+        "14px": 6
+      }
+    },
+    {
+      "id": "projects",
+      "hash": "#/projects",
+      "tag": "1024",
+      "file": "projects-1024.png",
+      "errors": [],
+      "viewport": {
+        "w": 1024,
+        "h": 768
+      },
+      "doc": {
+        "scrollW": 1024,
+        "scrollH": 768
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [
+        {
+          "sel": "strong <- span",
+          "sw": 98,
+          "cw": 92,
+          "sh": 20,
+          "ch": 20,
+          "text": "产品需求全流程"
+        },
+        {
+          "sel": "small <- span",
+          "sw": 161,
+          "cw": 92,
+          "sh": 20,
+          "ch": 20,
+          "text": "未绑定目录 · 更新于 1970/1/1"
+        },
+        {
+          "sel": "small <- span",
+          "sw": 368,
+          "cw": 92,
+          "sh": 20,
+          "ch": 20,
+          "text": "/Users/tatsuma/Documents/GIT/pi-workbenc"
+        }
+      ],
+      "clippedCount": 3,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 764,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 201
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 607,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 1,
+        "13px": 8,
+        "11px": 5,
+        "12px": 8,
+        "38px": 1,
+        "17px": 1,
+        "16px": 2,
+        "10px": 1,
+        "14px": 2
+      }
+    },
+    {
+      "id": "project-workspace",
+      "hash": "#/projects/p-flow-b",
+      "tag": "1024",
+      "file": "project-workspace-1024.png",
+      "errors": [],
+      "viewport": {
+        "w": 1024,
+        "h": 768
+      },
+      "doc": {
+        "scrollW": 1024,
+        "scrollH": 768
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 764,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 201
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 607,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 2,
+        "13.5px": 1,
+        "13px": 19,
+        "11px": 5,
+        "12px": 13,
+        "10px": 1
+      }
+    },
+    {
+      "id": "inbox",
+      "hash": "#/inbox",
+      "tag": "1024",
+      "file": "inbox-1024.png",
+      "errors": [],
+      "viewport": {
+        "w": 1024,
+        "h": 768
+      },
+      "doc": {
+        "scrollW": 1024,
+        "scrollH": 768
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 764,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 201
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 607,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 1,
+        "13px": 13,
+        "11px": 5,
+        "12px": 4,
+        "27px": 1,
+        "16px": 2
+      }
+    },
+    {
+      "id": "settings",
+      "hash": "#/settings",
+      "tag": "1024",
+      "file": "settings-1024.png",
+      "errors": [],
+      "viewport": {
+        "w": 1024,
+        "h": 768
+      },
+      "doc": {
+        "scrollW": 1024,
+        "scrollH": 768
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 764,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 201
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 607,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 6,
+        "13px": 8,
+        "11px": 5,
+        "12px": 6,
+        "20px": 1,
+        "17px": 1,
+        "10px": 1
+      }
+    },
+    {
+      "id": "capabilities-team",
+      "hash": "#/capabilities?tab=team",
+      "tag": "1024",
+      "file": "capabilities-team-1024.png",
+      "errors": [
+        "pageerror: Cannot read properties of null (reading 'length')"
+      ],
+      "viewport": {
+        "w": 1024,
+        "h": 768
+      },
+      "doc": {
+        "scrollW": 1024,
+        "scrollH": 768
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 764,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 201
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 607,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 1,
+        "13px": 15,
+        "11px": 5,
+        "12px": 6,
+        "18px": 1,
+        "11.5px": 1
+      }
+    },
+    {
+      "id": "capabilities-market",
+      "hash": "#/capabilities?tab=market",
+      "tag": "1024",
+      "file": "capabilities-market-1024.png",
+      "errors": [
+        "pageerror: Cannot read properties of null (reading 'length')"
+      ],
+      "viewport": {
+        "w": 1024,
+        "h": 768
+      },
+      "doc": {
+        "scrollW": 1024,
+        "scrollH": 768
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 764,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 201
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 607,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 1,
+        "13px": 15,
+        "11px": 5,
+        "12px": 6,
+        "18px": 1,
+        "11.5px": 2
+      }
+    },
+    {
+      "id": "library",
+      "hash": "#/library",
+      "tag": "1024",
+      "file": "library-1024.png",
+      "errors": [],
+      "viewport": {
+        "w": 1024,
+        "h": 768
+      },
+      "doc": {
+        "scrollW": 1024,
+        "scrollH": 768
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 764,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".lib-quota",
+          "box": {
+            "x": 290.7,
+            "y": 102.5,
+            "w": 420,
+            "h": 18
+          },
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "padding": "0px",
+          "gap": "10px",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 201
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 607,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 1,
+        "13px": 13,
+        "11px": 6,
+        "12px": 5,
+        "22px": 1,
+        "12.5px": 4,
+        "14px": 2
+      }
+    },
+    {
+      "id": "memory",
+      "hash": "#/memory",
+      "tag": "1024",
+      "file": "memory-1024.png",
+      "errors": [],
+      "viewport": {
+        "w": 1024,
+        "h": 768
+      },
+      "doc": {
+        "scrollW": 1024,
+        "scrollH": 768
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        }
+      ],
+      "tinyCount": 7,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 764,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 201
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 607,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "13.5px": 1,
+        "13px": 9,
+        "11px": 5,
+        "12px": 4,
+        "40px": 1,
+        "18px": 1
+      }
+    },
+    {
+      "id": "plugins",
+      "hash": "#/plugins",
+      "tag": "1024",
+      "file": "plugins-1024.png",
+      "errors": [],
+      "viewport": {
+        "w": 1024,
+        "h": 768
+      },
+      "doc": {
+        "scrollW": 1024,
+        "scrollH": 768
+      },
+      "overflow": [],
+      "overflowCount": 0,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- div.ws-actions",
+          "w": 22,
+          "h": 22,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 16,
+          "h": 16,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- li.active",
+          "w": 20,
+          "h": 20,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.usage-card",
+          "w": 93,
+          "h": 20,
+          "text": "未接入余额计费"
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.market-section-title",
+          "w": 75.5,
+          "h": 21,
+          "text": "全部启用 (1)"
+        }
+      ],
+      "tinyCount": 8,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 260,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 260,
+            "y": 0,
+            "w": 764,
+            "h": 768
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".ws-list",
+          "box": {
+            "x": 12,
+            "y": 397,
+            "w": 235,
+            "h": 201
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".usage-card",
+          "box": {
+            "x": 6,
+            "y": 607,
+            "w": 247,
+            "h": 105
+          },
+          "fontSize": "12px",
+          "lineHeight": "18px",
+          "padding": "9px 10px",
+          "gap": "7px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "15px": 2,
+        "13.5px": 1,
+        "13px": 17,
+        "11px": 12,
+        "12px": 7,
+        "12.5px": 6,
+        "22px": 1,
+        "16px": 3,
+        "14px": 3,
+        "11.5px": 6,
+        "10.5px": 2
+      }
+    },
+    {
+      "id": "chat-hero",
+      "hash": "#/chat",
+      "tag": "768",
+      "file": "chat-hero-768.png",
+      "errors": [],
+      "viewport": {
+        "w": 768,
+        "h": 1024
+      },
+      "doc": {
+        "scrollW": 768,
+        "scrollH": 1024
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 961,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        }
+      ],
+      "overflowCount": 1,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 700,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".chat-hero",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 700,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".hero-input-wrap",
+          "box": {
+            "x": 92,
+            "y": 504,
+            "w": 652,
+            "h": 110.2
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "12px 12px 8px",
+          "gap": "8px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "27px": 1,
+        "13px": 4,
+        "12.5px": 2,
+        "10px": 3,
+        "12px": 10,
+        "11px": 1
+      }
+    },
+    {
+      "id": "chat-conversation",
+      "hash": "#/chat",
+      "tag": "768",
+      "file": "chat-conversation-768.png",
+      "errors": [],
+      "viewport": {
+        "w": 768,
+        "h": 1024
+      },
+      "doc": {
+        "scrollW": 768,
+        "scrollH": 1024
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 961,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        }
+      ],
+      "overflowCount": 1,
+      "clipped": [
+        {
+          "sel": "span.ws-label <- button.app-btn.v-secondary",
+          "sw": 85,
+          "cw": 71,
+          "sh": 15,
+          "ch": 15,
+          "text": "pi-workbench"
+        }
+      ],
+      "clippedCount": 1,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.user-actions",
+          "w": 58,
+          "h": 21.9,
+          "text": "复制"
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.user-actions",
+          "w": 80,
+          "h": 21.9,
+          "text": "回到此处"
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.user-actions",
+          "w": 58,
+          "h": 21.9,
+          "text": "复制"
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.user-actions",
+          "w": 80,
+          "h": 21.9,
+          "text": "回到此处"
+        }
+      ],
+      "tinyCount": 5,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 700,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".chat-header",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 700,
+            "h": 57
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "10px 16px",
+          "gap": "8px",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".msgs",
+          "box": {
+            "x": 68,
+            "y": 57,
+            "w": 700,
+            "h": 867
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "24px 16px 20px",
+          "gap": "20px",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".composer",
+          "box": {
+            "x": 68,
+            "y": 924,
+            "w": 700,
+            "h": 100
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "6px 16px 12px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".composer-status",
+          "box": {
+            "x": 137,
+            "y": 978,
+            "w": 562,
+            "h": 20
+          },
+          "fontSize": "12px",
+          "lineHeight": "17.4px",
+          "padding": "0px",
+          "gap": "8px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "12.5px": 3,
+        "10px": 3,
+        "12px": 7,
+        "14px": 6,
+        "11px": 10
+      }
+    },
+    {
+      "id": "projects",
+      "hash": "#/projects",
+      "tag": "768",
+      "file": "projects-768.png",
+      "errors": [],
+      "viewport": {
+        "w": 768,
+        "h": 1024
+      },
+      "doc": {
+        "scrollW": 768,
+        "scrollH": 1024
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 961,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        }
+      ],
+      "overflowCount": 1,
+      "clipped": [
+        {
+          "sel": "strong <- span",
+          "sw": 98,
+          "cw": 72,
+          "sh": 20,
+          "ch": 20,
+          "text": "产品需求全流程"
+        },
+        {
+          "sel": "small <- span",
+          "sw": 161,
+          "cw": 72,
+          "sh": 20,
+          "ch": 20,
+          "text": "未绑定目录 · 更新于 1970/1/1"
+        },
+        {
+          "sel": "strong <- span",
+          "sw": 93,
+          "cw": 72,
+          "sh": 20,
+          "ch": 20,
+          "text": "pi-workbench"
+        },
+        {
+          "sel": "small <- span",
+          "sw": 368,
+          "cw": 72,
+          "sh": 20,
+          "ch": 20,
+          "text": "/Users/tatsuma/Documents/GIT/pi-workbenc"
+        }
+      ],
+      "clippedCount": 4,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 700,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        }
+      ],
+      "fontSizes": {
+        "38px": 1,
+        "17px": 1,
+        "13px": 1,
+        "16px": 2,
+        "12px": 4,
+        "10px": 1,
+        "14px": 2
+      }
+    },
+    {
+      "id": "project-workspace",
+      "hash": "#/projects/p-flow-b",
+      "tag": "768",
+      "file": "project-workspace-768.png",
+      "errors": [],
+      "viewport": {
+        "w": 768,
+        "h": 1024
+      },
+      "doc": {
+        "scrollW": 768,
+        "scrollH": 1024
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 961,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        }
+      ],
+      "overflowCount": 1,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 700,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        }
+      ],
+      "fontSizes": {
+        "15px": 1,
+        "12px": 9,
+        "10px": 1,
+        "13px": 12
+      }
+    },
+    {
+      "id": "inbox",
+      "hash": "#/inbox",
+      "tag": "768",
+      "file": "inbox-768.png",
+      "errors": [],
+      "viewport": {
+        "w": 768,
+        "h": 1024
+      },
+      "doc": {
+        "scrollW": 768,
+        "scrollH": 1024
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 961,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        }
+      ],
+      "overflowCount": 1,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 700,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        }
+      ],
+      "fontSizes": {
+        "27px": 1,
+        "13px": 6,
+        "16px": 2
+      }
+    },
+    {
+      "id": "settings",
+      "hash": "#/settings",
+      "tag": "768",
+      "file": "settings-768.png",
+      "errors": [],
+      "viewport": {
+        "w": 768,
+        "h": 1024
+      },
+      "doc": {
+        "scrollW": 768,
+        "scrollH": 1024
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 961,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        }
+      ],
+      "overflowCount": 1,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 700,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        }
+      ],
+      "fontSizes": {
+        "20px": 1,
+        "13.5px": 5,
+        "17px": 1,
+        "13px": 1,
+        "12px": 2,
+        "10px": 1
+      }
+    },
+    {
+      "id": "capabilities-team",
+      "hash": "#/capabilities?tab=team",
+      "tag": "768",
+      "file": "capabilities-team-768.png",
+      "errors": [
+        "pageerror: Cannot read properties of null (reading 'length')"
+      ],
+      "viewport": {
+        "w": 768,
+        "h": 1024
+      },
+      "doc": {
+        "scrollW": 768,
+        "scrollH": 1024
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 961,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        }
+      ],
+      "overflowCount": 1,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 700,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        }
+      ],
+      "fontSizes": {
+        "13px": 8,
+        "18px": 1,
+        "11.5px": 1,
+        "12px": 2
+      }
+    },
+    {
+      "id": "capabilities-market",
+      "hash": "#/capabilities?tab=market",
+      "tag": "768",
+      "file": "capabilities-market-768.png",
+      "errors": [
+        "pageerror: Cannot read properties of null (reading 'length')"
+      ],
+      "viewport": {
+        "w": 768,
+        "h": 1024
+      },
+      "doc": {
+        "scrollW": 768,
+        "scrollH": 1024
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 961,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        }
+      ],
+      "overflowCount": 1,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 700,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        }
+      ],
+      "fontSizes": {
+        "13px": 8,
+        "18px": 1,
+        "11.5px": 2,
+        "12px": 2
+      }
+    },
+    {
+      "id": "library",
+      "hash": "#/library",
+      "tag": "768",
+      "file": "library-768.png",
+      "errors": [],
+      "viewport": {
+        "w": 768,
+        "h": 1024
+      },
+      "doc": {
+        "scrollW": 768,
+        "scrollH": 1024
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 961,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        }
+      ],
+      "overflowCount": 1,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 700,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".lib-quota",
+          "box": {
+            "x": 91,
+            "y": 102.5,
+            "w": 420,
+            "h": 18
+          },
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "padding": "0px",
+          "gap": "10px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "22px": 1,
+        "13px": 6,
+        "12px": 1,
+        "12.5px": 4,
+        "11px": 1,
+        "14px": 2
+      }
+    },
+    {
+      "id": "memory",
+      "hash": "#/memory",
+      "tag": "768",
+      "file": "memory-768.png",
+      "errors": [],
+      "viewport": {
+        "w": 768,
+        "h": 1024
+      },
+      "doc": {
+        "scrollW": 768,
+        "scrollH": 1024
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 961,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        }
+      ],
+      "overflowCount": 1,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 700,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        }
+      ],
+      "fontSizes": {
+        "40px": 1,
+        "18px": 1,
+        "13px": 2
+      }
+    },
+    {
+      "id": "plugins",
+      "hash": "#/plugins",
+      "tag": "768",
+      "file": "plugins-768.png",
+      "errors": [],
+      "viewport": {
+        "w": 768,
+        "h": 1024
+      },
+      "doc": {
+        "scrollW": 768,
+        "scrollH": 1024
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 961,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        }
+      ],
+      "overflowCount": 1,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.market-section-title",
+          "w": 75.5,
+          "h": 21,
+          "text": "全部启用 (1)"
+        }
+      ],
+      "tinyCount": 2,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 700,
+            "h": 1024
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        }
+      ],
+      "fontSizes": {
+        "12.5px": 6,
+        "22px": 1,
+        "13px": 10,
+        "15px": 1,
+        "12px": 3,
+        "11px": 7,
+        "16px": 3,
+        "14px": 3,
+        "11.5px": 6,
+        "10.5px": 2
+      }
+    },
+    {
+      "id": "chat-hero",
+      "hash": "#/chat",
+      "tag": "390",
+      "file": "chat-hero-390.png",
+      "errors": [],
+      "viewport": {
+        "w": 390,
+        "h": 844
+      },
+      "doc": {
+        "scrollW": 390,
+        "scrollH": 844
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 781,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        }
+      ],
+      "overflowCount": 1,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 322,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".chat-hero",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 322,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "hidden"
+        },
+        {
+          "sel": ".hero-input-wrap",
+          "box": {
+            "x": 84,
+            "y": 335,
+            "w": 290,
+            "h": 178.2
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "12px 12px 8px",
+          "gap": "8px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "18px": 1,
+        "13px": 4,
+        "12.5px": 2,
+        "10px": 3,
+        "12px": 10,
+        "11px": 1
+      }
+    },
+    {
+      "id": "chat-conversation",
+      "hash": "#/chat",
+      "tag": "390",
+      "file": "chat-conversation-390.png",
+      "errors": [],
+      "viewport": {
+        "w": 390,
+        "h": 844
+      },
+      "doc": {
+        "scrollW": 390,
+        "scrollH": 844
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 781,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        }
+      ],
+      "overflowCount": 1,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.user-actions",
+          "w": 58,
+          "h": 21.9,
+          "text": "复制"
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.user-actions",
+          "w": 80,
+          "h": 21.9,
+          "text": "回到此处"
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.user-actions",
+          "w": 58,
+          "h": 21.9,
+          "text": "复制"
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.user-actions",
+          "w": 80,
+          "h": 21.9,
+          "text": "回到此处"
+        }
+      ],
+      "tinyCount": 5,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 322,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".chat-header",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 322,
+            "h": 163
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "10px 16px",
+          "gap": "8px",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".msgs",
+          "box": {
+            "x": 68,
+            "y": 163,
+            "w": 322,
+            "h": 559
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "24px 16px 20px",
+          "gap": "20px",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".composer",
+          "box": {
+            "x": 68,
+            "y": 722,
+            "w": 322,
+            "h": 122
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "6px 16px 12px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".composer-status",
+          "box": {
+            "x": 137,
+            "y": 798,
+            "w": 184,
+            "h": 20
+          },
+          "fontSize": "12px",
+          "lineHeight": "17.4px",
+          "padding": "0px",
+          "gap": "8px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "12.5px": 3,
+        "10px": 3,
+        "12px": 7,
+        "14px": 6,
+        "11px": 10
+      }
+    },
+    {
+      "id": "projects",
+      "hash": "#/projects",
+      "tag": "390",
+      "file": "projects-390.png",
+      "errors": [],
+      "viewport": {
+        "w": 390,
+        "h": 844
+      },
+      "doc": {
+        "scrollW": 390,
+        "scrollH": 844
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 781,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        }
+      ],
+      "overflowCount": 1,
+      "clipped": [
+        {
+          "sel": "strong <- span",
+          "sw": 98,
+          "cw": 40,
+          "sh": 20,
+          "ch": 20,
+          "text": "产品需求全流程"
+        },
+        {
+          "sel": "small <- span",
+          "sw": 161,
+          "cw": 40,
+          "sh": 20,
+          "ch": 20,
+          "text": "未绑定目录 · 更新于 1970/1/1"
+        },
+        {
+          "sel": "strong <- span",
+          "sw": 93,
+          "cw": 40,
+          "sh": 20,
+          "ch": 20,
+          "text": "pi-workbench"
+        },
+        {
+          "sel": "small <- span",
+          "sw": 368,
+          "cw": 40,
+          "sh": 20,
+          "ch": 20,
+          "text": "/Users/tatsuma/Documents/GIT/pi-workbenc"
+        }
+      ],
+      "clippedCount": 4,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 322,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        }
+      ],
+      "fontSizes": {
+        "38px": 1,
+        "17px": 1,
+        "13px": 1,
+        "16px": 2,
+        "12px": 4,
+        "10px": 1,
+        "14px": 2
+      }
+    },
+    {
+      "id": "project-workspace",
+      "hash": "#/projects/p-flow-b",
+      "tag": "390",
+      "file": "project-workspace-390.png",
+      "errors": [],
+      "viewport": {
+        "w": 390,
+        "h": 844
+      },
+      "doc": {
+        "scrollW": 390,
+        "scrollH": 844
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 781,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        },
+        {
+          "sel": "button.app-btn.v-tab.s-md <- nav.pw-tabs",
+          "box": {
+            "x": 393,
+            "y": 216,
+            "w": 54,
+            "h": 32
+          },
+          "dir": "right"
+        },
+        {
+          "sel": "button.app-btn.v-tab.s-md <- nav.pw-tabs",
+          "box": {
+            "x": 451,
+            "y": 216,
+            "w": 54,
+            "h": 32
+          },
+          "dir": "right"
+        },
+        {
+          "sel": "button.app-btn.v-tab.s-md <- nav.pw-tabs",
+          "box": {
+            "x": 509,
+            "y": 216,
+            "w": 67,
+            "h": 32
+          },
+          "dir": "right"
+        }
+      ],
+      "overflowCount": 4,
+      "clipped": [
+        {
+          "sel": "span.pw-chip.pw-chip-path <- div.pw-meta",
+          "sw": 314,
+          "cw": 264,
+          "sh": 24,
+          "ch": 24,
+          "text": "/Users/tatsuma/Documents/GIT/pi-workbenc"
+        }
+      ],
+      "clippedCount": 1,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-icon.s-md <- header.pw-head",
+          "w": 17,
+          "h": 28,
+          "text": ""
+        }
+      ],
+      "tinyCount": 2,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 322,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        }
+      ],
+      "fontSizes": {
+        "12px": 8,
+        "10px": 1,
+        "13px": 12
+      }
+    },
+    {
+      "id": "inbox",
+      "hash": "#/inbox",
+      "tag": "390",
+      "file": "inbox-390.png",
+      "errors": [],
+      "viewport": {
+        "w": 390,
+        "h": 844
+      },
+      "doc": {
+        "scrollW": 390,
+        "scrollH": 844
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 781,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        },
+        {
+          "sel": "div.ib-head-actions <- header.ib-head",
+          "box": {
+            "x": 151.2,
+            "y": 32,
+            "w": 252,
+            "h": 32
+          },
+          "dir": "right"
+        }
+      ],
+      "overflowCount": 2,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 322,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        }
+      ],
+      "fontSizes": {
+        "27px": 1,
+        "13px": 6,
+        "16px": 2
+      }
+    },
+    {
+      "id": "settings",
+      "hash": "#/settings",
+      "tag": "390",
+      "file": "settings-390.png",
+      "errors": [],
+      "viewport": {
+        "w": 390,
+        "h": 844
+      },
+      "doc": {
+        "scrollW": 390,
+        "scrollH": 844
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 781,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        },
+        {
+          "sel": "button.app-btn.v-tab.s-md <- aside.settings-tabs",
+          "box": {
+            "x": 377,
+            "y": 79,
+            "w": 117.5,
+            "h": 39
+          },
+          "dir": "right"
+        },
+        {
+          "sel": "button.app-btn.v-tab.s-md <- aside.settings-tabs",
+          "box": {
+            "x": 498.5,
+            "y": 79,
+            "w": 77,
+            "h": 39
+          },
+          "dir": "right"
+        }
+      ],
+      "overflowCount": 3,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 322,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        }
+      ],
+      "fontSizes": {
+        "20px": 1,
+        "13.5px": 5,
+        "17px": 1,
+        "13px": 1,
+        "12px": 2,
+        "10px": 1
+      }
+    },
+    {
+      "id": "capabilities-team",
+      "hash": "#/capabilities?tab=team",
+      "tag": "390",
+      "file": "capabilities-team-390.png",
+      "errors": [
+        "pageerror: Cannot read properties of null (reading 'length')"
+      ],
+      "viewport": {
+        "w": 390,
+        "h": 844
+      },
+      "doc": {
+        "scrollW": 390,
+        "scrollH": 844
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 781,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        },
+        {
+          "sel": "nav.market-tabs <- header.market-header",
+          "box": {
+            "x": 88,
+            "y": 24,
+            "w": 511,
+            "h": 40
+          },
+          "dir": "right"
+        }
+      ],
+      "overflowCount": 2,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 322,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        }
+      ],
+      "fontSizes": {
+        "13px": 8,
+        "18px": 1,
+        "11.5px": 1,
+        "12px": 2
+      }
+    },
+    {
+      "id": "capabilities-market",
+      "hash": "#/capabilities?tab=market",
+      "tag": "390",
+      "file": "capabilities-market-390.png",
+      "errors": [
+        "pageerror: Cannot read properties of null (reading 'length')"
+      ],
+      "viewport": {
+        "w": 390,
+        "h": 844
+      },
+      "doc": {
+        "scrollW": 390,
+        "scrollH": 844
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 781,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        },
+        {
+          "sel": "nav.market-tabs <- header.market-header",
+          "box": {
+            "x": 88,
+            "y": 24,
+            "w": 511,
+            "h": 40
+          },
+          "dir": "right"
+        }
+      ],
+      "overflowCount": 2,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 322,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        }
+      ],
+      "fontSizes": {
+        "13px": 8,
+        "18px": 1,
+        "11.5px": 2,
+        "12px": 2
+      }
+    },
+    {
+      "id": "library",
+      "hash": "#/library",
+      "tag": "390",
+      "file": "library-390.png",
+      "errors": [],
+      "viewport": {
+        "w": 390,
+        "h": 844
+      },
+      "doc": {
+        "scrollW": 390,
+        "scrollH": 844
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 781,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        },
+        {
+          "sel": "nav.lib-tabs <- div.lib-toolbar",
+          "box": {
+            "x": 88,
+            "y": 158,
+            "w": 382,
+            "h": 38
+          },
+          "dir": "right"
+        },
+        {
+          "sel": "div.lib-tools <- div.lib-toolbar",
+          "box": {
+            "x": 88,
+            "y": 210,
+            "w": 404,
+            "h": 33
+          },
+          "dir": "right"
+        },
+        {
+          "sel": "svg.app-icon <- section.lib-preview.empty",
+          "box": {
+            "x": 385,
+            "y": 282.7,
+            "w": 40,
+            "h": 40
+          },
+          "dir": "right"
+        },
+        {
+          "sel": "strong <- section.lib-preview.empty",
+          "box": {
+            "x": 385,
+            "y": 380,
+            "w": 40,
+            "h": 147
+          },
+          "dir": "right"
+        },
+        {
+          "sel": "span.muted <- section.lib-preview.empty",
+          "box": {
+            "x": 385,
+            "y": 584.3,
+            "w": 40,
+            "h": 210
+          },
+          "dir": "right"
+        }
+      ],
+      "overflowCount": 6,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 322,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        },
+        {
+          "sel": ".lib-quota",
+          "box": {
+            "x": 88,
+            "y": 122,
+            "w": 282,
+            "h": 18
+          },
+          "fontSize": "14px",
+          "lineHeight": "21px",
+          "padding": "0px",
+          "gap": "10px",
+          "overflowX": "visible"
+        }
+      ],
+      "fontSizes": {
+        "22px": 1,
+        "13px": 6,
+        "12px": 1,
+        "12.5px": 4,
+        "11px": 1,
+        "14px": 2
+      }
+    },
+    {
+      "id": "memory",
+      "hash": "#/memory",
+      "tag": "390",
+      "file": "memory-390.png",
+      "errors": [],
+      "viewport": {
+        "w": 390,
+        "h": 844
+      },
+      "doc": {
+        "scrollW": 390,
+        "scrollH": 844
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 781,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        }
+      ],
+      "overflowCount": 1,
+      "clipped": [],
+      "clippedCount": 0,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        }
+      ],
+      "tinyCount": 1,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 322,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        }
+      ],
+      "fontSizes": {
+        "40px": 1,
+        "18px": 1,
+        "13px": 2
+      }
+    },
+    {
+      "id": "plugins",
+      "hash": "#/plugins",
+      "tag": "390",
+      "file": "plugins-390.png",
+      "errors": [],
+      "viewport": {
+        "w": 390,
+        "h": 844
+      },
+      "doc": {
+        "scrollW": 390,
+        "scrollH": 844
+      },
+      "overflow": [
+        {
+          "sel": "div.foot <- aside.sidebar.collapsed",
+          "box": {
+            "x": -13,
+            "y": 781,
+            "w": 93,
+            "h": 63
+          },
+          "dir": "left"
+        }
+      ],
+      "overflowCount": 1,
+      "clipped": [
+        {
+          "sel": "p.row-desc <- div.row-body",
+          "sw": 73,
+          "cw": 73,
+          "sh": 121,
+          "ch": 40,
+          "text": "用 codebase-memory-mcp 为项目建图并支持对话检索"
+        },
+        {
+          "sel": "p.row-desc <- div.row-body",
+          "sw": 73,
+          "cw": 73,
+          "sh": 101,
+          "ch": 40,
+          "text": "把对话要点追加进 .pi/memory 的 ts/text 流"
+        },
+        {
+          "sel": "p.row-desc <- div.row-body",
+          "sw": 85,
+          "cw": 85,
+          "sh": 60,
+          "ch": 40,
+          "text": "开真实浏览器并维护会话状态"
+        }
+      ],
+      "clippedCount": 3,
+      "tinyTargets": [
+        {
+          "sel": "button.app-btn.v-secondary.s-md <- aside.sidebar.collapsed",
+          "w": 17,
+          "h": 37,
+          "text": ""
+        },
+        {
+          "sel": "button.app-btn.v-text.s-md <- div.market-section-title",
+          "w": 75.5,
+          "h": 21,
+          "text": "全部启用 (1)"
+        }
+      ],
+      "tinyCount": 2,
+      "landmarks": [
+        {
+          "sel": ".sidebar",
+          "box": {
+            "x": 0,
+            "y": 0,
+            "w": 68,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "visible"
+        },
+        {
+          "sel": ".app-main",
+          "box": {
+            "x": 68,
+            "y": 0,
+            "w": 322,
+            "h": 844
+          },
+          "fontSize": "13px",
+          "lineHeight": "19.5px",
+          "padding": "0px",
+          "gap": "normal",
+          "overflowX": "auto"
+        }
+      ],
+      "fontSizes": {
+        "12.5px": 6,
+        "22px": 1,
+        "13px": 10,
+        "15px": 1,
+        "12px": 3,
+        "11px": 7,
+        "16px": 3,
+        "14px": 3,
+        "11.5px": 6,
+        "10.5px": 2
+      }
+    }
+  ]
+}

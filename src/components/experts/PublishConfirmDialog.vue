@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 /**
  * 发布确认弹窗 —— ADR-0017 #5 的「人」这一环。
  *
@@ -14,6 +15,7 @@
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import type { ConfirmationRequest } from '@/composables/useExperts'
 
@@ -71,44 +73,41 @@ function shortDigest(digest: string) {
 </script>
 
 <template>
-  <AppModal :open="open" title="确认发布专家" size="md" @close="emit('cancel')">
+  <AppModal :open="open" :title="t('确认发布专家')" size="md" @close="emit('cancel')">
     <div class="pc-head">
       <span class="pc-badge"><AppIcon name="lock" :size="14" /></span>
       <div>
-        <h3>确认发布专家</h3>
-        <p class="pc-sub">发布会把这份人格写入 Pi 的角色文件，内核下一轮对话即生效。</p>
+        <h3>{{ t('确认发布专家') }}</h3>
+        <p class="pc-sub">{{ t('发布会把这份人格写入 Pi 的角色文件，内核下一轮对话即生效。') }}</p>
       </div>
     </div>
 
     <dl class="pc-list">
-      <div><dt>专家</dt><dd>{{ expertName || '（未命名）' }}</dd></div>
+      <div><dt>{{ t('专家') }}</dt><dd>{{ expertName || t('（未命名）') }}</dd></div>
       <div>
-        <dt>内容摘要</dt>
+        <dt>{{ t('内容摘要') }}</dt>
         <dd class="mono">{{ shortDigest(challenge?.definition_digest ?? '') }}</dd>
       </div>
       <div>
-        <dt>草稿修订</dt>
+        <dt>{{ t('草稿修订') }}</dt>
         <dd class="mono">#{{ challenge?.draft_revision ?? '—' }}</dd>
       </div>
       <div>
-        <dt>授权有效期</dt>
+        <dt>{{ t('授权有效期') }}</dt>
         <dd class="pc-expire" :class="{ urgent: remainMs > 0 && remainMs < 60_000 }">
-          {{ remainMs > 0 ? remainText : '已过期' }}
+          {{ remainMs > 0 ? remainText : t('已过期') }}
         </dd>
       </div>
     </dl>
 
-    <p class="pc-note">
-      授权是一次性的：确认后如果回头改了任何内容，或超过有效期，发布都会被后端拒绝，
-      需要重新确认。
-    </p>
+    <p class="pc-note">{{ t('授权是一次性的：确认后如果回头改了任何内容，或超过有效期，发布都会被后端拒绝， 需要重新确认。') }}</p>
 
     <template #footer>
       <div class="pc-actions">
-        <button class="pc-btn" :disabled="publishing" @click="emit('cancel')">取消</button>
-        <button class="pc-btn primary" :disabled="publishing || !challenge" @click="confirm">
-          {{ publishing ? '发布中…' : '我确认发布' }}
-        </button>
+        <AppButton variant="secondary" class="pc-btn" :disabled="publishing" @click="emit('cancel')">{{ t('取消') }}</AppButton>
+        <AppButton variant="primary" class="pc-btn primary" :disabled="publishing || !challenge" @click="confirm">
+          {{ publishing ? t('发布中…') : t('我确认发布') }}
+        </AppButton>
       </div>
     </template>
   </AppModal>

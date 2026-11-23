@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import { PICK_TIMEOUT_NOTE, cancelPendingPick, pickDirectoryGuarded } from '@/composables/useDirPicker'
 
 /**
@@ -47,9 +49,10 @@ const open = ref(false)
 const localPicking = ref(false)
 const note = ref('')
 const root = ref<HTMLElement | null>(null)
-const trigger = ref<HTMLElement | null>(null)
 const menu = ref<HTMLElement | null>(null)
 const menuStyle = ref<Record<string, string>>({})
+/** 键盘游标：与 aria-selected 同步，方向键移动即改选中态。 */
+const activeId = ref<string | null>(null)
 
 const picking = computed(() => localPicking.value || Boolean(props.busy))
 const current = computed(
@@ -64,9 +67,9 @@ function shortPath(p?: string | null): string {
 }
 
 const label = computed(() => {
-  if (picking.value) return '正在选择…'
+  if (picking.value) return t('正在选择…')
   if (current.value) return current.value.name
-  if (!props.cwd) return '选择工作目录'
+  if (!props.cwd) return t('选择工作目录')
   return shortPath(props.cwd)
 })
 
@@ -83,15 +86,45 @@ function toggle() {
   open.value = !open.value
   if (open.value) {
     note.value = ''
+    const currentId = props.projects.find((p) => p.path === props.cwd)?.id
+    activeId.value = currentId ?? props.projects[0]?.id ?? null
     // 菜单是 Teleport 出去的固定定位元素：不给它算坐标，它就会落在页面末尾
     // （`position:fixed` 无偏移时按静态位置摆放）——「看得见」不等于「在屏内」。
     void nextTick(place)
+    // 打开即聚焦当前项：方向键与 Enter 立刻可用。
+    void nextTick(() => focusActiveOption())
   }
+}
+
+/** 焦点与选中同步：方向键只移动游标，Enter/Space 由原生 button 提交。 */
+function onListKeydown(e: KeyboardEvent) {
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return
+  const options = [...(menu.value?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])]
+  if (!options.length) return
+  const currentIndex = options.indexOf(document.activeElement as HTMLElement)
+  const next =
+    e.key === 'Home'
+      ? 0
+      : e.key === 'End'
+        ? options.length - 1
+        : currentIndex < 0
+          ? 0
+          : (currentIndex + (e.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length
+  e.preventDefault()
+  const el = options[next]
+  el.focus()
+  activeId.value = el.dataset.id ?? null
+}
+
+function focusActiveOption() {
+  const options = [...(menu.value?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])]
+  options.find((el) => el.dataset.id === activeId.value)?.focus()
 }
 
 /** 菜单定位：优先向下展开，底部空间不够时向上，横向夹在视口内。 */
 function place() {
-  const el = trigger.value
+  // 取真实 DOM：模板 ref 绑在 AppButton 上拿到的是组件实例，没有 getBoundingClientRect。
+  const el = root.value?.querySelector<HTMLElement>('.ws-trigger')
   if (!el) return
   const r = el.getBoundingClientRect()
   const width = Math.min(MENU_WIDTH, window.innerWidth - 24)
@@ -132,11 +165,11 @@ async function pickLocal(target?: PickerProject) {
   try {
     const { dir, timedOut } = await pickDirectoryGuarded()
     if (timedOut) {
-      note.value = PICK_TIMEOUT_NOTE
+      note.value = PICK_TIMEOUT_NOTE()
       return
     }
     if (!dir) {
-      note.value = '没有选择目录。'
+      note.value = t('没有选择目录。')
       return
     }
     close()
@@ -151,7 +184,7 @@ async function pickLocal(target?: PickerProject) {
 function cancelPick() {
   cancelPendingPick()
   localPicking.value = false
-  note.value = '已取消等待目录选择器。'
+  note.value = t('已取消等待目录选择器。')
 }
 
 function onDocClick(e: MouseEvent) {
@@ -170,7 +203,11 @@ function onKey(e: KeyboardEvent) {
     cancelPick()
     return
   }
-  if (open.value) close()
+  if (open.value) {
+    close()
+    // 关闭后焦点回到触发器，键盘用户不丢位置。
+    void nextTick(() => root.value?.querySelector<HTMLElement>('.ws-trigger')?.focus())
+  }
 }
 
 function onViewport() {
@@ -200,60 +237,65 @@ watch(
 
 <template>
   <div ref="root" class="ws-picker">
-    <button
-      ref="trigger"
-      type="button"
+    <AppButton
+      variant="secondary"
       class="ws-trigger"
       :class="{ open, emphasis: emphasises }"
       :disabled="picking"
-      :title="cwd ? `工作目录：${cwd}` : '选择本地目录作为工作目录'"
+      aria-haspopup="listbox"
+      :aria-expanded="open"
+      :title="cwd ? t('工作目录：{0}', [cwd]) : t('选择本地目录作为工作目录')"
       @click="toggle"
     >
       <AppIcon name="folder-open" :size="13" />
       <span class="ws-label">{{ label }}</span>
       <span v-if="!picking" class="ws-caret" aria-hidden="true">▾</span>
-    </button>
+    </AppButton>
 
     <Teleport to="body">
       <!-- AUDIT-021：menuStyle 是 Teleport 菜单的视口定位（功能性动态值，非纯样式），
            按铁律豁免条款保留内联，并在此注明。 -->
-      <div v-if="open" ref="menu" class="ws-menu" :style="menuStyle" role="listbox">
-        <p class="ws-menu-title">工作目录</p>
+      <div v-if="open" ref="menu" class="ws-menu" :style="menuStyle">
+        <p class="ws-menu-title" id="ws-menu-label">{{ t('工作目录') }}</p>
 
-        <button
-          v-for="p in projects"
-          :key="p.id"
-          type="button"
-          class="ws-opt"
-          :class="{ on: p.path === cwd }"
-          role="option"
-          :aria-selected="p.path === cwd"
-          @click="pickProject(p)"
-        >
-          <span class="ws-opt-main">
-            <span class="ws-opt-name">{{ p.name }}</span>
-            <span class="ws-opt-path" :class="{ warn: !p.path }">
-              {{ shortPath(p.path) || '未绑定目录 · 点此选择文件夹' }}
+        <!-- 只有项目列表是 option；「选择本地目录…」是动作，不能塞进 listbox。 -->
+        <div class="ws-options" role="listbox" aria-labelledby="ws-menu-label" @keydown="onListKeydown">
+          <AppButton
+            v-for="p in projects"
+            :key="p.id"
+            variant="menu-item"
+            class="ws-opt"
+            :class="{ on: p.id === activeId }"
+            :data-id="p.id"
+            role="option"
+            :aria-selected="p.id === activeId"
+            @click="pickProject(p)"
+          >
+            <span class="ws-opt-main">
+              <span class="ws-opt-name">{{ p.name }}</span>
+              <span class="ws-opt-path" :class="{ warn: !p.path }">
+                {{ shortPath(p.path) || t('未绑定目录 · 点此选择文件夹') }}
+              </span>
             </span>
-          </span>
-          <AppIcon v-if="p.path === cwd" name="check" :size="13" />
-        </button>
+            <AppIcon v-if="p.id === activeId" name="check" :size="13" />
+          </AppButton>
 
-        <p v-if="!projects.length" class="ws-empty">还没有项目，直接挑一个本地目录即可。</p>
+          <p v-if="!projects.length" class="ws-empty">{{ t('还没有项目，直接挑一个本地目录即可。') }}</p>
+        </div>
 
         <div class="ws-divider" aria-hidden="true" />
 
-        <button v-if="!picking" type="button" class="ws-opt action" @click="pickLocal()">
+        <AppButton v-if="!picking" variant="menu-item" class="ws-opt action" @click="pickLocal()">
           <span class="ws-opt-main">
-            <span class="ws-opt-name">选择本地目录…</span>
-            <span class="ws-opt-path">挑一个文件夹作为工作目录</span>
+            <span class="ws-opt-name">{{ t('选择本地目录…') }}</span>
+            <span class="ws-opt-path">{{ t('挑一个文件夹作为工作目录') }}</span>
           </span>
           <AppIcon name="folder" :size="13" />
-        </button>
+        </AppButton>
 
         <div v-else class="ws-pending">
-          <span class="ws-opt-name">正在等待系统目录选择器…</span>
-          <button type="button" class="ws-cancel" @click="cancelPick">取消</button>
+          <span class="ws-opt-name">{{ t('正在等待系统目录选择器…') }}</span>
+          <AppButton variant="text" class="ws-cancel" @click="cancelPick">{{ t('取消') }}</AppButton>
         </div>
 
         <p v-if="note" class="ws-note">{{ note }}</p>

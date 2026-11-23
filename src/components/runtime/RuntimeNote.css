@@ -7,7 +7,7 @@
   background: var(--warn-soft);
   border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
   color: var(--text);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   line-height: 1.5;
 }
 
@@ -19,10 +19,10 @@
 
 .runtime-note code {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
-  padding: 1px 5px;
+  padding: 1px var(--sp-2);
   color: var(--accent);
 }

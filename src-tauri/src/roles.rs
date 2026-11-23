@@ -51,7 +51,9 @@ pub fn builtin_roles() -> Vec<Role> {
         Role {
             id: "aider-programmer".into(),
             name: "Aider 编程专家".into(),
-            description: "Aider 范式编程搭档：repo map 先行、最小 diff、测试驱动、原子提交、只读优先。".into(),
+            description:
+                "Aider 范式编程搭档：repo map 先行、最小 diff、测试驱动、原子提交、只读优先。"
+                    .into(),
             prompt: AIDER_PROMPT.into(),
         },
     ]
@@ -84,7 +86,10 @@ pub fn parse_role_md(text: &str) -> Option<(String, String, String)> {
 
 /// 把角色渲染回 md，供 role_set 落盘。
 pub fn render_role_md(role: &Role) -> String {
-    format!("<!-- role: {} | {} -->\n\n{}\n", role.id, role.name, role.prompt)
+    format!(
+        "<!-- role: {} | {} -->\n\n{}\n",
+        role.id, role.name, role.prompt
+    )
 }
 
 fn roles_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -101,6 +106,14 @@ fn project_roles_file(root: Option<String>) -> Option<PathBuf> {
     let root = root?;
     let dir = PathBuf::from(root).join(".pi").join("roles");
     Some(dir.join("current.md"))
+}
+
+/// 用户手动角色的常驻副本：`current.md` 是「本轮谁上场」的暂存位，
+/// 专家发送会整份覆写它；没有这份 sidecar，取消专家后用户角色就静默丢了。
+fn project_global_role_file(root: Option<String>) -> Option<PathBuf> {
+    let root = root?;
+    let dir = PathBuf::from(root).join(".pi").join("roles");
+    Some(dir.join("global.md"))
 }
 
 /// 用户自定义角色：与内置同 id 时覆盖内置定义。
@@ -154,6 +167,8 @@ pub fn role_list(app: AppHandle) -> Vec<Role> {
 
 /// 切换角色：把选中角色的 prompt 写进项目级 `.pi/roles/current.md`。
 /// Pi extension（role-inject）每轮从该文件读取并追加到系统提示，因此切换即时生效、无需重启内核。
+/// 同时落一份 `global.md` sidecar：`current.md` 会被专家发送覆写（见 experts::apply_expert_persona），
+/// 没有常驻副本，取消专家后用户手选的角色就静默丢了。
 #[tauri::command(async)]
 pub fn role_set(
     app: AppHandle,
@@ -170,7 +185,11 @@ pub fn role_set(
         if let Some(parent) = file.parent() {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        fs::write(&file, render_role_md(&role)).map_err(|e| e.to_string())?;
+        let md = render_role_md(&role);
+        fs::write(&file, &md).map_err(|e| e.to_string())?;
+        if let Some(global) = project_global_role_file(root) {
+            fs::write(&global, &md).map_err(|e| e.to_string())?;
+        }
     }
     *state.current.lock().unwrap() = Some(role.id.clone());
     Ok(role)
@@ -213,7 +232,10 @@ mod tests {
             .unwrap();
         // 蓝图约束：单角色 system prompt 追加段 < 2000 token（中文按 1 字≈1.5 token 粗估）。
         assert!(role.prompt.chars().count() < 1400, "角色提示词过长");
-        assert!(role.prompt.contains("SEARCH/REPLACE"), "需保留字符级编辑约定");
+        assert!(
+            role.prompt.contains("SEARCH/REPLACE"),
+            "需保留字符级编辑约定"
+        );
         assert!(role.prompt.contains("测试"), "需保留测试驱动约定");
     }
 

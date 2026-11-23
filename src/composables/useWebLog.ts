@@ -10,6 +10,12 @@ import { IN_TAURI } from './usePi'
 
 const MAX = 1000
 
+/**
+ * 防重入：`console.warn` 里发 IPC，而 IPC 自己失败时 Tauri 也用 `console.warn` 报，
+ * 两者会互相触发形成正反馈。转发期间不再转发。
+ */
+let forwarding = false
+
 function stringify(v: unknown): string {
   if (typeof v === 'string') return v
   if (v instanceof Error) return `${v.name}: ${v.message}`
@@ -21,9 +27,14 @@ function stringify(v: unknown): string {
 }
 
 export function webLog(level: 'info' | 'warn' | 'error', ...args: unknown[]) {
-  if (!IN_TAURI) return
+  if (!IN_TAURI || forwarding) return
   const text = args.map(stringify).join(' ').slice(0, MAX)
-  void invoke('app_log', { level, msg: text }).catch(() => {})
+  forwarding = true
+  try {
+    void invoke('app_log', { level, msg: text }).catch(() => {})
+  } finally {
+    forwarding = false
+  }
 }
 
 /** 关键路径打点：比 console 更可控，只在桌面模式下发。 */
@@ -35,11 +46,27 @@ export function traceLog(step: string, detail: unknown = '') {
  * 接管 `console.warn/error`：Vue 会把渲染期异常吞进 console.error，
  * 只看 `pageerror` 或只看界面都会漏掉整类崩溃。浏览器模式下保持原样。
  */
+let installed = false
+let originalWarn: typeof console.warn | null = null
+let originalError: typeof console.error | null = null
+let onRejection: ((e: PromiseRejectionEvent) => void) | null = null
+
 export function installWebLogBridge() {
-  if (!IN_TAURI) return
-  const warn = console.warn.bind(console)
-  const error = console.error.bind(console)
+  if (!IN_TAURI || installed) return
+  installed = true
+  originalWarn = console.warn
+  originalError = console.error
+  const warn = originalWarn.bind(console)
+  const error = originalError.bind(console)
   console.warn = (...args: unknown[]) => {
+    // 传输层告警不能再回灌：它由 invoke 失败触发，转成 IPC 会再触发自己，
+    // 一次失败就被放大成无限刷屏（tauri 的 scripts/ipc-protocol.js 里
+    // fetch 失败走 console.warn，并把标志位置 true；本桥若再发 IPC 就是正反馈）。
+    // 只放过、走原生输出，保留现场但不参与转发。
+    if (typeof args[0] === 'string' && args[0].includes('IPC custom protocol failed')) {
+      warn(...args)
+      return
+    }
     webLog('warn', ...args)
     warn(...args)
   }
@@ -47,7 +74,20 @@ export function installWebLogBridge() {
     webLog('error', ...args)
     error(...args)
   }
-  window.addEventListener('unhandledrejection', (e) => {
+  onRejection = (e) => {
     webLog('error', 'unhandledrejection:', e.reason)
-  })
+  }
+  window.addEventListener('unhandledrejection', onRejection)
+}
+
+/** 卸载还原：全局 console 与 rejection 监听必须有逆向路径。 */
+export function uninstallWebLogBridge() {
+  if (!installed) return
+  if (originalWarn) console.warn = originalWarn
+  if (originalError) console.error = originalError
+  if (onRejection) window.removeEventListener('unhandledrejection', onRejection)
+  originalWarn = null
+  originalError = null
+  onRejection = null
+  installed = false
 }

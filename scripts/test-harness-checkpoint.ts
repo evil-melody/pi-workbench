@@ -11,6 +11,7 @@ import {
   currentTurnSeq,
   backupDestFor,
   backupEditTarget,
+  markCreatedTarget,
 } from '../src-tauri/extensions/agent-tool-gate.ts'
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -64,6 +65,22 @@ assert(readFileSync(dest, 'utf8') === 'original', '备份不被二次编辑覆�
 const newFile = path.join(root, 'src', 'brand-new.ts')
 assert(backupEditTarget(newFile) === false, 'write 新建文件（源不存在）不备份')
 assert(!existsSync(backupDestFor(newFile, cpDir, 3)), '无多余备份文件')
+
+// —— markCreatedTarget（#76 M3：write 新建的 `.created` 哨兵）——
+const sentinel = path.join(cpDir, 'turn-3', '.created', newFile.replace(/^\/+/, ''))
+assert(markCreatedTarget(newFile) === true, '新建文件落哨兵')
+assert(existsSync(sentinel), '哨兵路径 = turn 目录/.created/镜像路径')
+assert(markCreatedTarget(newFile) === false, '同轮二次新建幂等（哨兵已存在）')
+process.env.PI_CHECKPOINT_DIR = emptyCpMissing()
+assert(markCreatedTarget(newFile) === false, '无 checkpoint 目录时不落哨兵')
+process.env.PI_CHECKPOINT_DIR = cpDir
+delete process.env.PI_CHECKPOINT_DIR
+assert(markCreatedTarget(newFile) === false, '无 PI_CHECKPOINT_DIR 时不落哨兵')
+process.env.PI_CHECKPOINT_DIR = cpDir
+function emptyCpMissing(): string {
+  const d = path.join(root, 'missing-cp')
+  return d // 不存在：checkpointDir() 的 existsSync 守卫应拦下
+}
 
 // 无进行中 turn：空目录
 const emptyCp = path.join(root, 'empty-cp')

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 /**
  * 项目工作台 —— 覆盖 `ProjectService` 的全部能力面：
  *   get / updateConfig（修订 + token 预算）/ addWorkItem / updateWorkItem /
@@ -12,16 +13,21 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
+import ModeSwitcher from '@/components/chat/ModeSwitcher.vue'
+import { thinkingLevel, setThinkingMode } from '@/composables/useThinkingMode'
+import { onTablistKeydown } from '@/composables/useTablist'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
 import type { SelectOption } from '@/components/ui/AppSelect.vue'
+import AppModal from '@/components/ui/AppModal.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
 import FilesWorkspace from '@/components/fs/FilesWorkspace.vue'
 import TerminalPanel from '@/components/terminal/TerminalPanel.vue'
 import AgentBrowserPane from '@/components/chat/AgentBrowserPane.vue'
+import WorktreePanel from '@/components/worktrees/WorktreePanel.vue'
 import { PICK_TIMEOUT_NOTE, pickDirectoryGuarded } from '@/composables/useDirPicker'
 import {
-  WORK_ITEM_STATUS,
   addAsset,
   addWorkItem,
   describeProjectError,
@@ -31,6 +37,7 @@ import {
   updateProjectConfig,
   updateWorkItem,
   workItemStatusLabel,
+  workItemStatusOptions,
   type CapabilityRef,
   type InputRef,
   type ProjectSnapshot,
@@ -38,10 +45,11 @@ import {
 } from '@/composables/useProject'
 
 const route = useRoute()
+const WORK_ITEM_STATUS = computed(() => workItemStatusOptions())
 const router = useRouter()
 const projectId = computed(() => String(route.params.id ?? ''))
 
-type Tab = 'config' | 'work-items' | 'assets' | 'activity' | 'files' | 'term' | 'browser'
+type Tab = 'config' | 'work-items' | 'assets' | 'activity' | 'files' | 'term' | 'browser' | 'worktree'
 const tab = ref<Tab>('config')
 
 const snapshot = ref<ProjectSnapshot | null>(null)
@@ -49,20 +57,21 @@ const loading = ref(false)
 const errorText = ref('')
 const okText = ref('')
 
-const TABS: Array<{ key: Tab; label: string }> = [
-  { key: 'config', label: '项目配置' },
-  { key: 'work-items', label: '计划项' },
-  { key: 'assets', label: '关联资产' },
-  { key: 'activity', label: '活动' },
+const TABS = computed<Array<{ key: Tab; label: string }>>(() => [
+  { key: 'config', label: t('项目配置') },
+  { key: 'work-items', label: t('计划项') },
+  { key: 'assets', label: t('关联资产') },
+  { key: 'activity', label: t('活动') },
   // 文件 / 终端 / 浏览器原本常驻在对话页两侧，把对话压成窄缝；
   // 它们是「进项目」之后才用的工具，归到这里最合身。
-  { key: 'files', label: '文件' },
-  { key: 'term', label: '终端' },
-  { key: 'browser', label: '浏览器' },
-]
+  { key: 'files', label: t('文件') },
+  { key: 'term', label: t('终端') },
+  { key: 'browser', label: t('浏览器') },
+  { key: 'worktree', label: t('并行工作区') },
+])
 
 /** 工具面：占满剩余高度，不用文档流的卡片内边距。 */
-const toolTab = computed(() => tab.value === 'files' || tab.value === 'term' || tab.value === 'browser')
+const toolTab = computed(() => tab.value === 'files' || tab.value === 'term' || tab.value === 'browser' || tab.value === 'worktree')
 /** 工具面需要工作目录；没目录时说清楚缺什么，而不是渲染一个空壳。 */
 const needPath = computed(() => (tab.value === 'files' || tab.value === 'term') && !snapshot.value?.project.path)
 
@@ -113,7 +122,7 @@ async function bindDirectory() {
   const { dir, timedOut } = await pickDirectoryGuarded(app.value?.path)
   pickingDir.value = false
   if (timedOut) {
-    errorText.value = PICK_TIMEOUT_NOTE
+    errorText.value = PICK_TIMEOUT_NOTE()
     return
   }
   if (!dir) return
@@ -121,12 +130,12 @@ async function bindDirectory() {
     id: projectId.value,
     path: dir,
   }).catch((e) => {
-    errorText.value = describeProjectError(e, '绑定失败')
+    errorText.value = describeProjectError(e, t('绑定失败'))
     return null
   })
   if (next) {
     snapshot.value = next
-    okText.value = `已绑定目录 ${dir}`
+    okText.value = t('已绑定目录 {0}', [dir])
   }
 }
 
@@ -139,14 +148,14 @@ async function addItem() {
   if (!title || addingWork.value) return
   addingWork.value = true
   const next = await addWorkItem(projectId.value, title).catch((e) => {
-    errorText.value = describeProjectError(e, '新增失败')
+    errorText.value = describeProjectError(e, t('新增失败'))
     return null
   })
   addingWork.value = false
   if (next) {
     snapshot.value = next
     newWorkItem.value = ''
-    okText.value = '已新增计划项'
+    okText.value = t('已新增计划项')
   }
 }
 
@@ -163,23 +172,23 @@ function patchOf(item: { id: string; title: string; status: string; assignee?: s
 
 async function setStatus(item: (typeof workItems.value)[number], status: string) {
   const next = await updateWorkItem(projectId.value, { id: item.id, status }, item.revision).catch((e) => {
-    errorText.value = describeProjectError(e, '更新失败')
+    errorText.value = describeProjectError(e, t('更新失败'))
     return null
   })
   if (next) {
     snapshot.value = next
-    okText.value = '状态已更新'
+    okText.value = t('状态已更新')
   }
 }
 
 async function dropItem(item: { id: string }) {
   const next = await removeWorkItem(projectId.value, item.id).catch((e) => {
-    errorText.value = describeProjectError(e, '删除失败')
+    errorText.value = describeProjectError(e, t('删除失败'))
     return null
   })
   if (next) {
     snapshot.value = next
-    okText.value = '已删除计划项'
+    okText.value = t('已删除计划项')
   }
 }
 
@@ -199,25 +208,25 @@ async function addOneAsset() {
     name: form.name.trim(),
     kind: form.kind.trim() || 'file',
   }).catch((e) => {
-    errorText.value = describeProjectError(e, '关联失败')
+    errorText.value = describeProjectError(e, t('关联失败'))
     return null
   })
   addingAsset.value = false
   if (next) {
     snapshot.value = next
     newAsset.value = { ...assetDraft }
-    okText.value = '已关联资产'
+    okText.value = t('已关联资产')
   }
 }
 
 async function unlinkAsset(item: { id: string }) {
   const next = await removeAsset(projectId.value, item.id).catch((e) => {
-    errorText.value = describeProjectError(e, '解除失败')
+    errorText.value = describeProjectError(e, t('解除失败'))
     return null
   })
   if (next) {
     snapshot.value = next
-    okText.value = '已解除关联'
+    okText.value = t('已解除关联')
   }
 }
 
@@ -232,7 +241,7 @@ const linkedSessions = computed(() => snapshot.value?.tasks ?? [])
 
 /** 计划项下拉：绑定会话任务时可挂到某条计划项上。 */
 const workItemOptions = computed<SelectOption[]>(() => [
-  { value: '', label: '不绑定计划项' },
+  { value: '', label: t('不绑定计划项') },
   ...workItems.value.map((w) => ({ value: w.id, label: w.title })),
 ])
 
@@ -247,7 +256,7 @@ const refOptions = computed<RefOption[]>(() => [
   ...workItems.value.map((w) => ({
     key: `work-item:${w.id}`,
     value: `work-item:${w.id}`,
-    label: `计划项 · ${w.title}`,
+    label: t('计划项 · {0}', [w.title]),
     kind: 'work-item' as const,
     refId: w.id,
     revision: w.revision,
@@ -255,7 +264,7 @@ const refOptions = computed<RefOption[]>(() => [
   ...assets.value.map((a) => ({
     key: `asset:${a.id}`,
     value: `asset:${a.id}`,
-    label: `资产 · ${a.name}`,
+    label: t('资产 · {0}', [a.name]),
     kind: 'asset' as const,
     refId: a.id,
     revision: a.revision_id,
@@ -302,7 +311,7 @@ async function bindSession() {
     })
   linking.value = true
   const next = await linkTask(projectId.value, sid, title, workItemId, references, capabilities).catch((e) => {
-    errorText.value = describeProjectError(e, '绑定失败')
+    errorText.value = describeProjectError(e, t('绑定失败'))
     return null
   })
   linking.value = false
@@ -313,7 +322,7 @@ async function bindSession() {
     taskCaps.value = ''
     pickedRefKey.value = ''
     pickedRefs.value = []
-    okText.value = '会话已绑定到项目任务'
+    okText.value = t('会话已绑定到项目任务')
   }
 }
 
@@ -328,14 +337,14 @@ async function saveConfig() {
     config.id,
     config.number,
   ).catch((e) => {
-    errorText.value = describeProjectError(e, '保存失败')
+    errorText.value = describeProjectError(e, t('保存失败'))
     return null
   })
   savingConfig.value = false
   if (next) {
     snapshot.value = next
-    revisionInfo.value = `修订 #${next.config?.number ?? ''}`
-    okText.value = '配置已保存为新的修订'
+    revisionInfo.value = t('修订 #{0}', [next.config?.number ?? ''])
+    okText.value = t('配置已保存为新的修订')
   }
 }
 
@@ -351,7 +360,7 @@ async function refresh() {
     snapshot.value = await invoke<ProjectSnapshot | null>('project_get', { id: projectId.value })
   } catch (e) {
     snapshot.value = null
-    errorText.value = describeProjectError(e, `读取项目失败：${String(e)}`)
+    errorText.value = describeProjectError(e, t('读取项目失败：{0}', [String(e)]))
     loading.value = false
     return
   }
@@ -360,14 +369,90 @@ async function refresh() {
   capabilityText.value = (config?.capabilities ?? [])
     .map((c) => `${c.kind}:${c.id}${c.label ? ` ${c.label}` : ''}`)
     .join('\n')
-  revisionInfo.value = config ? `修订 #${config.number}` : ''
+  revisionInfo.value = config ? t('修订 #{0}', [config.number]) : ''
   loading.value = false
 }
 
-async function goChat() {
+async function goChat(panel?: string) {
   // 直接深链进工作台时活动项目未必是这一个，先落一次再跳，避免对话页读到旧项目。
   await invoke('project_set_active', { id: projectId.value }).catch(() => {})
-  router.push('/chat')
+  router.push(panel ? { path: '/chat', query: { panel } } : '/chat')
+}
+
+// ── 计划项：状态筛选 + 行内编辑 ────────────────────────────────
+/** 筛选 = 纯前端视图态；计数跟着全量列表走，筛选不藏数字。 */
+const statusFilter = ref('')
+const filteredItems = computed(() =>
+  statusFilter.value
+    ? workItems.value.filter((w) => w.status === statusFilter.value)
+    : workItems.value,
+)
+const statusCounts = computed(() => {
+  const map = new Map<string, number>()
+  for (const w of workItems.value) map.set(w.status, (map.get(w.status) ?? 0) + 1)
+  return map
+})
+const statusFilterOptions = computed<SelectOption[]>(() => [
+  { value: '', label: t('全部'), hint: String(workItems.value.length) },
+  ...WORK_ITEM_STATUS.value.map((o) => ({
+    ...o,
+    hint: statusCounts.value.get(o.value) ? String(statusCounts.value.get(o.value)) : undefined,
+  })),
+])
+
+const PRIORITY_OPTIONS: SelectOption[] = [
+  { value: 'p0', label: 'P0' },
+  { value: 'p1', label: 'P1' },
+  { value: 'p2', label: 'P2' },
+  { value: 'p3', label: 'P3' },
+]
+
+/** 行内编辑弹窗：改标题 / 状态 / 优先级 / 负责人 / 标签，保存走乐观锁修订。 */
+const editTarget = ref<(typeof workItems.value)[number] | null>(null)
+const editDraft = ref({ title: '', status: 'todo', priority: 'p2', assignee: '', tags: '' })
+const savingEdit = ref(false)
+
+function openEdit(item: (typeof workItems.value)[number]) {
+  editTarget.value = item
+  editDraft.value = {
+    title: item.title,
+    status: item.status,
+    priority: item.priority || 'p2',
+    assignee: item.assignee ?? '',
+    tags: item.tags.join('、'),
+  }
+}
+
+async function saveEdit() {
+  const item = editTarget.value
+  if (!item || savingEdit.value) return
+  const title = editDraft.value.title.trim()
+  if (!title) return
+  savingEdit.value = true
+  const next = await updateWorkItem(
+    projectId.value,
+    {
+      id: item.id,
+      title,
+      status: editDraft.value.status,
+      priority: editDraft.value.priority,
+      assignee: editDraft.value.assignee.trim(),
+      tags: editDraft.value.tags
+        .split(/[,，、\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+    },
+    item.revision,
+  ).catch((e) => {
+    errorText.value = describeProjectError(e, t('更新失败'))
+    return null
+  })
+  savingEdit.value = false
+  if (next) {
+    snapshot.value = next
+    editTarget.value = null
+    okText.value = t('计划项已更新')
+  }
 }
 
 onMounted(refresh)
@@ -375,48 +460,64 @@ onMounted(refresh)
 
 <template>
   <section v-if="!app" class="pw pw-fallback">
-    <p v-if="loading" class="pw-loading">正在读取项目…</p>
+    <p v-if="loading" class="pw-loading">{{ t('正在读取项目…') }}</p>
     <template v-else>
-      <p class="pw-error">{{ errorText || '项目不存在，或已被归档/删除。' }}</p>
-      <button class="pw-back-btn" @click="router.push('/projects')">返回项目列表</button>
+      <p class="pw-error">{{ errorText || t('项目不存在，或已被归档/删除。') }}</p>
+      <AppButton variant="secondary" class="pw-back-btn" @click="router.push('/projects')">{{ t('返回项目列表') }}</AppButton>
     </template>
   </section>
 
   <section v-else class="pw" :class="{ tool: toolTab }">
     <header class="pw-head">
-      <button class="pw-back" title="返回项目列表" @click="router.push('/projects')">
+      <AppButton variant="icon" class="pw-back" :title="t('返回项目列表')" :aria-label="t('返回项目列表')" @click="router.push('/projects')">
         <AppIcon name="arrow-left" :size="15" />
-      </button>
+      </AppButton>
       <span class="pw-icon"><AppIcon name="folder" :size="20" /></span>
       <div class="pw-title">
-        <strong>{{ app.name }}</strong>
-        <small>{{ app.description || '暂无描述' }}</small>
+        <strong :title="app.name">{{ app.name }}</strong>
+        <!-- 没有描述就不占一行：空项目不再显示「暂无描述」这句填充文案。 -->
+        <small v-if="app.description" :title="app.description">{{ app.description }}</small>
       </div>
-      <button class="pw-open-chat" @click="goChat">
+      <!-- 模式切换器常驻头部：进入工作台不消失，与对话页共用同一份档位。 -->
+      <ModeSwitcher :model-value="thinkingLevel" width="auto" @update:model-value="setThinkingMode" />
+      <!-- 绑了目录的项目才有并行工作区：直达对话页抽屉，不用先找按钮。 -->
+      <AppButton
+        v-if="app.path"
+        variant="secondary"
+        class="pw-open-wt"
+        :title="t('打开并行工作区（worktree / 舰队 / 冲突预测）')"
+        @click="goChat('worktree')"
+      >
+        <AppIcon name="layers" :size="14" />
+        <span>{{ t('并行工作区') }}</span>
+      </AppButton>
+      <AppButton variant="primary" class="pw-open-chat" @click="goChat()">
         <AppIcon name="chat" :size="14" />
-        <span>在对话中打开</span>
-      </button>
+        <span>{{ t('在对话中打开') }}</span>
+      </AppButton>
     </header>
 
     <div class="pw-meta">
-      <span class="pw-chip">修订 {{ revisionInfo.replace('修订 #', '#') }}</span>
+      <span class="pw-chip">{{ t('修订 {0}', [revisionInfo.replace(t('修订 #'), '#')]) }}</span>
       <span v-if="app.path" class="pw-chip pw-chip-path" :title="app.path">{{ app.path }}</span>
-      <span v-else class="pw-chip pw-chip-muted">
-        未绑定目录
-        <button class="pw-chip-btn" :disabled="pickingDir" @click="bindDirectory">
-          {{ pickingDir ? '选择中…' : '选择目录' }}
-        </button>
+      <span v-else class="pw-chip pw-chip-muted">{{ t('未绑定目录') }}<AppButton variant="text" class="pw-chip-btn" :disabled="pickingDir" @click="bindDirectory">
+          {{ pickingDir ? t('选择中…') : t('选择目录') }}
+        </AppButton>
       </span>
-      <span class="pw-chip pw-chip-muted">更新于 {{ stamp(app.updated_at) }}</span>
+      <span v-if="stamp(app.updated_at)" class="pw-chip pw-chip-muted">{{ t('更新于 {0}', [stamp(app.updated_at)]) }}</span>
     </div>
 
     <p v-if="errorText" class="pw-error">{{ errorText }}</p>
     <p v-if="okText" class="pw-ok">{{ okText }}</p>
 
-    <nav class="pw-tabs">
-      <button
+    <nav class="pw-tabs" role="tablist" :aria-label="t('项目视图')" @keydown="onTablistKeydown">
+      <AppButton
         v-for="t in TABS"
         :key="t.key"
+        variant="tab"
+        role="tab"
+        :aria-selected="tab === t.key"
+        :tabindex="tab === t.key ? 0 : -1"
         class="pw-tab"
         :class="{ on: tab === t.key }"
         @click="tab = t.key"
@@ -424,7 +525,7 @@ onMounted(refresh)
         {{ t.label }}
         <i v-if="t.key === 'work-items' && workItems.length">{{ workItems.length }}</i>
         <i v-if="t.key === 'assets' && assets.length">{{ assets.length }}</i>
-      </button>
+      </AppButton>
     </nav>
 
     <div class="pw-body">
@@ -432,56 +533,60 @@ onMounted(refresh)
       <div v-if="tab === 'config'" class="pw-pane">
         <div class="pw-budget" :class="usageLevel">
           <div class="pw-budget-head">
-            <b>项目指令</b>
+            <b>{{ t('指令预算') }}</b>
             <span>{{ usage?.tokens ?? 0 }} / {{ usage?.budget ?? 0 }} tokens</span>
           </div>
           <div class="pw-bar"><i :style="{ '--budget-w': usagePercent + '%' }" /></div>
-          <small v-if="usageLevel === 'over'" class="pw-warn-text">
-            已超出预算，保存会被内核拒绝，请先精简指令。
-          </small>
+          <small v-if="usageLevel === 'over'" class="pw-warn-text">{{ t('已超出预算，保存会被内核拒绝，请先精简指令。') }}</small>
         </div>
 
         <div class="pw-pane-block">
-          <b class="pw-label">指令</b>
-          <AppTextarea v-model="configDraft" :rows="9" placeholder="项目背景、协作规范与输出约束" />
+          <b class="pw-label">{{ t('指令') }}</b>
+          <AppTextarea v-model="configDraft" :rows="6" :placeholder="t('项目背景、协作规范与输出约束')" />
         </div>
 
         <div class="pw-pane-block">
-          <b class="pw-label">绑定能力</b>
+          <b class="pw-label">{{ t('绑定能力') }}</b>
           <AppTextarea
             v-model="capabilityText"
-            :rows="4"
+            :rows="3"
             mono
-            placeholder="skill:pdf-tools 解析 PDF&#10;expert:reviewer 代码评审"
+            :placeholder="t('skill:pdf-tools 解析 PDF expert:reviewer 代码评审')"
           />
-          <small class="pw-hint">
-            每行一条，格式 <code>kind:id 名称</code>；可用 kind：skill / expert / connector。
-            当前已绑定 {{ boundCaps.length }} 项。
-          </small>
+          <small class="pw-hint">{{ t('每行一条，格式') }}<code>{{ t('kind:id 名称') }}</code>{{ t('；可用 kind：skill / expert / connector。 当前已绑定 {0} 项。', [boundCaps.length]) }}</small>
         </div>
 
         <div class="pw-pane-actions">
-          <span class="pw-muted">每次保存生成一条新修订，旧修订保留可回溯。</span>
-          <button class="pw-primary" :disabled="savingConfig || !configDraft.trim()" @click="saveConfig">
-            {{ savingConfig ? '保存中…' : '保存为新修订' }}
-          </button>
+          <span class="pw-muted">{{ t('每次保存生成一条新修订，旧修订保留可回溯。') }}</span>
+          <AppButton variant="primary" class="pw-primary" :disabled="savingConfig || !configDraft.trim()" @click="saveConfig">
+            {{ savingConfig ? t('保存中…') : t('保存为新修订') }}
+          </AppButton>
         </div>
       </div>
 
       <!-- 计划项 -->
       <div v-else-if="tab === 'work-items'" class="pw-pane">
         <div class="pw-addrow">
-          <AppInput v-model="newWorkItem" placeholder="新增一个计划项，比如「完成登录页设计」" />
-          <button class="pw-primary" :disabled="!newWorkItem.trim() || addingWork" @click="addItem">
-            {{ addingWork ? '添加中…' : '添加' }}
-          </button>
+          <AppInput v-model="newWorkItem" :placeholder="t('新增一个计划项，比如「完成登录页设计」')" />
+          <AppButton variant="primary" class="pw-primary" :disabled="!newWorkItem.trim() || addingWork" @click="addItem">
+            {{ addingWork ? t('添加中…') : t('添加') }}
+          </AppButton>
         </div>
 
-        <ul v-if="workItems.length" class="pw-list">
-          <li v-for="item in workItems" :key="item.id" class="pw-row">
-            <span class="pw-row-main">
-              <strong>{{ item.title }}</strong>
-              <small>{{ item.priority }} · {{ item.tags.length ? item.tags.join('、') : '无标签' }}</small>
+        <div v-if="workItems.length" class="pw-filterbar">
+          <AppSelect v-model="statusFilter" :options="statusFilterOptions" width="132px" />
+          <span class="pw-filter-note">
+            {{ statusFilter ? t('筛出 {0} / {1}', [filteredItems.length, workItems.length]) : '' }}
+          </span>
+        </div>
+
+        <ul v-if="filteredItems.length" class="pw-list">
+          <li v-for="item in filteredItems" :key="item.id" class="pw-row">
+            <span class="pw-row-main pw-row-editable" :title="t('点击就地编辑')" @click="openEdit(item)">
+              <strong :title="item.title">{{ item.title }}</strong>
+              <small :title="item.priority + ' · ' + (item.tags.length ? item.tags.join('、') : t('无标签')) + (item.assignee ? ' · ' + item.assignee : '')">
+                {{ item.priority }} · {{ item.tags.length ? item.tags.join('、') : t('无标签') }}<template v-if="item.assignee"> · {{ item.assignee }}</template>
+              </small>
             </span>
             <AppSelect
               :model-value="item.status"
@@ -489,43 +594,45 @@ onMounted(refresh)
               width="112px"
               @update:model-value="setStatus(item, $event)"
             />
-            <button class="pw-row-del" title="删除" @click="dropItem(item)">
+            <AppButton variant="icon" class="pw-row-del" :title="t('删除')" :aria-label="t('删除计划项')" @click="dropItem(item)">
               <AppIcon name="close" :size="14" />
-            </button>
+            </AppButton>
           </li>
         </ul>
-        <p v-else class="pw-empty">还没有计划项，先添加一条。</p>
+        <p v-else-if="workItems.length" class="pw-empty">
+          {{ t('该状态下没有计划项。') }}
+        </p>
+        <p v-else class="pw-empty">{{ t('还没有计划项，先添加一条。') }}</p>
       </div>
 
       <!-- 关联资产 -->
       <div v-else-if="tab === 'assets'" class="pw-pane">
         <div class="pw-addrow pw-asset-form">
-          <AppInput v-model="newAsset.nodeId" placeholder="节点 id（资料库节点）" />
-          <AppInput v-model="newAsset.assetId" placeholder="资产 id" />
-          <AppInput v-model="newAsset.name" placeholder="资产名称" />
-          <AppInput v-model="newAsset.kind" placeholder="类型" />
-          <AppInput v-model="newAsset.revisionId" placeholder="版本" />
-          <button
+          <AppInput v-model="newAsset.nodeId" :placeholder="t('节点 id（资料库节点）')" />
+          <AppInput v-model="newAsset.assetId" :placeholder="t('资产 id')" />
+          <AppInput v-model="newAsset.name" :placeholder="t('资产名称')" />
+          <AppInput v-model="newAsset.kind" :placeholder="t('类型')" />
+          <AppInput v-model="newAsset.revisionId" :placeholder="t('版本')" />
+          <AppButton
+            variant="primary"
             class="pw-primary"
             :disabled="!newAsset.assetId.trim() || !newAsset.name.trim() || addingAsset"
             @click="addOneAsset"
-          >
-            关联
-          </button>
+          >{{ t('关联') }}</AppButton>
         </div>
 
         <ul v-if="assets.length" class="pw-list">
           <li v-for="a in assets" :key="a.id" class="pw-row">
             <span class="pw-row-main">
-              <strong>{{ a.name }}</strong>
-              <small>{{ a.kind }} · {{ a.asset_id }}@{{ a.revision_id }}</small>
+              <strong :title="a.name">{{ a.name }}</strong>
+              <small :title="a.kind + ' · ' + a.asset_id + '@' + a.revision_id">{{ a.kind }} · {{ a.asset_id }}@{{ a.revision_id }}</small>
             </span>
-            <button class="pw-row-del" title="解除关联" @click="unlinkAsset(a)">
+            <AppButton variant="icon" class="pw-row-del" :title="t('解除关联')" :aria-label="t('解除关联')" @click="unlinkAsset(a)">
               <AppIcon name="close" :size="14" />
-            </button>
+            </AppButton>
           </li>
         </ul>
-        <p v-else class="pw-empty">还没有关联资产。</p>
+        <p v-else class="pw-empty">{{ t('还没有关联资产。') }}</p>
       </div>
 
       <!-- 活动 -->
@@ -533,55 +640,53 @@ onMounted(refresh)
         <ul v-if="activity.length" class="pw-activity">
           <li v-for="a in activity" :key="a.id">
             <span class="pw-activity-kind">{{ a.kind }}</span>
-            <span class="pw-activity-text">{{ a.text }}</span>
+            <span class="pw-activity-text" :title="a.text">{{ a.text }}</span>
             <span class="pw-activity-time">{{ stamp(a.created_at) }}</span>
           </li>
         </ul>
-        <p v-else class="pw-empty">暂无活动记录。</p>
+        <p v-else class="pw-empty">{{ t('暂无活动记录。') }}</p>
 
         <div class="pw-pane-block">
-          <b class="pw-label">把会话绑定到项目任务</b>
+          <b class="pw-label">{{ t('把会话绑定到项目任务') }}</b>
           <div class="pw-addrow">
-            <AppInput v-model="sessionId" placeholder="会话 id" />
-            <AppInput v-model="taskTitle" placeholder="任务标题" />
-            <AppSelect v-model="taskWorkItem" :options="workItemOptions" placeholder="绑定计划项" />
+            <AppInput v-model="sessionId" :placeholder="t('会话 id')" />
+            <AppInput v-model="taskTitle" :placeholder="t('任务标题')" />
+            <AppSelect v-model="taskWorkItem" :options="workItemOptions" :placeholder="t('绑定计划项')" />
           </div>
 
           <div class="pw-refs">
             <div class="pw-addrow">
-              <AppSelect v-model="pickedRefKey" :options="refOptions" placeholder="选择要引用的计划项 / 资产" />
-              <button class="pw-ghost" :disabled="!pickedRefKey" @click="addRef">添加引用</button>
+              <AppSelect v-model="pickedRefKey" :options="refOptions" :placeholder="t('选择要引用的计划项 / 资产')" />
+              <AppButton variant="text" class="pw-ghost" :disabled="!pickedRefKey" @click="addRef">{{ t('添加引用') }}</AppButton>
             </div>
             <ul v-if="pickedRefs.length" class="pw-ref-chips">
               <li v-for="r in pickedRefs" :key="r.key">
                 <span>{{ r.label }}</span>
-                <button class="pw-row-del" title="移除引用" @click="dropRef(r.key)">
+                <AppButton variant="icon" class="pw-row-del" :title="t('移除引用')" :aria-label="t('移除引用')" @click="dropRef(r.key)">
                   <AppIcon name="close" :size="12" />
-                </button>
+                </AppButton>
               </li>
             </ul>
-            <small class="pw-hint">
-              引用会带上当前修订号，内核校验过期即拒绝——避免会话拿着已改动的计划项继续推进。
-            </small>
+            <small class="pw-hint">{{ t('引用会带上当前修订号，内核校验过期即拒绝——避免会话拿着已改动的计划项继续推进。') }}</small>
           </div>
           <AppTextarea
             v-model="taskCaps"
             :rows="3"
             mono
-            placeholder="本次会话只借用这些能力（每行一条 kind:id）"
+            :placeholder="t('本次会话只借用这些能力（每行一条 kind:id）')"
           />
           <div class="pw-pane-actions">
-            <button class="pw-primary" :disabled="linking || !sessionId.trim() || !taskTitle.trim()" @click="bindSession">
-              {{ linking ? '绑定中…' : '绑定会话' }}
-            </button>
+            <AppButton variant="primary" class="pw-primary" :disabled="linking || !sessionId.trim() || !taskTitle.trim()" @click="bindSession">
+              {{ linking ? t('绑定中…') : t('绑定会话') }}
+            </AppButton>
           </div>
         </div>
 
         <ul v-if="linkedSessions.length" class="pw-list">
-          <li v-for="t in linkedSessions" :key="t.id" class="pw-row">
+          <li v-for="item in linkedSessions" :key="item.id" class="pw-row">
             <span class="pw-row-main">
-              <strong>{{ t.title }}</strong>
-              <small>{{ t.session_id }} · 引用 {{ t.references.length }} 项</small>
+              <strong>{{ item.title }}</strong>
+              <small>{{ t('{0} · 引用 {1} 项', [item.session_id, item.references.length]) }}</small>
             </span>
           </li>
         </ul>
@@ -589,12 +694,55 @@ onMounted(refresh)
 
       <!-- 文件 / 终端 / 浏览器：占用剩余高度，不套卡片的文档流内边距 -->
       <FilesWorkspace v-else-if="tab === 'files' && app.path" :root="app.path" />
-      <TerminalPanel v-else-if="tab === 'term' && app.path" :cwd="app.path" />
+      <TerminalPanel v-else-if="tab === 'term' && app.path" :cwd="app.path" :root="app.path" />
       <AgentBrowserPane v-else-if="tab === 'browser'" />
+      <WorktreePanel v-else-if="tab === 'worktree' && app.path" :root="app.path" />
       <div v-else-if="needPath" class="pw-pane">
-        <p class="pw-empty">这个项目还没有工作目录 —— 先在上面点「选择目录」，再回来开工具。</p>
+        <p class="pw-empty">{{ t('这个项目还没有工作目录 —— 先在上面点「选择目录」，再回来开工具。') }}</p>
       </div>
     </div>
+
+    <!-- 计划项就地编辑：标题 / 状态 / 优先级 / 负责人 / 标签 -->
+    <AppModal
+      :open="!!editTarget"
+      :title="t('编辑计划项')"
+      size="sm"
+      @close="editTarget = null"
+    >
+      <label class="pw-edit-field">
+        <span>{{ t('标题') }}</span>
+        <AppInput v-model="editDraft.title" :placeholder="t('一句话说清要做什么')" />
+      </label>
+      <div class="pw-edit-row">
+        <label class="pw-edit-field">
+          <span>{{ t('状态') }}</span>
+          <AppSelect v-model="editDraft.status" :options="WORK_ITEM_STATUS" />
+        </label>
+        <label class="pw-edit-field">
+          <span>{{ t('优先级') }}</span>
+          <AppSelect v-model="editDraft.priority" :options="PRIORITY_OPTIONS" />
+        </label>
+      </div>
+      <label class="pw-edit-field">
+        <span>{{ t('负责人') }}</span>
+        <AppInput v-model="editDraft.assignee" :placeholder="t('可留空')" />
+      </label>
+      <label class="pw-edit-field">
+        <span>{{ t('标签') }}</span>
+        <AppInput v-model="editDraft.tags" :placeholder="t('逗号分隔')" />
+      </label>
+      <template #footer>
+        <AppButton variant="text" class="pw-ghost" @click="editTarget = null">{{ t('取消') }}</AppButton>
+        <AppButton
+          variant="primary"
+          class="pw-primary"
+          :disabled="!editDraft.title.trim() || savingEdit"
+          @click="saveEdit"
+        >
+          {{ savingEdit ? t('保存中…') : t('保存') }}
+        </AppButton>
+      </template>
+    </AppModal>
   </section>
 </template>
 

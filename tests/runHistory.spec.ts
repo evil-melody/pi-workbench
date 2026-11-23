@@ -2,10 +2,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, h, nextTick, type App } from 'vue'
 import RunHistory from '@/components/chat/RunHistory.vue'
+import { activeReplayIndex } from '@/composables/useReplay'
 
 /**
  * 运行记录列表的真实挂载用例：
- * - 「···」菜单全量项与顺序（对齐 WorkBuddy）
+ * - 行尾「···」按钮点击菜单全量项与顺序（右键同样可开）
  * - 分享任务 → clipboard 写 markdown 摘要 / 失败降级弹窗
  * - 批量操作：多选态、全选、逐条 invoke run_meta_update
  * - 删除确认 / 重命名 / 打开文件夹 / 独立窗口 / 归档开关
@@ -105,7 +106,7 @@ const menuItems = () => [...document.querySelectorAll<HTMLButtonElement>('.ctx-m
 const menuItem = (text: string) =>
   menuItems().find((b) => b.textContent?.trim() === text)
 
-/** 打开某一行的「···」菜单。 */
+/** 打开某一行的菜单：点行尾「···」按钮（右键同样可开，见专项断言）。 */
 async function openRowMenu(host: HTMLElement, rowIndex: number) {
   rows(host)[rowIndex].querySelector<HTMLButtonElement>('.rh-more-btn')!.click()
   await flush()
@@ -121,8 +122,8 @@ describe('RunHistory', () => {
     invokeMock.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
       switch (cmd) {
         case 'pi_journal_sessions':
-          // 后端默认过滤 archived；includeArchived=true 才带出。
-          return SESSIONS.filter((s) => (args?.includeArchived === true ? true : !s.archived))
+          // 后端默认过滤 archived；include_archived=true 才带出。
+          return SESSIONS.filter((s) => (args?.include_archived === true ? true : !s.archived))
         case 'run_meta_list':
         case 'run_meta_update':
           return META
@@ -153,11 +154,29 @@ describe('RunHistory', () => {
     expect(list[0].querySelector('.rh-title')!.textContent).toBe('修复登录页样式')
     expect(list[0].querySelector('.rh-pin')).not.toBeNull()
     expect(list[1].querySelector('.rh-pin')).toBeNull()
-    expect(list[0].textContent).toContain('3 轮')
+    // 行内只留标题 + 相对时间：轮数不再作为第二处次级信息挤占标题宽度
+    expect(list[0].textContent).not.toContain('轮')
     const archivedBtn = [...host.querySelectorAll<HTMLButtonElement>('.rh-more')].find((b) =>
       b.textContent?.includes('查看归档'),
     )
     expect(archivedBtn?.textContent).toContain('1')
+  })
+
+  it('当前会话行：selected 标记与 aria-current 只落在对应段', async () => {
+    const { host } = mountRunHistory()
+    await flush()
+
+    activeReplayIndex.value = 1
+    await nextTick()
+    const list = rows(host)
+    expect(list[1].classList.contains('selected')).toBe(true)
+    expect(list[1].getAttribute('aria-current')).toBe('true')
+    expect(list[0].classList.contains('selected')).toBe(false)
+    expect(list[0].getAttribute('aria-current')).toBeNull()
+
+    activeReplayIndex.value = null
+    await nextTick()
+    expect(rows(host).some((r) => r.classList.contains('selected'))).toBe(false)
   })
 
   it('「···」菜单全量项与顺序（对齐 WorkBuddy），删除是危险项', async () => {
@@ -179,6 +198,15 @@ describe('RunHistory', () => {
     expect(menuOf()!.querySelectorAll('.ctx-menu-sep')).toHaveLength(2)
     const del = menuItem('删除任务')!
     expect(del.className).toContain('danger')
+  })
+
+  it('行右键同样可开菜单；行尾不再有 A 徽标', async () => {
+    const { host } = mountRunHistory()
+    await flush()
+    expect(host.querySelectorAll('.rh-avatar')).toHaveLength(0)
+    rows(host)[1].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+    await flush()
+    expect(menuOf()).not.toBeNull()
   })
 
   it('分享任务：markdown 摘要进剪贴板并 toast「已复制」', async () => {
@@ -220,7 +248,7 @@ describe('RunHistory', () => {
     menuItem('批量操作')!.click()
     await flush()
 
-    // 多选态：条目前是公共 AppCheckbox（真渲染，含自绘 box），「···」让位
+    // 多选态：条目前是公共 AppCheckbox（真渲染，含自绘 box），行尾「···」让位
     expect(host.querySelectorAll('.rh-check .native')).toHaveLength(2)
     expect(host.querySelectorAll('.rh-more-btn')).toHaveLength(0)
     expect(host.querySelector('.bulk-bar')).not.toBeNull()
@@ -261,7 +289,7 @@ describe('RunHistory', () => {
     cancelBtn.click()
     await flush()
     expect(host.querySelector('.bulk-bar')).toBeNull()
-    expect(host.querySelectorAll('.rh-more-btn')).toHaveLength(2)
+    expect(host.querySelectorAll('.rh-item .rh-more-btn')).toHaveLength(2)
   })
 
   it('删除任务：AppModal 确认后软删除（run_meta_update deleted）', async () => {

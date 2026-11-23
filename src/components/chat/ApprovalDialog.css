@@ -26,7 +26,7 @@
 
 .approval-title {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-ui);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -35,7 +35,7 @@
 
 .approval-msg {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -44,7 +44,7 @@
 
 .approval-meta {
   margin: 0;
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
@@ -65,9 +65,9 @@
   border: 1px solid var(--border);
   background: var(--bg-elev);
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
 .approval-btn.approve {
@@ -75,12 +75,18 @@
   color: var(--ok);
 }
 
-.approval-btn.approve:hover {
-  background: var(--ok-soft);
+@media (hover: hover) {
+
+  .approval-btn.approve:hover {
+    background: var(--ok-soft);
+}
 }
 
-.approval-btn.reject:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .approval-btn.reject:hover {
+    background: var(--bg-hover);
+}
 }
 
 .approval-btn.dismiss {
@@ -88,14 +94,17 @@
   color: var(--text-faint);
 }
 
-.approval-btn.dismiss:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .approval-btn.dismiss:hover {
+    background: var(--bg-hover);
+}
 }
 
 /* 进出场：从 composer 侧滑入，不遮挡消息流。 */
 .approval-slide-enter-active,
 .approval-slide-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
 }
 
 .approval-slide-enter-from,

@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 /**
  * B4 上下文预算：prompt 前缀（taskContextPreamble 产物）拼接前的 token 计量与裁剪。
  *
@@ -50,7 +51,7 @@ function clampLine(line: string): string {
   if (estimateTokens(line) <= MAX_LINE_TOKENS) return line
   // 按 token 比例换算可保留的字符数（粗略即可），尾部留标注空间。
   const keep = Math.floor((MAX_LINE_TOKENS - 12) / (estimateTokens(line) / line.length))
-  return `${line.slice(0, Math.max(0, keep))}…[单行超限已截断]`
+  return t('{0}…[单行超限已截断]', [line.slice(0, Math.max(0, keep))])
 }
 
 /**
@@ -81,9 +82,9 @@ export function trimPreamble(
     }
   }
 
-  const isMeta = (l: string) => l.startsWith('[项目]') || l.startsWith('[配置修订')
-  const isCaps = (l: string) => l.startsWith('[本次可用能力]')
-  const isRefs = (l: string) => l.startsWith('[本次引用]')
+  const isMeta = (l: string) => l.startsWith(t('[项目]')) || l.startsWith(t('[配置修订'))
+  const isCaps = (l: string) => l.startsWith(t('[本次可用能力]'))
+  const isRefs = (l: string) => l.startsWith(t('[本次引用]'))
   // 元信息 > 其余正文 > 能力 > 引用（正文里含指令，优先级仅次于元信息）。
   const rank = (l: string) => (isMeta(l) ? 0 : isCaps(l) ? 2 : isRefs(l) ? 3 : 1)
 
@@ -107,7 +108,7 @@ export function trimPreamble(
   let out = kept.join('\n')
   if (dropped.length) {
     const dTokens = dropped.reduce((s, l) => s + estimateTokens(l), 0)
-    out += `\n[已裁剪] 前 ${dropped.length} 行（≈${dTokens} tokens）超出前缀预算被省略，需要时让用户贴具体内容`
+    out += t('[已裁剪] 前 {0} 行（≈{1} tokens）超出前缀预算被省略，需要时让用户贴具体内容', [dropped.length, dTokens])
   }
   return { preamble: out, originalTokens, finalTokens: estimateTokens(out), trimmed: true }
 }

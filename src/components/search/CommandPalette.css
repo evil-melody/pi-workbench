@@ -1,0 +1,205 @@
+/* 全局搜索面板（D-21）：输入框置顶、结果分组滚动、底部快捷键。 */
+
+.palette {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: min(560px, calc(100dvh - 140px));
+}
+
+.palette-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.palette-field {
+  flex: 1;
+  min-width: 0;
+  height: var(--hit);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-md);
+}
+
+.palette-field:focus {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.palette-kbd {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-faint);
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+}
+
+.palette-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.palette-list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.palette-head {
+  padding: 8px 10px 4px;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+
+.palette-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--hit);
+  padding: 6px 10px;
+  border-radius: var(--r);
+  cursor: pointer;
+}
+
+/* 键盘高亮用 bg-active；鼠标悬停退一档用 bg-hover，两者不互相覆盖。 */
+@media (hover: hover) {
+  .palette-row:hover:not(.active) {
+    background: var(--bg-hover);
+}
+}
+
+.palette-row.active {
+  background: var(--bg-active);
+}
+
+.palette-row:active {
+  background: var(--bg-active);
+}
+
+.palette-icon {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+
+.palette-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.palette-title,
+.palette-meta,
+.palette-snippet {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-title {
+  color: var(--text);
+  font-size: var(--fs-base);
+  font-weight: var(--fw-medium);
+}
+
+.palette-title :deep(mark) {
+  background: transparent;
+  color: var(--accent);
+  font-weight: var(--fw-semibold);
+}
+
+.palette-meta {
+  margin-top: 1px;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+}
+
+.palette-snippet {
+  margin-top: 1px;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+.palette-kind {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+.palette-state,
+.palette-empty {
+  padding: 28px 16px;
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
+.palette-state.err {
+  color: var(--danger);
+}
+
+.palette-empty {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+}
+
+.palette-empty p {
+  margin: 0;
+  color: var(--text-dim);
+}
+
+.palette-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.palette-kinds span {
+  padding: 3px 10px;
+  border-radius: var(--r-full);
+  background: var(--bg-elev);
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+.palette-foot {
+  display: flex;
+  gap: 14px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+@media (max-width: 640px) {
+  .palette {
+    max-height: calc(100dvh - 100px);
+  }
+
+  .palette-input {
+    padding: 6px 12px;
+  }
+
+  .palette-row {
+    padding: 6px 8px;
+  }
+
+  .palette-kind {
+    display: none;
+  }
+}

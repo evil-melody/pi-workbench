@@ -1,30 +1,33 @@
 .app-textarea {
   display: block;
   width: 100%;
-  padding: 7px 9px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
+  min-height: 88px;
+  padding: 8px 12px;
+  border: var(--stroke-field);
+  border-radius: var(--r);
+  background: var(--bg-field);
   color: var(--text);
   font-family: inherit;
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: var(--fs-ui);
+  line-height: var(--lh-body);
   resize: vertical;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
 .app-textarea::placeholder {
-  color: var(--text-dim);
-  opacity: 0.85;
+  color: var(--text-faint);
 }
 
-.app-textarea:hover:not(:disabled) {
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .app-textarea:hover:not(:disabled) {
+    border-color: var(--border-strong);
+}
 }
 
 .app-textarea:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.22);
+  box-shadow: var(--focus-ring);
   outline: none;
 }
 
@@ -35,6 +38,6 @@
 
 .app-textarea.mono {
   font-family: var(--mono);
-  font-size: 11.5px;
-  line-height: 1.6;
+  font-size: var(--fs-ui);
+  line-height: var(--lh-code);
 }

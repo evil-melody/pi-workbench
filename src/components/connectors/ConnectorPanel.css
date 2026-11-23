@@ -1,92 +1,115 @@
 .cp {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  gap: var(--sp-3);
+  /* 面板宽度决定版式：右列 320px 单列堆叠，能力页宽栏回到列表|详情两栏 */
+  container-type: inline-size;
 }
 
 .cp-toolbar {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: var(--sp-2);
 }
 
-.cp-toolbar .app-input {
-  flex: 1;
-  max-width: 320px;
+.cp-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  /* 第三个动作按钮（导入）加入后窄栏会溢出：允许换行，统计文本永远占第一行剩余宽度。 */
+  flex-wrap: wrap;
 }
 
 .cp-stat {
-  font-size: 12px;
-  color: var(--fg-dim, var(--text-dim));
-}
-
-.cp-btn {
-  font: inherit;
-  font-size: 13px;
-  padding: 5px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--border, var(--border));
-  background: var(--surface, var(--bg-elev));
-  color: var(--fg, var(--text));
-  cursor: pointer;
-}
-
-.cp-btn:hover:not(:disabled) {
-  border-color: var(--fg-dim, var(--text-dim));
-}
-
-.cp-btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
-}
-
-.cp-btn:hover.primary {
-  filter: brightness(0.92);
-}
-
-.cp-btn:disabled {
-  opacity: 0.55;
-  cursor: default;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-meta);
+  color: var(--text-dim);
 }
 
 .cp-error {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--danger);
   background: var(--danger-soft);
   border: 1px solid var(--danger);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 6px 8px;
 }
 
 .cp-hint {
   margin: 0;
-  font-size: 12px;
-  color: var(--fg-dim, var(--text-dim));
+  font-size: var(--fs-meta);
+  color: var(--text-dim);
+}
+
+.cp-hint-center {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  text-align: center;
 }
 
 .cp-muted {
-  font-size: 12px;
-  color: var(--fg-dim, var(--text-dim));
+  font-size: var(--fs-meta);
+  color: var(--text-dim);
 }
 
 .cp-body {
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: 12px;
-  min-height: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  flex: 1;
+  min-height: 0;
+}
+
+@container (min-width: 600px) {
+  .cp-body.has-detail {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
 }
 
 .cp-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  border: 1px solid var(--border, var(--border));
-  border-radius: 8px;
-  padding: 10px;
+  flex: 1;
+  min-height: calc(var(--row-h) * 5);
+  gap: var(--sp-2);
+  border: var(--stroke);
+  border-radius: var(--r-lg);
+  padding: var(--sp-2);
   max-height: 420px;
   overflow: auto;
+}
+
+/* 加载态与参考仓一致：骨架行占位，不用一句「正在读取」把版面撑成空白 */
+.cp-skeleton {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  justify-content: center;
+  gap: var(--sp-2);
+}
+
+.cp-skeleton .sk-block {
+  height: calc(var(--row-h) + var(--sp-3));
+}
+
+/* 空列表不画卡片：整块面板就是空态（参考仓：空面板才居中放完整空态） */
+.cp-list.is-empty {
+  border: none;
+  padding: 0;
+  max-height: none;
+}
+
+.cp-empty {
+  flex: 1;
+  margin: 0;
+  border: none;
+  min-height: 0;
 }
 
 .cp-item {
@@ -95,15 +118,18 @@
   gap: 4px;
   padding: 8px 10px;
   border: 1px solid var(--border, var(--border));
-  border-radius: 8px;
+  border-radius: var(--r);
   background: var(--surface, var(--bg-elev));
   cursor: pointer;
   text-align: left;
   font: inherit;
 }
 
-.cp-item:hover {
-  border-color: var(--accent);
+@media (hover: hover) {
+
+  .cp-item:hover {
+    border-color: var(--accent);
+}
 }
 
 .cp-item.on {
@@ -119,17 +145,17 @@
 }
 
 .cp-item-top strong {
-  font-size: 13px;
+  font-size: var(--fs-ui);
 }
 
 .cp-item-sub {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--fg-dim, var(--text-dim));
 }
 
 .cp-item-sub code {
   background: var(--bg-soft, var(--bg-hover));
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   padding: 0 3px;
 }
 
@@ -141,9 +167,9 @@
 
 .cp-mini {
   font: inherit;
-  font-size: 11px;
+  font-size: var(--fs-micro);
   padding: 2px 8px;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--border, var(--border));
   background: var(--bg-soft, var(--bg-hover));
   color: var(--fg, var(--text));
@@ -153,8 +179,11 @@
   gap: 4px;
 }
 
-.cp-mini:hover {
-  border-color: var(--fg-dim, var(--text-dim));
+@media (hover: hover) {
+
+  .cp-mini:hover {
+    border-color: var(--fg-dim, var(--text-dim));
+}
 }
 
 .cp-mini.danger {
@@ -163,9 +192,9 @@
 }
 
 .cp-badge {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   padding: 1px 7px;
-  border-radius: 999px;
+  border-radius: var(--r-full);
   background: var(--bg-soft, var(--bg-hover));
   color: var(--fg-dim, var(--text-dim));
   white-space: nowrap;
@@ -188,7 +217,7 @@
 
 .cp-detail {
   border: 1px solid var(--border, var(--border));
-  border-radius: 8px;
+  border-radius: var(--r);
   padding: 12px;
   display: flex;
   flex-direction: column;
@@ -205,7 +234,7 @@
 
 .cp-detail-head h4 {
   margin: 0 0 2px;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 .cp-facts {
@@ -216,34 +245,34 @@
 }
 
 .cp-facts dt {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--fg-dim, var(--text-dim));
 }
 
 .cp-facts dd {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .cp-facts code {
   background: var(--bg-soft, var(--bg-hover));
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   padding: 0 3px;
 }
 
 .cp-diag {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--warn);
   background: var(--warn-soft);
   border: 1px solid var(--warn);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 6px 8px;
 }
 
 .cp-tools-head {
   margin: 0 0 6px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   font-weight: 600;
 }
 
@@ -256,47 +285,56 @@
 }
 
 .cp-tools code {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   background: var(--bg-soft, var(--bg-hover));
-  border-radius: 3px;
-  padding: 1px 4px;
+  border-radius: var(--r-sm);
+  padding: 1px var(--sp-2);
 }
 
 .cp-session {
-  border: 1px solid var(--border, var(--border));
-  border-radius: 8px;
-  padding: 12px;
+  border: var(--stroke);
+  border-radius: var(--r-lg);
+  padding: var(--sp-3);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--sp-3);
 }
 
+/* 标题 + 说明成组（左对齐两行），不再和按钮抢同一行 */
 .cp-session-head {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+}
+
+.cp-session-actions {
+  display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
 }
 
 .cp-session-pick {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--sp-2);
 }
 
 .cp-chip {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border, var(--border));
-  background: var(--surface, var(--bg-elev));
-  color: var(--fg, var(--text));
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--fg);
   cursor: pointer;
 }
 
-.cp-chip:hover:not(:disabled) {
-  border-color: var(--accent);
+@media (hover: hover) {
+
+  .cp-chip:hover:not(:disabled) {
+    border-color: var(--accent);
+}
 }
 
 .cp-chip.on {
@@ -317,10 +355,10 @@
 }
 
 .cp-scope-list code {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   background: var(--bg-soft, var(--bg-hover));
-  border-radius: 3px;
-  padding: 1px 5px;
+  border-radius: var(--r-sm);
+  padding: 1px var(--sp-2);
 }
 
 .cp-orphans {

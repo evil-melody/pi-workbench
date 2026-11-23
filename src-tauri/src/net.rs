@@ -96,7 +96,10 @@ mod tests {
     #[test]
     fn normalize_fills_missing_scheme_with_https() {
         assert_eq!(normalize_url("example.com").unwrap(), "https://example.com");
-        assert_eq!(normalize_url("  example.com ").unwrap(), "https://example.com");
+        assert_eq!(
+            normalize_url("  example.com ").unwrap(),
+            "https://example.com"
+        );
     }
 
     #[test]
@@ -128,11 +131,17 @@ mod tests {
             require_http_url("HTTPS://example.com/s.md").unwrap(),
             "HTTPS://example.com/s.md"
         );
-        assert!(require_http_url("example.com/s.md").is_err(), "无 scheme 必须被拒");
+        assert!(
+            require_http_url("example.com/s.md").is_err(),
+            "无 scheme 必须被拒"
+        );
         assert!(require_http_url("javascript:alert(1)").is_err());
         assert!(require_http_url("file:///etc/passwd").is_err());
         assert!(require_http_url("ftp://example.com/a").is_err());
-        assert!(require_http_url("http://").is_err(), "scheme 后为空必须被拒");
+        assert!(
+            require_http_url("http://").is_err(),
+            "scheme 后为空必须被拒"
+        );
     }
 
     #[test]

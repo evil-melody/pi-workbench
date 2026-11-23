@@ -1,0 +1,106 @@
+/*
+ * #66 M8：MCP 加载进度条。与队列 strip / 步骤条同一视觉家族：
+ * hairline 边框 + elev 底 + meta 字号，临时状态条不抢对话主内容。
+ */
+.mcp-strip {
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-elev);
+  font-size: var(--fs-meta);
+  overflow: hidden;
+}
+
+.mcp-strip.done {
+  border-color: color-mix(in srgb, var(--ok) 40%, var(--border));
+}
+
+.mcp-strip.failed {
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+}
+
+.mcp-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mcp-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.mcp-caret {
+  flex: none;
+  color: var(--text-dim);
+  font-size: var(--fs-micro);
+}
+
+.mcp-spin {
+  animation: mcp-rotate 1.1s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes mcp-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mcp-ok {
+  color: var(--ok);
+}
+
+.mcp-warn {
+  color: var(--danger);
+}
+
+.mcp-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0 10px 8px 29px;
+}
+
+.mcp-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.mcp-group-title {
+  color: var(--text-dim);
+  font-size: var(--fs-micro);
+}
+
+.mcp-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-panel);
+  font-size: var(--fs-micro);
+  white-space: nowrap;
+}
+
+.mcp-group.ok .mcp-item {
+  color: var(--ok);
+}
+
+.mcp-group.bad .mcp-item {
+  color: var(--danger);
+}
+
+.mcp-group.pend .mcp-item {
+  color: var(--accent);
+}

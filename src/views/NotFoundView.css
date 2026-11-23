@@ -22,21 +22,21 @@
 .nf-code {
   color: var(--accent);
   font-family: var(--mono);
-  font-size: 40px;
-  font-weight: 700;
+  font-size: var(--fs-display);
+  font-weight: var(--fw-page);
   letter-spacing: 2px;
 }
 
 .nf-title {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--fs-xl);
   font-weight: 600;
 }
 
 .nf-desc {
   margin: 0;
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   line-height: 1.7;
 }
 
@@ -44,14 +44,17 @@
   margin-top: var(--sp-2, 8px);
   padding: 7px 18px;
   border: 1px solid var(--accent);
-  border-radius: var(--r-md, 8px);
+  border-radius: var(--r);
   background: var(--accent);
   color: var(--accent-ink);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--dur-fast) var(--ease);
 }
 
-.nf-btn:hover {
-  opacity: 0.88;
+@media (hover: hover) {
+
+  .nf-btn:hover {
+    opacity: 0.88;
+}
 }

@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import type { ArtifactKind } from './useArtifacts'
 
 /**
@@ -48,7 +49,7 @@ export async function officeToHtml(kind: ArtifactKind, dataUrl: string): Promise
       sheet_to_html(sheet: unknown): string
     }
     const sheets = utils.book_get_sheet_names(wb)
-    if (!sheets.length) return '<p class="empty">工作簿里没有工作表</p>'
+    if (!sheets.length) return t('<p class="empty">工作簿里没有工作表</p>')
     return sheets
       .map((name) => {
         const ws = utils.book_get_sheet(wb, name)
@@ -58,5 +59,5 @@ export async function officeToHtml(kind: ArtifactKind, dataUrl: string): Promise
       .join('')
   }
 
-  throw new Error(`${kind.toUpperCase()} 暂不支持在线预览，请用「用外部应用打开」`)
+  throw new Error(t('{0} 暂不支持在线预览，请用「用外部应用打开」', [kind.toUpperCase()]))
 }

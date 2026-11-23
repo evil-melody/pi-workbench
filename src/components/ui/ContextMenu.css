@@ -7,8 +7,11 @@
   position: fixed;
   z-index: 50;
   min-width: 168px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
   padding: 4px;
-  border: 1px solid var(--border);
+  /* 浮层：--sh-2 内含 hairline，不再叠 border。 */
+  border: 0;
   border-radius: var(--r);
   background: var(--bg-elev);
   box-shadow: var(--sh-2);
@@ -24,15 +27,18 @@
   border-radius: var(--r-sm);
   background: transparent;
   color: var(--text);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   font-family: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 
-.ctx-menu-item:hover {
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .ctx-menu-item:hover {
+    background: var(--bg-hover);
+}
 }
 
 /* 图标固定列宽：所有条目文字左缘对齐（WorkBuddy 菜单的对齐方式） */
@@ -49,8 +55,11 @@
   color: var(--danger);
 }
 
-.ctx-menu-item.danger:hover {
-  background: var(--danger-soft);
+@media (hover: hover) {
+
+  .ctx-menu-item.danger:hover {
+    background: var(--danger-soft);
+}
 }
 
 .ctx-menu-sep {

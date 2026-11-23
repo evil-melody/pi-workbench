@@ -1,0 +1,82 @@
+/*
+ * 待发送附件托盘（#66 从 ChatView.css 抽出）：落地页与会话态共用同一形态，
+ * 样式只此一份（零重复原则）。已发送气泡的历史附件是 MessageAttachments，语义不同。
+ */
+
+/* 托盘随 composer 内衬同宽；外壳 gap 已负责与输入框的间距，不再留 margin。 */
+.att-tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  width: 100%;
+}
+
+.att-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  max-width: 220px;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-elev);
+}
+
+.att-chip.image .att-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.att-chip.file .app-icon {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.att-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.att-name {
+  font-size: var(--fs-sm);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.att-meta {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.att-x {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  /* 全局 button 最小高 36 会把 18 的移除键拉成竖条。 */
+  min-height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+
+  .att-x:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+}

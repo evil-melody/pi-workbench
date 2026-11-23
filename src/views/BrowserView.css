@@ -1,10 +1,4 @@
-/* 浏览器自动化视图专属样式（共享容器样式见 agent-ops.css）。 */
-
-.agent-ops.browser.embedded {
-  height: auto;
-  padding: 0;
-  max-width: none;
-}
+/* 浏览器自动化视图专属样式（共享容器样式见 agent-ops.css；embedded 收拢在那边）。 */
 
 .url-box {
   display: flex;
@@ -17,7 +11,7 @@
   border-radius: var(--r);
   padding: 0 var(--sp-3);
   color: var(--text-faint);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
 .url-box:focus-within {
@@ -36,7 +30,7 @@
   border: none;
   background: transparent;
   box-shadow: none;
-  font-size: 13px;
+  font-size: var(--fs-ui);
   color: var(--text);
 }
 
@@ -66,7 +60,7 @@
 
 .sess-label {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 
 .sess-dot {
@@ -78,13 +72,13 @@
 }
 
 .sess-state {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--ok);
 }
 
 .sess-url {
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   word-break: break-all;
 }
 
@@ -93,14 +87,17 @@
   text-decoration: none;
 }
 
-.sess-url a:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+
+  .sess-url a:hover {
+    text-decoration: underline;
+}
 }
 
 .sess-meta {
   display: flex;
   gap: var(--sp-5);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
   border-top: 1px solid var(--border-soft);
   padding-top: var(--sp-2);

@@ -1,0 +1,164 @@
+/*
+ * 变体规则统一用 :where() 压到单类特异度：
+ * 迁移进来的页面按钮保留了原有 class（scoped 后带 data-v，特异度 0,2,0），
+ * 页面样式始终优先，视觉与交互不发生位移；没有页面样式的按钮才吃这里的默认值。
+ */
+.app-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1);
+  /* 参考 controls.ts：高 36 / 圆角 9 / padding 9 16 / 不被压扁（圆角归一到 --r）。
+     纵向 padding 归 0、由 min-height + 居中对齐定高，与原生 button 的 36 完全一致。 */
+  min-height: var(--row-h);
+  padding: 0 var(--sp-4);
+  border-radius: var(--r);
+  flex-shrink: 0;
+  font-family: inherit;
+  font-size: var(--fs-ui);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-ui);
+  white-space: nowrap;
+  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+}
+
+.app-btn:where(.s-sm) {
+  min-height: 28px;
+  padding: 0 var(--sp-2);
+  font-size: var(--fs-meta);
+}
+
+.app-btn:where(.v-primary) {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+  font-weight: var(--fw-semibold);
+}
+
+@media (hover: hover) {
+
+  .app-btn:where(.v-primary):where(:hover:not(:disabled)) {
+    background: var(--accent);
+    filter: brightness(1.08);
+}
+}
+
+.app-btn:where(.v-primary):where(:active:not(:disabled)) {
+  filter: brightness(0.94);
+}
+
+/* 次级动作：无边框幽灵按钮。全站只有主操作带实底/描边，
+   工具栏里的一排次要按钮不再各自长一个方框（视觉噪声的主要来源）。 */
+.app-btn:where(.v-secondary) {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+  font-weight: var(--fw-medium);
+}
+
+@media (hover: hover) {
+
+  .app-btn:where(.v-secondary):where(:hover:not(:disabled)) {
+    background: var(--bg-hover);
+    border-color: transparent;
+    color: var(--text);
+}
+}
+
+.app-btn:where(.v-secondary):where(:active:not(:disabled)) {
+  background: var(--bg-active);
+}
+
+/* 已开启的开关型工具按钮：用强调底色表态，不加描边 */
+.app-btn:where(.v-secondary):where(.on) {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent);
+}
+
+.app-btn:where(.v-danger) {
+  color: var(--danger);
+  border-color: var(--danger-soft);
+}
+
+@media (hover: hover) {
+
+  .app-btn:where(.v-danger):where(:hover:not(:disabled)) {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+}
+}
+
+/* 纯图标：正方形，无边框无底色，hover 才给一层底。 */
+.app-btn:where(.v-icon) {
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+}
+
+@media (hover: hover) {
+
+  .app-btn:where(.v-icon):where(:hover:not(:disabled)) {
+    background: var(--bg-hover);
+    border-color: var(--border);
+    color: var(--text);
+}
+}
+
+/* 纯文字：无边框，用于行内操作；不参与 36px 基座高度。 */
+.app-btn:where(.v-text) {
+  min-height: 0;
+  padding: 2px 6px;
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-dim);
+}
+
+@media (hover: hover) {
+
+  .app-btn:where(.v-text):where(:hover:not(:disabled)) {
+    background: var(--bg-hover);
+    border-color: transparent;
+    color: var(--text);
+}
+}
+
+.app-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── 形态变体 ─────────────────────────────────────────────────────
+ * 只重置基座（居中 / nowrap / 内联 flex）对非行内按钮的干扰；
+ * 尺寸、间距、配色仍由调用方页面样式决定（scoped 0,2,0 始终覆盖这里）。
+ */
+
+/* 菜单项 / 列表选项 / 折叠行头：整行可点，内容从左侧起排。
+   grid 行头也吃这条 —— grid 的 justify-content:center 会把列轨居中，破坏对齐。 */
+.app-btn:where(.v-menu-item) {
+  width: 100%;
+  justify-content: flex-start;
+  white-space: normal;
+  text-align: left;
+}
+
+/* 标签页：原生按钮在 flex 里是左对齐（侧栏标签靠 width:100% 撑满）。 */
+.app-btn:where(.v-tab) {
+  justify-content: flex-start;
+}
+
+/* 卡片：描述需要换行，且内容默认从左上起排。 */
+.app-btn:where(.v-card) {
+  justify-content: flex-start;
+  white-space: normal;
+}
+
+/* chip：胶囊内居中，与基座一致；单独成类只为让调用方表达形态。 */
+.app-btn:where(.v-chip) {
+  border-radius: var(--r-full);
+}

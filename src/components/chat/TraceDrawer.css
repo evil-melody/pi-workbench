@@ -1,30 +1,52 @@
-/* 过程抽屉：收起时零宽，展开 380px */
+/*
+ * 过程抽屉 = 对话壳 grid 的第二轨（F1）。收起时整块不占位（`display:none`），
+ * 主内容干净回到 1fr；宽度只由 `.chat.aside-open` 的轨道决定，组件内不再写死 380px。
+ */
 
 .trace-drawer {
-  width: 0;
-  flex-shrink: 0;
-  display: flex;
+  display: none;
   flex-direction: column;
-  overflow: hidden;
-  border-left: 1px solid transparent;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--border);
   background: var(--bg-panel);
-  transition: width 0.18s ease, border-color 0.18s ease;
 }
 
 .trace-drawer.open {
-  width: 380px;
-  border-left-color: var(--border);
+  display: flex;
+}
+
+/* 窄窗：右列转 overlay，浮在主内容上（`.chat` 已 position:relative，脱离 grid 流）。
+   断点 1075 = 侧栏 296 + 右列下限 380 + 中栏 400（参考仓中栏最小宽度），
+   与 ChatView.css 同一个数。 */
+@media (max-width: 1075px) {
+  .trace-drawer.open {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--chat-aside);
+    max-width: 100%;
+    z-index: 20;
+    box-shadow: var(--sh-2);
+  }
+}
+
+/* ≤851：overlay 也让不出中栏 400（56 图标轨 + 380 面板 + 16 + 400 = 852），
+   面板整屏覆盖，中栏回到原宽。 */
+@media (max-width: 851px) {
+  .trace-drawer.open {
+    width: 100%;
+  }
 }
 
 .td-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--sp-2);
   flex-shrink: 0;
-  padding: 10px;
+  padding: var(--sp-2);
   border-bottom: 1px solid var(--border);
-  /* 收起动画期间宽度趋零，标题栏先按展开宽度排好，避免文字被挤成竖排 */
-  min-width: 380px;
 }
 
 .td-tabs {
@@ -33,72 +55,143 @@
   gap: 2px;
   flex: 1;
   min-width: 0;
+  /* 窄窗下 4 个标签的最小内容宽超过轨道宽（900px 时 304 > 267）：
+     改为横向滚动，避免末个标签压到右侧关闭按钮。宽窗无溢出，视觉不变。 */
+  overflow-x: auto;
+  /*
+   * macOS 覆盖式滚动条高度为 0，单看滚动条看不出还有内容：
+   * 溢出那一侧用 20px 渐隐提示。宽窗两档都是 0px，渐变退化为硬边，视觉不变。
+   */
+  --fade-l: 0px;
+  --fade-r: 0px;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--fade-l),
+    #000 calc(100% - var(--fade-r)),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--fade-l),
+    #000 calc(100% - var(--fade-r)),
+    transparent 100%
+  );
 }
 
+.td-tabs.fade-left {
+  --fade-l: 20px;
+}
+
+.td-tabs.fade-right {
+  --fade-r: 20px;
+}
+
+/* 标签文字本身就是识别主体：图标一律不渲染，把横向留给文字与徽标。
+   高度走 28 紧凑档，与右侧关闭键同一档。 */
 .td-tab {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  height: 30px;
-  padding: 0 8px;
+  gap: var(--sp-1);
+  height: 28px;
+  min-height: 28px;
+  /* 标签必须保内容宽：默认 flex-shrink 会把末个「并行工作区」压成「并行」，
+     容器 overflow-x:auto 反而永不触发（无溢出可滚）。 */
+  flex: 0 0 auto;
+  /* 六个页签合计 19 个汉字：内衬收到 4px 才能在最小内联宽 380 下不溢出。 */
+  padding: 0 var(--sp-1);
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--fs-sm);
   font-weight: 500;
   color: var(--text-dim);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: var(--r-sm);
+  border-radius: var(--r);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
-.td-tab:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+.td-tab .app-icon {
+  display: none;
+}
+
+@media (hover: hover) {
+
+  .td-tab:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 .td-tab.on {
   background: var(--bg-elev);
   border-color: var(--border);
   color: var(--text);
-  box-shadow: var(--sh-1);
 }
 
 .td-badge {
-  padding: 0 5px;
+  padding: 0 var(--sp-1);
   border-radius: var(--r-full);
   background: var(--accent-dim);
   color: var(--accent);
-  font-size: 10px;
+  font-size: var(--fs-xs);
   font-style: normal;
   font-variant-numeric: tabular-nums;
 }
 
 .td-close {
   flex-shrink: 0;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
   display: grid;
   place-items: center;
   border: 1px solid transparent;
-  border-radius: var(--r-sm);
+  border-radius: var(--r);
   background: transparent;
   color: var(--text-dim);
   cursor: pointer;
 }
 
-.td-close:hover {
-  border-color: var(--border);
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+
+  .td-close:hover {
+    border-color: var(--border);
+    background: var(--bg-hover);
+    color: var(--text);
+}
 }
 
 .td-body {
   flex: 1;
-  min-width: 380px;
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: auto;
+}
+
+/* 面板内衬统一由此提供：面板组件本身不再各写 padding（能力页另用页面内衬） */
+.td-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: var(--sp-3);
+}
+
+/* 390 窄屏六个页签共 19 个汉字：12px 字号 + 4px 内衬会溢出 29px，
+   末项被硬裁成「并行」。收一档字号与内衬，让六项全部可读而不靠滚动猜。 */
+@media (max-width: 480px) {
+  .td-tabs {
+    gap: 0;
+  }
+
+  .td-tab {
+    padding: 0 2px;
+    font-size: var(--fs-micro);
+  }
 }

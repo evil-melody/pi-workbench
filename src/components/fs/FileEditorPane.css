@@ -15,7 +15,7 @@
   flex-shrink: 0;
   padding: var(--sp-2) var(--sp-3);
   border-bottom: 1px solid var(--border);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
 }
 
@@ -38,13 +38,16 @@
   border-radius: var(--r-sm);
   background: var(--bg-elev);
   color: var(--text);
-  font-size: 11px;
+  font-size: var(--fs-micro);
   cursor: pointer;
 }
 
-.fbar-action:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  background: var(--bg-hover);
+@media (hover: hover) {
+
+  .fbar-action:hover:not(:disabled) {
+    border-color: var(--border-strong);
+    background: var(--bg-hover);
+}
 }
 
 .fbar-action.primary {
@@ -64,7 +67,7 @@
   border-bottom: 1px solid var(--border);
   background: var(--accent-dim);
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-micro);
 }
 
 .fedit .editor {
@@ -74,7 +77,7 @@
   border-radius: 0;
   resize: none;
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   line-height: 1.6;
   padding: var(--sp-3);
 }
@@ -93,11 +96,47 @@
 
 .empty-pane strong {
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--fs-body);
   font-weight: 500;
 }
 
 .empty-pane .muted {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
+}
+
+.office-preview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.office-caveat {
+  margin: 0;
+  padding: 4px var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-dim);
+  color: var(--text-dim);
+  font-size: var(--fs-micro);
+}
+
+.office {
+  padding: var(--sp-3);
+}
+
+.office :deep(table) {
+  border-collapse: collapse;
+  font-size: var(--fs-meta);
+}
+
+.office :deep(td),
+.office :deep(th) {
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+}
+
+.office :deep(.sname) {
+  margin: var(--sp-3) 0 var(--sp-2);
+  font-size: var(--fs-ui);
+  color: var(--text);
 }

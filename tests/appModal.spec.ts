@@ -48,14 +48,16 @@ const backdrop = () => document.body.querySelector('.modal-backdrop') as HTMLEle
 const activeInBackdrop = () => backdrop()?.contains(document.activeElement) ?? false
 
 describe('AppModal · 焦点行为', () => {
-  it('打开后焦点进入面板（首个可聚焦元素）', async () => {
+  it('打开后焦点进入对话框容器（不抢首个控件）', async () => {
     const { state } = mount(false)
     state.value = true
     await nextTick()
     await nextTick()
     expect(backdrop()).toBeTruthy()
     expect(activeInBackdrop()).toBe(true)
-    expect(document.activeElement).toBe(backdrop().querySelector('.modal-close'))
+    // 面板本身 tabindex=-1，打开即聚焦它：鼠标打开时不给关闭键画只因键盘才该出现的
+    // 焦点环（见 AppModal.vue watch）。Tab 陷阱仍把键盘用户送进首个可聚焦元素。
+    expect(document.activeElement).toBe(backdrop())
   })
 
   it('挂载即打开（immediate）也有焦点管理', async () => {

@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed } from 'vue'
 import AppCheckbox from '@/components/ui/AppCheckbox.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 
 /**
  * 运行记录批量操作栏（菜单「批量操作」进入多选态后出现在列表底部）：
@@ -36,55 +38,55 @@ const noneSelected = computed(() => props.selectedCount === 0)
 </script>
 
 <template>
-  <div class="bulk-bar" role="toolbar" aria-label="批量操作">
+  <div class="bulk-bar" role="toolbar" :aria-label="t('批量操作')">
     <AppCheckbox
       class="bulk-all"
       :model-value="allChecked"
-      label="全选"
+      :label="t('全选')"
       @update:model-value="emit('toggle-all')"
     />
-    <span class="bulk-count">已选 {{ selectedCount }}/{{ total }}</span>
+    <span class="bulk-count">{{ t('已选 {0}/{1}', [selectedCount, total]) }}</span>
     <span class="bulk-actions">
-      <button
-        type="button"
+      <AppButton
+        variant="secondary"
         class="bulk-btn"
         :disabled="noneSelected || running"
-        title="置顶所选记录"
+        :title="t('置顶所选记录')"
         @click="emit('pin')"
       >
         <AppIcon name="star" :size="13" />
-        <span>置顶</span>
-      </button>
-      <button
-        type="button"
+        <span>{{ t('置顶') }}</span>
+      </AppButton>
+      <AppButton
+        variant="secondary"
         class="bulk-btn"
         :disabled="noneSelected || running"
-        title="归档所选记录"
+        :title="t('归档所选记录')"
         @click="emit('archive')"
       >
         <AppIcon name="box" :size="13" />
-        <span>归档</span>
-      </button>
-      <button
-        type="button"
+        <span>{{ t('归档') }}</span>
+      </AppButton>
+      <AppButton
+        variant="danger"
         class="bulk-btn danger"
         :disabled="noneSelected || running"
-        title="删除所选记录"
+        :title="t('删除所选记录')"
         @click="emit('delete')"
       >
         <AppIcon name="trash" :size="13" />
-        <span>删除</span>
-      </button>
-      <button
-        type="button"
+        <span>{{ t('删除') }}</span>
+      </AppButton>
+      <AppButton
+        variant="secondary"
         class="bulk-btn"
         :disabled="running"
-        title="退出批量操作"
+        :title="t('退出批量操作')"
         @click="emit('cancel')"
       >
         <AppIcon name="close" :size="13" />
-        <span>取消</span>
-      </button>
+        <span>{{ t('取消') }}</span>
+      </AppButton>
     </span>
   </div>
 </template>

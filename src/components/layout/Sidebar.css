@@ -1,205 +1,156 @@
+/* 双层侧栏：窄图标轨道 + 会话/项目面板。参考 WorkBuddy 导航形态。
+ * 轨道常驻；≤900px 面板让位，入口仍在轨道上（全部可达）。 */
 .sidebar {
-  width: 260px;
+  width: 296px;
   flex-shrink: 0;
+  display: flex;
   background: var(--bg-panel);
   border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  transition: width 0.2s ease;
+  overflow: hidden;
+  font-size: var(--fs-body);
+  line-height: 22px;
+  transition: width var(--dur) var(--ease);
+}
+.sidebar.narrow {
+  width: 56px;
 }
 
-.sidebar.collapsed {
-  width: 68px;
-  align-items: center;
-}
-
-/* ── Brand ──────────────────────────────────────────────────── */
-.brand {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: 14px var(--sp-4) 12px;
-}
-
-.sidebar.collapsed .brand {
-  flex-direction: column;
-  gap: var(--sp-2);
-  padding: 14px var(--sp-2) 12px;
-}
-
-.mark {
-  width: 32px;
-  height: 32px;
+/* ── 图标轨道 ─────────────────────────────────────────────── */
+.rail {
+  width: 56px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 0 0 var(--sp-2);
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+}
+html.mac-overlay .rail {
+  padding-top: 28px;
+}
+.rail-brand {
+  width: 100%;
+  height: 44px;
   display: grid;
   place-items: center;
+  cursor: default;
 }
-
-/* 透明吉祥物直接当品牌标记：不再用蓝色方块 + 字母，避免和 Dock 图标两套观感 */
-.mark img {
-  width: 30px;
-  height: 30px;
+.rail-brand img {
+  width: 28px;
+  height: 28px;
   object-fit: contain;
   filter: drop-shadow(0 2px 5px rgba(16, 40, 80, 0.22));
 }
-
-.btext {
-  flex: 1;
-  min-width: 0;
-}
-
-.bname {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: 0.2px;
-  line-height: 1.3;
-}
-
-.collapse {
-  width: 26px;
-  height: 26px;
+.rail-new,
+.rail-item {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
   display: grid;
   place-items: center;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--text-faint);
-  opacity: 1;
-  transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-
-.collapse:hover {
-  color: var(--text);
-  border-color: var(--border-strong);
-}
-
-/* ── New Chat ───────────────────────────────────────────────── */
-.new-chat {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--sp-2);
-  margin: 0 var(--sp-4) var(--sp-3);
-  padding: 10px 0;
-  border-radius: var(--r-full);
-  border: 1px solid var(--border);
-  background: var(--bg-hover);
-  color: var(--text);
-  font-weight: 500;
-  font-size: 13.5px;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
-}
-
-.new-chat:hover {
-  background: var(--bg-active);
-  border-color: var(--border-strong);
-}
-
-.sidebar.collapsed .new-chat {
-  margin: 0 var(--sp-2) var(--sp-3);
-}
-
-/* ── Main Nav ───────────────────────────────────────────────── */
-.main-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0 var(--sp-3);
-  margin-bottom: var(--sp-3);
-}
-
-.sidebar.collapsed .main-nav {
-  padding: 0 var(--sp-2);
-  width: 100%;
-  align-items: center;
-}
-
-.nav-item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  padding: 8px var(--sp-2);
   border-radius: var(--r);
   color: var(--text-dim);
-  font-size: 13px;
   text-decoration: none;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
-
-.sidebar.collapsed .nav-item {
-  justify-content: center;
-  padding: 10px;
+.rail-item.active {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
-
-.nav-item:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+  .rail-new:hover,
+  .rail-item:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
 }
-
-.nav-item.active {
-  background: var(--bg-active);
-  color: var(--text);
-  font-weight: 550;
-}
-
-.nav-item.active::before {
-  content: '';
+.rail-badge {
   position: absolute;
-  left: 0;
-  top: 50%;
-  width: 3px;
-  height: 16px;
-  border-radius: 0 var(--r-full) var(--r-full) 0;
-  background: var(--accent);
-  transform: translateY(-50%);
+  top: 2px;
+  right: 2px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: var(--r-full);
+  background: var(--danger);
+  color: var(--accent-ink);
+  font-size: var(--fs-xs);
+  line-height: 14px;
+  text-align: center;
+}
+.rail-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-1);
 }
 
-.sidebar.collapsed .nav-item.active::before {
-  width: 3px;
-  height: 22px;
+/* ── 会话/项目面板 ────────────────────────────────────────── */
+.sidebar.narrow .side-panel {
+  display: none;
 }
-
-.lbl {
+.side-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  height: 44px;
+  padding: 0 14px;
+  flex-shrink: 0;
+}
+html.mac-overlay .panel-head {
+  padding-top: 28px;
+  height: 72px;
+}
+.panel-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
   white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: var(--fs-base);
+}
+.panel-sub {
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
 }
 
-/* ── Workspace ──────────────────────────────────────────────── */
 .workspace {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  margin: var(--sp-2) var(--sp-3) 0;
-  padding-top: var(--sp-3);
-  border-top: 1px solid var(--border);
   overflow: hidden;
 }
-
 .ws-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--sp-2) var(--sp-2);
+  gap: var(--sp-1);
+  padding: 4px 10px 12px;
 }
-
-.ws-title {
-  font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--text-faint);
+.ws-new {
+  flex: 1;
+  justify-content: flex-start;
 }
-
 .ws-actions {
   display: flex;
   gap: 2px;
 }
-
 .ws-actions button {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -208,10 +159,11 @@
   color: var(--text-faint);
   border-radius: var(--r-sm);
 }
-
-.ws-actions button:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+  .ws-actions button:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
 }
 
 .ws-list {
@@ -219,36 +171,39 @@
   overflow-y: auto;
   list-style: none;
   margin: 0;
-  padding: 0;
+  padding: 0 10px 20px;
 }
-
-.ws-list li {
+/* 参考行：高 36 / 圆角 6 / padding 8 10 / gap 4 / 激活灰底。 */
+.ws-list li:not(.ws-runs) {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
-  padding: 6px var(--sp-2);
-  border-radius: var(--r);
+  gap: var(--sp-1);
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
   color: var(--text-dim);
-  font-size: 12.5px;
+  font-size: var(--fs-body);
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
-
-.ws-list li:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+@media (hover: hover) {
+  .ws-list li:not(.ws-runs):hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
 }
-
+.ws-list li:not(.ws-runs):active {
+  background: var(--bg-active);
+}
 .ws-list li.active {
   background: var(--bg-active);
   color: var(--text);
 }
-
-/* 项目行的展开箭头（有目录才有运行记录可展开）。 */
 .ws-caret {
   flex-shrink: 0;
   width: 16px;
   height: 16px;
+  min-height: 16px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -258,184 +213,109 @@
   color: var(--text-faint);
   cursor: pointer;
 }
-
-.ws-caret:hover {
-  color: var(--text);
-  background: var(--bg-hover);
+@media (hover: hover) {
+  .ws-caret:hover {
+    color: var(--text);
+    background: var(--bg-hover);
+  }
 }
-
 .ws-caret :deep(svg),
 .ws-caret :deep(.icon) {
-  transition: transform 0.15s ease;
+  transition: transform var(--dur-fast) var(--ease);
 }
-
 .ws-caret.open :deep(svg),
 .ws-caret.open :deep(.icon) {
   transform: rotate(90deg);
 }
-
-/* 无目录项目没有展开箭头：占同宽保持名字列对齐。 */
-.ws-caret-spacer {
+/* 参考图：组行左侧文件夹图标、右侧 chevron + 计数 pill。 */
+.ws-folder {
   flex-shrink: 0;
-  width: 16px;
-  text-align: center;
+  color: var(--text-faint);
 }
-
-/* 运行记录挂在自己项目的行下：缩进贴出层级，占满列表宽。 */
+/* 子行挂在组行的引导线上：竖线 + 每行一小段横向连接（WorkBuddy 会话树）。 */
 .ws-runs {
-  display: block !important;
-  cursor: default !important;
-  padding: 0 0 var(--sp-1) 14px !important;
+  position: relative;
+  margin: 0 0 var(--sp-1) 18px;
+  padding: 0 0 0 12px;
+  border-left: 1px solid var(--border-soft);
 }
-
-.ws-runs:hover {
-  background: transparent !important;
+.ws-runs :deep(.rh-list li) {
+  position: relative;
 }
-
+.ws-runs :deep(.rh-list li)::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -12px;
+  width: 10px;
+  border-top: 1px solid var(--border-soft);
+}
 .ws-name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
-
-.ws-time {
+/* 项目行会话计数：参考图项目名右侧的数字徽标。 */
+.ws-count {
   flex-shrink: 0;
-  font-size: 11px;
+  min-width: 18px;
+  padding: 0 4px;
+  border-radius: var(--r-full);
+  background: var(--bg-elev);
   color: var(--text-faint);
+  font-size: var(--fs-xs);
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
-
-/* 进项目工作台：常态可见（淡），悬停变实 —— 藏到 hover 才出现等于没有入口 */
 .ws-open {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--text-faint);
-  opacity: 0.6;
-  cursor: pointer;
-  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  opacity: 0;
 }
-
-/* 项目行「···」（对齐 WorkBuddy）：hover 才露操作入口，常态不占视觉 */
 .ws-more {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--text-faint);
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
   opacity: 0;
-  cursor: pointer;
-  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
-}
-
-.ws-list li:hover .ws-more,
-.ws-more:focus-visible {
-  opacity: 1;
-}
-
-.ws-more:hover {
-  background: var(--bg-elev);
-  color: var(--text);
-}
-
-.ws-open:hover,
-.ws-open:focus-visible {
-  opacity: 1;
-  background: var(--bg-elev);
-  color: var(--text);
-}
-
-.ws-empty {
   color: var(--text-faint);
-  cursor: default !important;
+}
+@media (hover: hover) {
+  .ws-list li:hover .ws-more,
+  .ws-list li:hover .ws-open,
+  .ws-more:focus-visible,
+  .ws-open:focus-visible {
+    opacity: 1;
+  }
+}
+/* 全局 44px 命中扩展伪元素在 36px 紧凑行里会盖住相邻图标键：
+   这三个键彼此紧挨，命中区退回到按钮自身几何，避免展开键点不动。 */
+.ws-caret::before,
+.ws-more::before,
+.ws-open::before {
+  pointer-events: none;
+}
+.ws-list li.ws-empty {
+  padding: 12px 10px;
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
 }
 
-.main-nav.compact {
-  flex: 1;
-  margin-top: var(--sp-2);
-}
-
-.main-nav.compact button {
-  width: 42px;
-  height: 42px;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--text-dim);
-  border-radius: var(--r);
-}
-
-.main-nav.compact button:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-
-/* ── Footer ─────────────────────────────────────────────────── */
 .foot {
-  padding: var(--sp-3);
+  flex-shrink: 0;
   border-top: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
 }
 
-.sidebar.collapsed .foot {
-  align-items: center;
-  padding: var(--sp-3) var(--sp-2);
-}
-
-.foot-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
-
-.foot-actions .theme-toggle {
-  flex: 1;
-}
-
-.settings {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: 7px var(--sp-2);
-  border-radius: var(--r);
-  border: none;
-  background: transparent;
-  color: var(--text-dim);
-  font-size: 13px;
-  text-align: left;
-}
-
-.settings.collapsed {
-  justify-content: center;
-  padding: 8px;
-}
-
-.settings:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-}
-
-/* ── 项目菜单配套：弹窗内表单与按钮（AppModal footer 用）────── */
 .ws-dialog-row {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
 }
 
@@ -445,7 +325,7 @@
 
 .ws-dialog-text {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   line-height: 1.6;
   color: var(--text-dim);
 }
@@ -456,15 +336,18 @@
   border-radius: var(--r-full);
   background: transparent;
   color: var(--text-dim);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   font-family: inherit;
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 
-.ws-btn:hover {
-  color: var(--text);
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .ws-btn:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+}
 }
 
 .ws-btn.primary {
@@ -474,21 +357,27 @@
   font-weight: 600;
 }
 
-.ws-btn.primary:hover {
-  background: color-mix(in srgb, var(--accent) 85%, black);
-  color: var(--accent-ink);
+@media (hover: hover) {
+
+  .ws-btn.primary:hover {
+    background: color-mix(in srgb, var(--accent) 85%, black);
+    color: var(--accent-ink);
+}
 }
 
 .ws-btn.danger {
   border-color: transparent;
   background: var(--danger);
-  color: #fff;
+  color: var(--accent-ink);
   font-weight: 600;
 }
 
-.ws-btn.danger:hover {
-  background: color-mix(in srgb, var(--danger) 85%, black);
-  color: #fff;
+@media (hover: hover) {
+
+  .ws-btn.danger:hover {
+    background: color-mix(in srgb, var(--danger) 85%, black);
+    color: var(--accent-ink);
+}
 }
 
 /* ── 关于弹窗内的键值表 ────────────────────────────────────── */
@@ -497,7 +386,7 @@
   grid-template-columns: auto 1fr;
   gap: 8px var(--sp-4);
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
 }
 
 .about dt {
@@ -508,4 +397,35 @@
   margin: 0;
   color: var(--text);
   font-family: var(--mono);
+}
+
+/* 参考 `@media(max-width:560px)`：工具栏/导航/任务行命中区抬到 44px（WCAG 2.5.8）、
+   品牌收边距、导航内衬收窄。窄屏下侧栏已是 68px 图标轨，行高直接决定可点面积。 */
+@media (max-width: 560px) {
+  .brand {
+    margin-bottom: 8px;
+    padding: 0 8px;
+  }
+
+  .main-nav {
+    padding: 0 6px;
+  }
+
+  .nav-item,
+  .ws-list li:not(.ws-runs) {
+    min-height: 44px;
+  }
+
+  .collapse,
+  .ws-actions button,
+  .ws-open,
+  .ws-more,
+  .ws-caret {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .foot-actions button {
+    min-height: 44px;
+  }
 }

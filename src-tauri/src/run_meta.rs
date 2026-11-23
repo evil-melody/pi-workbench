@@ -11,7 +11,6 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
@@ -26,10 +25,11 @@ const REPLAY_WINDOW_HEIGHT: f64 = 760.0;
 
 // ── 领域模型 ──────────────────────────────────────────────────
 
-/// 一条运行记录的元数据。`(cwd, index)` 唯一对应 journal 的一个
-/// `session_open` 段；缺省语义全 false / 无标题（未碰过的段）。
+/// 一条运行记录的元数据。`(cwd, index)` 对应 journal 的一个
+/// `session_open` 段；一次会话可能由多个连续同 cwd 段组成（内核重启续段），
+/// 读取时组内任一命中的条目都会并入同一条记录。
+/// 缺省语义全 false / 无标题（未碰过的段）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RunMetaEntry {
     /// 该段所属的工作目录（与 session_open 的 cwd 逐字节一致）。
     pub cwd: String,
@@ -50,10 +50,7 @@ pub struct RunMetaEntry {
 }
 
 /// 局部更新补丁：只改 `Some` 的字段，`None` 保持原值。
-/// 前端传 camelCase（本结构字段名单词化，与 snake_case 同形，
-/// 仍显式声明 rename 以防未来加多词字段时静默错位）。
 #[derive(Debug, Clone, Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RunMetaPatch {
     #[serde(default)]
     pub pinned: Option<bool>,
@@ -112,7 +109,12 @@ fn apply_patch(entry: &mut RunMetaEntry, patch: &RunMetaPatch) {
 
 /// upsert：无则新建条目（默认全 false / 无标题），有则只改 patch 里
 /// `Some` 的字段。返回应用补丁后的条目快照。
-pub fn upsert(store: &mut RunMetaStore, cwd: &str, index: u32, patch: &RunMetaPatch) -> RunMetaEntry {
+pub fn upsert(
+    store: &mut RunMetaStore,
+    cwd: &str,
+    index: u32,
+    patch: &RunMetaPatch,
+) -> RunMetaEntry {
     if let Some(existing) = store
         .entries
         .iter_mut()
@@ -191,7 +193,6 @@ pub fn run_meta_list(state: State<'_, RunMetaState>) -> Vec<RunMetaEntry> {
 /// upsert 一条运行记录元数据（置顶/重命名/归档/删除都走这里）。
 /// 写盘持久化后返回全量列表（与 `run_meta_list` 同序），前端省一次往返。
 #[tauri::command(async)]
-#[allow(non_snake_case)]
 pub fn run_meta_update(
     app: AppHandle,
     cwd: String,
@@ -211,13 +212,22 @@ pub fn run_meta_update(
 /// `#/chat?replay=<index>&cwd=<encodeURIComponent(cwd)>`，对话页据此
 /// 只读重建该段会话——不新拉内核、不改 journal。
 ///
-/// label 带时间戳保证唯一：同一段反复点「独立窗口」应各开一窗，而不是复用。
+/// label 由 `(cwd, index)` 稳定派生：同一段重复打开时只聚焦已有窗口，
+/// 不再叠第二个；换项目/换段号才建新窗。
 /// **必须 async**：Windows 上在同步命令里创建 Webview2 窗口会死锁
 /// （tauri 官方 Known issues，见 `WebviewWindowBuilder::new` 文档），
 /// 且建窗涉及 webview 进程创建，不能落主线程。
 #[tauri::command(async)]
 pub fn open_replay_window(app: AppHandle, cwd: String, index: u32) -> Result<(), String> {
-    let label = format!("replay-{index}-{}", now_ms());
+    let label = format!("replay-{index}-{:08x}", cwd_tag(&cwd));
+    if let Some(existing) = app.get_webview_window(&label) {
+        // 已打开：还原最小化、置前、聚焦。任何一步失败都只是体验问题，
+        // 窗口还在，不报错。
+        let _ = existing.unminimize();
+        let _ = existing.show();
+        let _ = existing.set_focus();
+        return Ok(());
+    }
     let url = format!(
         "index.html#/chat?replay={index}&cwd={}",
         encode_uri_component(&cwd)
@@ -225,6 +235,8 @@ pub fn open_replay_window(app: AppHandle, cwd: String, index: u32) -> Result<(),
     let window = tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App(url.into()))
         .title("Pi Workbench · 回放")
         .inner_size(REPLAY_WINDOW_WIDTH, REPLAY_WINDOW_HEIGHT)
+        // 与主窗口同一主题底色：建窗到 WebView 接管之间的那一帧不留默认白。
+        .background_color(crate::window_bg_color(&crate::read_window_theme(&app)))
         .build()
         .map_err(|e| e.to_string())?;
     // 建窗即聚焦：用户刚点的菜单，窗口不该缩在后台。
@@ -235,11 +247,14 @@ pub fn open_replay_window(app: AppHandle, cwd: String, index: u32) -> Result<(),
 
 // ── 工具函数 ──────────────────────────────────────────────────
 
-fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
+fn cwd_tag(raw: &str) -> u32 {
+    // FNV-1a：只为把 cwd 折成稳定的窗口标签后缀（同目录 → 同标签）。
+    let mut hash: u32 = 0x811c_9dc5;
+    for byte in raw.bytes() {
+        hash ^= byte as u32;
+        hash = hash.wrapping_mul(0x0100_0193);
+    }
+    hash
 }
 
 /// `encodeURIComponent` 对位：除未保留字符
@@ -315,10 +330,20 @@ mod tests {
     #[test]
     fn upsert_patches_only_some_fields() {
         let mut store = empty_store();
-        upsert(&mut store, "/repo/a", 0, &patch_all(Some(true), Some("甲"), None, None));
+        upsert(
+            &mut store,
+            "/repo/a",
+            0,
+            &patch_all(Some(true), Some("甲"), None, None),
+        );
 
         // 第二次只改 archived：pinned/title 必须原样保留。
-        let entry = upsert(&mut store, "/repo/a", 0, &patch_all(None, None, Some(true), None));
+        let entry = upsert(
+            &mut store,
+            "/repo/a",
+            0,
+            &patch_all(None, None, Some(true), None),
+        );
 
         assert_eq!(store.entries.len(), 1, "同 (cwd, index) 应命中既有条目");
         assert!(entry.pinned, "未传的 pinned 保持原值");
@@ -329,25 +354,58 @@ mod tests {
     #[test]
     fn empty_title_clears_rename() {
         let mut store = empty_store();
-        upsert(&mut store, "/repo/a", 0, &patch_all(None, Some("旧标题"), None, None));
+        upsert(
+            &mut store,
+            "/repo/a",
+            0,
+            &patch_all(None, Some("旧标题"), None, None),
+        );
 
-        let cleared = upsert(&mut store, "/repo/a", 0, &patch_all(None, Some("  "), None, None));
+        let cleared = upsert(
+            &mut store,
+            "/repo/a",
+            0,
+            &patch_all(None, Some("  "), None, None),
+        );
         assert_eq!(cleared.title, None, "空标题等价于恢复默认（清除重命名）");
 
-        let nulled = upsert(&mut store, "/repo/a", 0, &patch_all(None, Some("又改名"), None, None));
+        let nulled = upsert(
+            &mut store,
+            "/repo/a",
+            0,
+            &patch_all(None, Some("又改名"), None, None),
+        );
         assert_eq!(nulled.title.as_deref(), Some("又改名"));
         // title 字段缺失（None）同样不动原值。
         let kept = upsert(&mut store, "/repo/a", 0, &patch_all(None, None, None, None));
-        assert_eq!(kept.title.as_deref(), Some("又改名"), "patch 缺 title 不应清掉旧值");
+        assert_eq!(
+            kept.title.as_deref(),
+            Some("又改名"),
+            "patch 缺 title 不应清掉旧值"
+        );
     }
 
     #[test]
     fn same_index_different_cwd_are_distinct_entries() {
         let mut store = empty_store();
-        upsert(&mut store, "/repo/a", 0, &patch_all(Some(true), None, None, None));
-        upsert(&mut store, "/repo/b", 0, &patch_all(None, None, Some(true), None));
+        upsert(
+            &mut store,
+            "/repo/a",
+            0,
+            &patch_all(Some(true), None, None, None),
+        );
+        upsert(
+            &mut store,
+            "/repo/b",
+            0,
+            &patch_all(None, None, Some(true), None),
+        );
 
-        assert_eq!(store.entries.len(), 2, "(cwd, index) 才唯一，index 单独不唯一");
+        assert_eq!(
+            store.entries.len(),
+            2,
+            "(cwd, index) 才唯一，index 单独不唯一"
+        );
         assert!(store.entries[0].pinned);
         assert!(!store.entries[0].archived);
         assert!(store.entries[1].archived);
@@ -379,7 +437,12 @@ mod tests {
     fn long_title_is_truncated_by_chars_not_bytes() {
         let mut store = empty_store();
         let long = "中".repeat(TITLE_MAX + 10);
-        let entry = upsert(&mut store, "/repo/a", 0, &patch_all(None, Some(&long), None, None));
+        let entry = upsert(
+            &mut store,
+            "/repo/a",
+            0,
+            &patch_all(None, Some(&long), None, None),
+        );
 
         assert_eq!(
             entry.title.as_deref().map(|t| t.chars().count()),

@@ -48,7 +48,10 @@ fn now_ms() -> u64 {
 static ID_SEQ: AtomicU64 = AtomicU64::new(0);
 
 fn new_id(prefix: &str) -> String {
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
     let seq = ID_SEQ.fetch_add(1, Ordering::Relaxed);
     format!("{prefix}{nanos:x}{seq:x}")
 }
@@ -369,15 +372,18 @@ pub fn load(app: &AppHandle, state: &State<ProjectsState>) {
 pub(crate) fn save(app: &AppHandle, state: &State<ProjectsState>) -> Result<(), String> {
     let f = projects_file(app)?;
     let v = state.store.lock().unwrap().clone();
-    fs::write(&f, to_string_pretty(&v).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())
+    fs::write(&f, to_string_pretty(&v).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
 }
 
 // ── 领域操作（纯函数，便于测试；命令层只负责取状态与落盘） ──
 
 impl ProjectStore {
     /// 按 project_id 过滤并按创建时间升序，供快照组装使用。
-    fn scoped<T: Clone + ProjectScoped>(&self, rows: &HashMap<String, T>, project_id: &str) -> Vec<T> {
+    fn scoped<T: Clone + ProjectScoped>(
+        &self,
+        rows: &HashMap<String, T>,
+        project_id: &str,
+    ) -> Vec<T> {
         let mut out: Vec<T> = rows
             .values()
             .filter(|r| r.project_id() == project_id)
@@ -444,7 +450,10 @@ fn record_activity(store: &mut ProjectStore, project_id: &str, kind: &str, text:
     }
 }
 
-pub(crate) fn require_project<'a>(store: &'a ProjectStore, project_id: &str) -> Result<&'a Project, String> {
+pub(crate) fn require_project<'a>(
+    store: &'a ProjectStore,
+    project_id: &str,
+) -> Result<&'a Project, String> {
     let project = store
         .projects
         .get(project_id)
@@ -541,7 +550,10 @@ pub fn create_project(
         id: new_id("cfg"),
         project_id: String::new(),
         number: 1,
-        instruction: template.as_ref().map(|t| t.instruction.clone()).unwrap_or_default(),
+        instruction: template
+            .as_ref()
+            .map(|t| t.instruction.clone())
+            .unwrap_or_default(),
         capabilities: Vec::new(),
         created_by: "local".to_string(),
         created_at,
@@ -602,9 +614,7 @@ pub fn update_config(
         created_by: "local".to_string(),
         created_at: now_ms(),
     };
-    store
-        .configs
-        .insert(next.id.clone(), next.clone());
+    store.configs.insert(next.id.clone(), next.clone());
     if let Some(p) = store.projects.get_mut(&project.id) {
         p.config_revision_id = next.id.clone();
         p.updated_at = Some(next.created_at);
@@ -734,15 +744,11 @@ pub fn add_asset(
 ) -> Result<ProjectAssetRef, String> {
     require_project(store, project_id)?;
     // 同一资产同一版本的引用只保留一条，重复关联不应产生脏数据。
-    if let Some(existing) = store
-        .assets
-        .values()
-        .find(|a| {
-            a.project_id == project_id
-                && a.asset_id == input.asset_id
-                && a.revision_id == input.revision_id
-        })
-    {
+    if let Some(existing) = store.assets.values().find(|a| {
+        a.project_id == project_id
+            && a.asset_id == input.asset_id
+            && a.revision_id == input.revision_id
+    }) {
         return Ok(existing.clone());
     }
     let ref_asset = ProjectAssetRef {
@@ -776,7 +782,11 @@ pub struct AssetInput {
     pub kind: String,
 }
 
-pub fn remove_asset(store: &mut ProjectStore, project_id: &str, ref_id: &str) -> Result<(), String> {
+pub fn remove_asset(
+    store: &mut ProjectStore,
+    project_id: &str,
+    ref_id: &str,
+) -> Result<(), String> {
     let old = store
         .assets
         .get(ref_id)
@@ -797,7 +807,7 @@ pub fn remove_asset(store: &mut ProjectStore, project_id: &str, ref_id: &str) ->
 }
 
 /// 校验一批输入引用是否还指向项目里的当前版本；过期引用会被拒绝，
- /// 防止会话拿着已被改动的计划项/资产继续推进。
+/// 防止会话拿着已被改动的计划项/资产继续推进。
 fn validate_references(
     store: &ProjectStore,
     project: &Project,
@@ -873,9 +883,7 @@ pub fn link_task(
         .map(|want| {
             configured
                 .iter()
-                .find(|c| {
-                    c.kind == want.kind && c.id == want.id && c.revision == want.revision
-                })
+                .find(|c| c.kind == want.kind && c.id == want.id && c.revision == want.revision)
                 .ok_or_else(|| "projects/capability-not-bound".to_string())
                 .map(|c| c.clone())
         })
@@ -946,13 +954,11 @@ pub(crate) fn persist(app: &AppHandle, state: &State<ProjectsState>) -> Result<(
 }
 
 #[tauri::command]
-#[allow(non_snake_case)]
 pub fn projects_templates() -> Vec<ProjectTemplate> {
     templates()
 }
 
 #[tauri::command]
-#[allow(non_snake_case)]
 pub fn projects_list(state: State<ProjectsState>) -> Vec<Project> {
     with_store(&state, |store| {
         let mut rows: Vec<Project> = store.projects.values().cloned().collect();
@@ -962,37 +968,40 @@ pub fn projects_list(state: State<ProjectsState>) -> Vec<Project> {
 }
 
 #[tauri::command]
-#[allow(non_snake_case)]
 pub fn project_get(id: String, state: State<ProjectsState>) -> Result<ProjectSnapshot, String> {
     with_store(&state, |store| snapshot_of(store, &id))
 }
 
-#[tauri::command(async)]
-#[allow(non_snake_case)]
+#[tauri::command(rename_all = "snake_case", async)]
 pub fn project_add(
     app: AppHandle,
     name: String,
     description: Option<String>,
-    templateId: Option<String>,
+    template_id: Option<String>,
     path: Option<String>,
     state: State<ProjectsState>,
 ) -> Result<ProjectSnapshot, String> {
     let project = with_store(&state, |store| {
-        create_project(store, &name, &description.unwrap_or_default(), templateId.as_deref(), path.as_deref())
+        create_project(
+            store,
+            &name,
+            &description.unwrap_or_default(),
+            template_id.as_deref(),
+            path.as_deref(),
+        )
     })?;
     persist(&app, &state)?;
     Ok(with_store(&state, |store| snapshot_of(store, &project.id))?)
 }
 
-#[tauri::command(async)]
-#[allow(non_snake_case)]
+#[tauri::command(rename_all = "snake_case", async)]
 pub fn project_update_config(
     app: AppHandle,
     id: String,
     instruction: String,
     capabilities: Vec<ProjectCapabilityRef>,
-    expectedRevisionId: String,
-    expectedRevisionNumber: u32,
+    expected_revision_id: String,
+    expected_revision_number: u32,
     state: State<ProjectsState>,
 ) -> Result<ProjectSnapshot, String> {
     with_store(&state, |store| {
@@ -1001,8 +1010,8 @@ pub fn project_update_config(
             &id,
             &instruction,
             &capabilities,
-            &expectedRevisionId,
-            expectedRevisionNumber,
+            &expected_revision_id,
+            expected_revision_number,
         )
     })?;
     persist(&app, &state)?;
@@ -1010,7 +1019,6 @@ pub fn project_update_config(
 }
 
 #[tauri::command(async)]
-#[allow(non_snake_case)]
 pub fn project_add_work_item(
     app: AppHandle,
     id: String,
@@ -1022,35 +1030,34 @@ pub fn project_add_work_item(
     Ok(with_store(&state, |store| snapshot_of(store, &id))?)
 }
 
-#[tauri::command(async)]
-#[allow(non_snake_case)]
+#[tauri::command(rename_all = "snake_case", async)]
 pub fn project_update_work_item(
     app: AppHandle,
     id: String,
     patch: WorkItemPatch,
-    expectedRevision: String,
+    expected_revision: String,
     state: State<ProjectsState>,
 ) -> Result<ProjectSnapshot, String> {
-    with_store(&state, |store| update_work_item(store, &id, patch, &expectedRevision))?;
+    with_store(&state, |store| {
+        update_work_item(store, &id, patch, &expected_revision)
+    })?;
     persist(&app, &state)?;
     Ok(with_store(&state, |store| snapshot_of(store, &id))?)
 }
 
-#[tauri::command(async)]
-#[allow(non_snake_case)]
+#[tauri::command(rename_all = "snake_case", async)]
 pub fn project_remove_work_item(
     app: AppHandle,
     id: String,
-    workItemId: String,
+    work_item_id: String,
     state: State<ProjectsState>,
 ) -> Result<ProjectSnapshot, String> {
-    with_store(&state, |store| remove_work_item(store, &id, &workItemId))?;
+    with_store(&state, |store| remove_work_item(store, &id, &work_item_id))?;
     persist(&app, &state)?;
     Ok(with_store(&state, |store| snapshot_of(store, &id))?)
 }
 
 #[tauri::command(async)]
-#[allow(non_snake_case)]
 pub fn project_add_asset(
     app: AppHandle,
     id: String,
@@ -1062,27 +1069,25 @@ pub fn project_add_asset(
     Ok(with_store(&state, |store| snapshot_of(store, &id))?)
 }
 
-#[tauri::command(async)]
-#[allow(non_snake_case)]
+#[tauri::command(rename_all = "snake_case", async)]
 pub fn project_remove_asset(
     app: AppHandle,
     id: String,
-    refId: String,
+    ref_id: String,
     state: State<ProjectsState>,
 ) -> Result<ProjectSnapshot, String> {
-    with_store(&state, |store| remove_asset(store, &id, &refId))?;
+    with_store(&state, |store| remove_asset(store, &id, &ref_id))?;
     persist(&app, &state)?;
     Ok(with_store(&state, |store| snapshot_of(store, &id))?)
 }
 
-#[tauri::command(async)]
-#[allow(non_snake_case)]
+#[tauri::command(rename_all = "snake_case", async)]
 pub fn project_link_task(
     app: AppHandle,
     id: String,
-    sessionId: String,
+    session_id: String,
     title: String,
-    workItemId: Option<String>,
+    work_item_id: Option<String>,
     references: Option<Vec<ProjectInputRef>>,
     capabilities: Option<Vec<ProjectCapabilityRef>>,
     state: State<ProjectsState>,
@@ -1091,9 +1096,9 @@ pub fn project_link_task(
         link_task(
             store,
             &id,
-            &sessionId,
+            &session_id,
             &title,
-            workItemId.as_deref(),
+            work_item_id.as_deref(),
             references.as_deref().unwrap_or_default(),
             capabilities.as_deref().unwrap_or_default(),
         )
@@ -1105,17 +1110,15 @@ pub fn project_link_task(
 /// 发消息主链路第一跳（taskContextPreamble）：必须 async。
 /// 它要抢 `store` 锁；锁被后台任务（如索引收尾）短暂持有时，非 async 命令
 /// 会让主线程跟着等——发送瞬间整窗冻结正是这类「跑错线程」的典型症状。
-#[tauri::command(async)]
-#[allow(non_snake_case)]
+#[tauri::command(rename_all = "snake_case", async)]
 pub fn project_task_context(
-    sessionId: String,
+    session_id: String,
     state: State<ProjectsState>,
 ) -> Result<Option<ProjectTaskContext>, String> {
-    with_store(&state, |store| task_context(store, &sessionId))
+    with_store(&state, |store| task_context(store, &session_id))
 }
 
 #[tauri::command(async)]
-#[allow(non_snake_case)]
 pub fn project_remove(
     app: AppHandle,
     id: String,
@@ -1136,7 +1139,6 @@ pub fn project_remove(
 }
 
 #[tauri::command(async)]
-#[allow(non_snake_case)]
 pub fn project_set_path(
     app: AppHandle,
     id: String,
@@ -1146,9 +1148,7 @@ pub fn project_set_path(
     {
         let mut store = state.store.lock().unwrap();
         let project = require_project(&store, &id)?.clone();
-        let next = path
-            .map(|p| p.trim().to_string())
-            .filter(|p| !p.is_empty());
+        let next = path.map(|p| p.trim().to_string()).filter(|p| !p.is_empty());
         let summary = match &next {
             Some(p) => format!("绑定了工作目录 {p}"),
             None => "解绑了工作目录".to_string(),
@@ -1164,7 +1164,6 @@ pub fn project_set_path(
 }
 
 #[tauri::command]
-#[allow(non_snake_case)]
 pub fn project_set_active(id: String, state: State<ProjectsState>) -> Result<(), String> {
     let mut store = state.store.lock().unwrap();
     if !store.projects.contains_key(&id) {
@@ -1178,13 +1177,11 @@ pub fn project_set_active(id: String, state: State<ProjectsState>) -> Result<(),
 }
 
 #[tauri::command]
-#[allow(non_snake_case)]
 pub fn project_active(state: State<ProjectsState>) -> Option<String> {
     state.active.lock().unwrap().clone()
 }
 
 #[tauri::command(async)]
-#[allow(non_snake_case)]
 pub fn project_archive(
     app: AppHandle,
     id: String,
@@ -1204,7 +1201,6 @@ pub fn project_archive(
 }
 
 #[tauri::command(async)]
-#[allow(non_snake_case)]
 pub fn project_rename(
     app: AppHandle,
     id: String,
@@ -1221,7 +1217,12 @@ pub fn project_rename(
         if let Some(p) = store.projects.get_mut(&id) {
             p.name = name.clone();
             p.updated_at = Some(now_ms());
-            record_activity(&mut store, &id, "project", &format!("重命名项目为「{name}」"));
+            record_activity(
+                &mut store,
+                &id,
+                "project",
+                &format!("重命名项目为「{name}」"),
+            );
         }
     }
     persist(&app, &state)?;
@@ -1230,8 +1231,11 @@ pub fn project_rename(
 
 /// 在系统文件管理器里显示项目绑定的目录（WorkBuddy「打开文件夹」同款）。
 #[tauri::command(async)]
-#[allow(non_snake_case)]
-pub fn project_reveal(app: AppHandle, id: String, state: State<ProjectsState>) -> Result<(), String> {
+pub fn project_reveal(
+    app: AppHandle,
+    id: String,
+    state: State<ProjectsState>,
+) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
     let path = {
         let store = state.store.lock().unwrap();
@@ -1246,7 +1250,6 @@ pub fn project_reveal(app: AppHandle, id: String, state: State<ProjectsState>) -
 }
 
 #[tauri::command(async)]
-#[allow(non_snake_case)]
 pub fn project_unarchive(
     app: AppHandle,
     id: String,
@@ -1297,7 +1300,6 @@ fn read_billing_config(app: &AppHandle) -> Option<BillingConfig> {
 /// Pi 暂无统一计费接口：若用户在 `app_config_dir/billing.json` 提供数据则按真实值展示，
 /// 否则返回占位值并置 `demo = true`。
 #[tauri::command(async)]
-#[allow(non_snake_case)]
 pub fn billing_status(app: AppHandle) -> BillingStatus {
     if let Some(cfg) = read_billing_config(&app) {
         return BillingStatus {
@@ -1371,7 +1373,11 @@ mod tests {
     fn update_config_bumps_revision_number() {
         let mut store = seeded(None);
         let id = first_project_id(&store);
-        let current = store.configs.get(&store.projects[&id].config_revision_id).unwrap().clone();
+        let current = store
+            .configs
+            .get(&store.projects[&id].config_revision_id)
+            .unwrap()
+            .clone();
 
         let next = update_config(
             &mut store,
@@ -1391,7 +1397,11 @@ mod tests {
     fn update_config_rejects_stale_revision() {
         let mut store = seeded(None);
         let id = first_project_id(&store);
-        let current = store.configs.get(&store.projects[&id].config_revision_id).unwrap().clone();
+        let current = store
+            .configs
+            .get(&store.projects[&id].config_revision_id)
+            .unwrap()
+            .clone();
 
         let err = update_config(&mut store, &id, "x", &[], "stale-revision", current.number)
             .expect_err("过期修订必须被拒");
@@ -1403,12 +1413,23 @@ mod tests {
     fn update_config_rejects_instruction_over_budget() {
         let mut store = seeded(None);
         let id = first_project_id(&store);
-        let current = store.configs.get(&store.projects[&id].config_revision_id).unwrap().clone();
+        let current = store
+            .configs
+            .get(&store.projects[&id].config_revision_id)
+            .unwrap()
+            .clone();
 
         // 每个中文字符 1 token，造一个刚好超预算的指令。
         let oversized = "中".repeat(PROJECT_INSTRUCTION_TOKEN_BUDGET + 1);
-        let err = update_config(&mut store, &id, &oversized, &[], &current.id, current.number)
-            .expect_err("超预算必须被拒");
+        let err = update_config(
+            &mut store,
+            &id,
+            &oversized,
+            &[],
+            &current.id,
+            current.number,
+        )
+        .expect_err("超预算必须被拒");
 
         assert_eq!(err, "projects/instruction-budget-exceeded");
     }
@@ -1417,13 +1438,28 @@ mod tests {
     fn snapshot_reports_instruction_usage_against_budget() {
         let mut store = seeded(None);
         let id = first_project_id(&store);
-        let current = store.configs.get(&store.projects[&id].config_revision_id).unwrap().clone();
+        let current = store
+            .configs
+            .get(&store.projects[&id].config_revision_id)
+            .unwrap()
+            .clone();
 
-        update_config(&mut store, &id, "四条 ascii 字符", &[], &current.id, current.number).unwrap();
+        update_config(
+            &mut store,
+            &id,
+            "四条 ascii 字符",
+            &[],
+            &current.id,
+            current.number,
+        )
+        .unwrap();
         let snap = snapshot_of(&store, &id).unwrap();
 
         assert!(snap.instruction_usage.tokens > 0);
-        assert_eq!(snap.instruction_usage.budget, PROJECT_INSTRUCTION_TOKEN_BUDGET);
+        assert_eq!(
+            snap.instruction_usage.budget,
+            PROJECT_INSTRUCTION_TOKEN_BUDGET
+        );
     }
 
     #[test]
@@ -1553,7 +1589,11 @@ mod tests {
         let id = first_project_id(&store);
         let item = add_work_item(&mut store, &id, "登录页").unwrap();
         // 先把一个 skill 绑进配置，会话才能引用它。
-        let current = store.configs.get(&store.projects[&id].config_revision_id).unwrap().clone();
+        let current = store
+            .configs
+            .get(&store.projects[&id].config_revision_id)
+            .unwrap()
+            .clone();
         update_config(
             &mut store,
             &id,
@@ -1607,7 +1647,9 @@ mod tests {
         )
         .unwrap();
 
-        let ctx = task_context(&store, "session-42").unwrap().expect("会话应能解析出上下文");
+        let ctx = task_context(&store, "session-42")
+            .unwrap()
+            .expect("会话应能解析出上下文");
         assert_eq!(ctx.task.id, link.id);
         assert_eq!(ctx.config.id, ctx.task.config_revision_id);
         assert_eq!(ctx.available_capabilities.unwrap().len(), 0);

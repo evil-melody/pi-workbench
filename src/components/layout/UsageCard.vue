@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import { fmtCost, fmtTokens } from '@/composables/piEvents'
 import { useUsageStore } from '@/composables/useUsageStore'
 import { isTauriRuntime } from '@/composables/useRuntime'
@@ -53,9 +55,9 @@ const ratio = computed(() => {
 
 const stamp = computed(() => {
   if (!usage.updatedAt.value) return ''
-  const t = new Date(usage.updatedAt.value)
+  const at = new Date(usage.updatedAt.value)
   const p = (n: number) => String(n).padStart(2, '0')
-  return `${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())} 更新`
+  return t('{0}:{1}:{2} 更新', [p(at.getHours()), p(at.getMinutes()), p(at.getSeconds())])
 })
 
 onMounted(() => {
@@ -69,27 +71,27 @@ onMounted(() => {
     <div class="uc-head">
       <span class="uc-title">
         <AppIcon name="zap" :size="12" />
-        <span>实时用量</span>
+        <span>{{ t('实时用量') }}</span>
       </span>
-      <span v-if="usage.hasData.value" class="uc-live" title="内核正在上报真实用量">实时</span>
+      <span v-if="usage.hasData.value" class="uc-live" :title="t('内核正在上报真实用量')">{{ t('实时') }}</span>
     </div>
 
     <template v-if="usage.hasData.value">
       <div class="uc-grid">
         <div class="uc-cell">
-          <span class="uc-k">提示词</span>
+          <span class="uc-k">{{ t('提示词') }}</span>
           <span class="uc-v">↑{{ fmtTokens(inputTokens) }}</span>
         </div>
         <div class="uc-cell">
-          <span class="uc-k">输出</span>
+          <span class="uc-k">{{ t('输出') }}</span>
           <span class="uc-v">↓{{ fmtTokens(outputTokens) }}</span>
         </div>
         <div class="uc-cell">
-          <span class="uc-k">总计</span>
+          <span class="uc-k">{{ t('总计') }}</span>
           <span class="uc-v strong">Σ{{ fmtTokens(totalTokens) }}</span>
         </div>
         <div class="uc-cell">
-          <span class="uc-k">花费</span>
+          <span class="uc-k">{{ t('花费') }}</span>
           <span class="uc-v">{{ fmtCost(cost) }}</span>
         </div>
       </div>
@@ -100,26 +102,24 @@ onMounted(() => {
         <i class="bar-out" :style="{ '--bar-out-w': `${ratio.o}%` }" />
       </div>
 
-      <p class="uc-foot">
-        调用 {{ usage.calls.value }} 次 · 轮次 {{ usage.turns.value }}
-        <template v-if="stamp"> · {{ stamp }}</template>
+      <p class="uc-foot">{{ t('调用 {0} 次 · 轮次 {1}', [usage.calls.value, usage.turns.value]) }}<template v-if="stamp"> · {{ stamp }}</template>
       </p>
     </template>
 
     <p v-else class="uc-empty">
-      <template v-if="inTauri">还没有用量数据 —— 开始一轮对话后在这里实时统计。</template>
-      <template v-else>需在桌面 App 内查看</template>
+      <template v-if="inTauri">{{ t('还没有用量数据 —— 开始一轮对话后在这里实时统计。') }}</template>
+      <template v-else>{{ t('需在桌面 App 内查看') }}</template>
     </p>
 
     <div v-if="billing" class="uc-billing">
-      <span>余额 ¥{{ billing.balance.toFixed(2) }}</span>
-      <span>今日 ¥{{ billing.today.toFixed(4) }}</span>
+      <span>{{ t('余额 ¥{0}', [billing.balance.toFixed(2)]) }}</span>
+      <span>{{ t('今日 ¥{0}', [billing.today.toFixed(4)]) }}</span>
     </div>
 
-    <button v-else class="uc-link" title="Pi 暂无统一计费接口，余额需在 app_config_dir/billing.json 提供" @click="router.push('/settings')">
+    <AppButton v-else variant="text" class="uc-link" :title="t('Pi 暂无统一计费接口，余额需在 app_config_dir/billing.json 提供')" @click="router.push('/settings')">
       <AppIcon name="external" :size="11" />
-      <span>未接入余额计费</span>
-    </button>
+      <span>{{ t('未接入余额计费') }}</span>
+    </AppButton>
   </div>
 </template>
 

@@ -16,14 +16,14 @@
 .todo {
   background: var(--bg-panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r);
   padding: 14px;
   max-width: 640px;
 }
 
 .todo h3 {
   margin: 0 0 8px;
-  font-size: 13px;
+  font-size: var(--fs-ui);
 }
 
 .todo ul {

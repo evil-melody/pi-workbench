@@ -9,9 +9,9 @@
  * 前缀落在被剥掉的上下文侧，回放的 user 气泡不会露出指令原文。
  */
 
-/** 计划指令：先出编号分步计划，停手等确认。 */
+/** 计划指令：先出编号分步计划，停手等确认。模型提示词不翻译。 */
 export const PLAN_INSTRUCTION =
-  '[计划模式] 请先不要调用任何工具。先输出一份分步计划（编号列表，每步一行），等用户确认后再按计划执行。'
+  '[计划模式] 请先不要调用任何工具。先输出一份分步计划（编号列表，每步一行），等用户确认后再按计划执行。' // i18n-ignore: model prompt
 
 /** plan 轮发送：指令前缀拼在最外。 */
 export function withPlanInstruction(body: string): string {
@@ -23,6 +23,25 @@ export function stripPlanInstruction(body: string): string {
   const head = `${PLAN_INSTRUCTION}\n\n`
   if (body.startsWith(head)) return body.slice(head.length)
   return body === PLAN_INSTRUCTION ? '' : body
+}
+
+/**
+ * Ask 模式（对齐 WorkBuddy「仅问答」）：只答不动手——不改文件、不执行命令，
+ * 与 Plan 的「先出计划等确认」互斥（同一时刻只能开一个，见 ComposerPlusMenu）。
+ */
+export const ASK_INSTRUCTION =
+  '[问答模式] 只回答用户的问题，不要修改任何文件，也不要执行任何命令或工具调用。需要动手的部分，提示用户切到 Agent 或计划模式。' // i18n-ignore: model prompt
+
+/** ask 轮发送：指令前缀拼在最外（与 plan 同一位置规则）。 */
+export function withAskInstruction(body: string): string {
+  return `${ASK_INSTRUCTION}\n\n${body}`
+}
+
+/** 剥掉正文头部的问答指令（回放路径，同 stripPlanInstruction）。 */
+export function stripAskInstruction(body: string): string {
+  const head = `${ASK_INSTRUCTION}\n\n`
+  if (body.startsWith(head)) return body.slice(head.length)
+  return body === ASK_INSTRUCTION ? '' : body
 }
 
 /** 单行最大步骤数：防模型失控输出撑爆卡片。 */
@@ -52,5 +71,5 @@ export function parsePlanSteps(text: string): string[] {
 /** 用户确认计划后的执行 prompt：已批准步骤 + 原始任务（执行时不能丢目标）。 */
 export function buildExecPrompt(task: string, steps: string[]): string {
   const list = steps.map((s, i) => `${i + 1}. ${s}`).join('\n')
-  return `计划已确认，请按以下步骤执行：\n${list}\n\n原始任务：${task}`
+  return `计划已确认，请按以下步骤执行： ${list} 原始任务：${task}` // i18n-ignore: model prompt
 }

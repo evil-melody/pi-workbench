@@ -5,7 +5,7 @@
   gap: var(--sp-2);
   width: 100%;
   padding: 7px 10px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
   background: transparent;
   border: none;
@@ -19,10 +19,13 @@
   padding: 0;
 }
 
-.theme-toggle:hover {
-  background: var(--bg-hover);
-  color: var(--text);
-  border-color: transparent;
+@media (hover: hover) {
+
+  .theme-toggle:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+    border-color: transparent;
+}
 }
 
 .ico {

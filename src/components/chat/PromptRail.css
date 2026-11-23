@@ -1,0 +1,133 @@
+/*
+ * #68 M6 提问导航刻度条（WorkBuddy 右侧竖条同款语义）：
+ * 绝对定位在 .center 内（.center 是 position:relative 的定位上下文）——
+ * 不用 fixed：抽屉开合时 .center 会变宽，absolute 自动跟位，fixed 要重算坐标。
+ * 垂直居中贴着右缘，刻度是横排短棒（阅读方向与消息流一致：一提问一短棒）。
+ */
+.prompt-rail {
+  position: absolute;
+  right: var(--sp-2);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--sp-2);
+}
+
+/*
+ * 刻度短棒：14×3 的视觉本体 + 伪元素热区（3px 高不可点准，热区抬到 ~27px，
+ * 与 .ghost-btn 同一手法——视觉密度归视觉，命中面积归可访问性）。
+ * 当前项 22px + accent：更长更深，一眼读出「读到哪一轮」。
+ */
+.pr-tick {
+  position: relative;
+  width: 14px;
+  height: 3px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-full);
+  background: var(--border-strong);
+  cursor: pointer;
+  transition: width var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+
+.pr-tick::before {
+  content: '';
+  position: absolute;
+  inset: -12px -10px;
+}
+
+.pr-tick.active {
+  width: 22px;
+  background: var(--accent);
+}
+
+@media (hover: hover) {
+  .pr-tick:hover {
+    background: var(--text-faint);
+  }
+}
+
+/*
+ * 提问列表：贴刻度列左侧浮出，贴底收进 .center 的可读宽度内。
+ * 与选区浮层同族形态（elev 底 + hairline 描边 + sh-card 投影），不另造一层。
+ */
+.pr-list {
+  position: absolute;
+  right: calc(100% + var(--sp-3));
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(280px, calc(100vw - 120px));
+  max-height: 340px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg-elev);
+  box-shadow: var(--sh-card);
+}
+
+.pr-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0;
+  padding: var(--sp-1) var(--sp-3) var(--sp-2);
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+}
+
+.pr-list-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.pr-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
+  text-align: left;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .pr-item:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+}
+
+/* 当前项：底色给一档 accent tint，与刻度高亮同语义 */
+.pr-item.active {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--text);
+}
+
+/* 过长提问截断成一行：列表是导航不是阅读器，全文在消息流里 */
+.pr-item-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pr-item-clock {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}

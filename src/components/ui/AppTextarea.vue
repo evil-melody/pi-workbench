@@ -6,6 +6,8 @@ const props = withDefaults(
     modelValue: string
     placeholder?: string
     disabled?: boolean
+    readonly?: boolean
+    invalid?: boolean
     mono?: boolean
     rows?: number
     spellcheck?: boolean
@@ -62,6 +64,8 @@ watch(
     :class="{ mono: props.mono, grow: props.autoGrow }"
     :placeholder="props.placeholder"
     :disabled="props.disabled"
+    :readonly="props.readonly"
+    :aria-invalid="props.invalid ? 'true' : undefined"
     :rows="props.rows"
     :spellcheck="props.spellcheck"
     @input="[

@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 /**
  * 会话树视图模型：把 Pi RPC 的 `get_tree` 结果（嵌套 SessionTreeNode[]）
  * 摊平成可渲染的缩进列表，并给出节点摘要。
@@ -71,15 +72,15 @@ export function summarize(entry: any): string {
   if (type === 'message') {
     const text = textOf(entry.message).trim()
     const role = entry.message?.role ?? 'user'
-    return text || `（${role} 无正文）`
+    return text || t('（{0} 无正文）', [role])
   }
-  if (type === 'thinking_level_change') return `思考级别 → ${entry.thinkingLevel ?? '?'}`
-  if (type === 'model_change') return `模型 → ${entry.modelId ?? '?'}`
-  if (type === 'usage') return `用量记录（${entry.kind ?? 'usage'}）`
-  if (type === 'compaction') return '上下文压缩'
-  if (type === 'branch_summary') return '分支摘要'
-  if (type === 'context_edit') return '上下文编辑'
-  if (type === 'label') return `标注：${entry.label ?? ''}`
+  if (type === 'thinking_level_change') return t('思考级别 → {0}', [entry.thinkingLevel ?? '?'])
+  if (type === 'model_change') return t('模型 → {0}', [entry.modelId ?? '?'])
+  if (type === 'usage') return t('用量记录（{0}）', [entry.kind ?? 'usage'])
+  if (type === 'compaction') return t('上下文压缩')
+  if (type === 'branch_summary') return t('分支摘要')
+  if (type === 'context_edit') return t('上下文编辑')
+  if (type === 'label') return t('标注：{0}', [entry.label ?? ''])
   return `${type}（${entry?.id ?? ''}）`
 }
 
@@ -123,7 +124,7 @@ export function flattenTree(
 export function visibleNodes(nodes: FlatNode[]): FlatNode[] {
   return nodes.filter((n) => {
     if (n.kind === 'context_edit') return false
-    if (n.kind === 'message' && n.text === '（assistant 无正文）') return false
+    if (n.kind === 'message' && n.text === '（assistant 无正文）') return false // i18n-ignore: stored marker
     return true
   })
 }

@@ -1,18 +1,23 @@
 .composer-status {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 18px;
+  gap: var(--sp-2);
+  min-height: 20px;
   margin: 0;
   color: var(--text-faint);
-  font-size: 11px;
-  line-height: 1.4;
+  /* dsh .FJxK0a_root：统计/提示行是 12px 的一行灰字。 */
+  font-size: var(--fs-sm);
+  line-height: var(--lh-tight);
 }
 
 .composer-status.running {
   color: var(--text-dim);
 }
 
+/*
+ * F11 动画收敛：这一页的持续动画只留三处（live 步心跳、工具行扫光、
+ * turn 状态文字微光）。composer 是次要信号位，转圈静态化为一个环。
+ */
 .spinner {
   width: 12px;
   height: 12px;
@@ -20,13 +25,6 @@
   border: 2px solid var(--accent-dim);
   border-top-color: var(--accent);
   border-radius: 50%;
-  animation: composer-spin 0.9s linear infinite;
-}
-
-@keyframes composer-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .status-main {
@@ -40,99 +38,18 @@
 .hint {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--sp-1);
 }
 
-.usage-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
-  padding: 1px 8px;
-  border-radius: var(--r-full);
-  background: var(--bg-elev);
-  color: var(--text-dim);
-  font-family: var(--mono);
-  font-variant-numeric: tabular-nums;
-}
-
-.abort {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  height: 20px;
-  padding: 0 8px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--text-dim);
-  font-size: 11px;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-
-.abort:hover {
-  background: var(--danger-soft);
-  border-color: var(--danger);
-  color: var(--danger);
+/* 窄栏工具条已被模型 / 思考档 / 角色占满：快捷键提示让位，避免被硬裁半个词 */
+@media (max-width: 1180px) {
+  .hint {
+    display: none;
+  }
 }
 
 /*
- * 代码库索引状态行：始终可见，专门回答「有没有在跑 / 查没查」。
- * WorkBuddy 式弱化：纯灰字 + 小图标，不再套 pill 底色描边 ——
- * 它是提示信息，不是按钮组，抢眼度不应超过左侧的发送键。
+ * F10：dsh 式统计行与代码库索引状态行已迁到轨迹面板（ActivityPanel.css
+ * 的 .ctx-zone）——composer 这一行只留快捷键提示 / 活动语。
+ * 中断已并入发送键位置（.composer-shell .stop），这里不再有第二个按钮。
  */
-.codebase {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-  color: var(--text-faint);
-  font-variant-numeric: tabular-nums;
-}
-
-.codebase.ready {
-  color: var(--ok, #1a7f37);
-}
-
-.codebase.error {
-  color: var(--danger);
-}
-
-.codebase.indexing {
-  color: var(--text-faint);
-}
-
-.codebase.indexing .spinner.sm {
-  border-color: var(--accent-dim);
-  border-top-color: var(--accent);
-}
-
-.spinner.sm {
-  width: 10px;
-  height: 10px;
-  border-width: 1.5px;
-}
-
-.relink {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  margin-left: 2px;
-  padding: 0 6px;
-  height: 16px;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: inherit;
-  font-size: 10px;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.relink:hover {
-  background: var(--accent-soft, rgba(88, 124, 255, 0.12));
-  border-color: var(--accent);
-  color: var(--accent);
-}

@@ -6,9 +6,32 @@
 
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::path::Path;
 use tauri::{AppHandle, Manager};
 
 pub const SETTINGS_FILE: &str = "app-settings.json";
+
+/// 写入含凭据的配置文件：仅当前用户可读写（0600）。
+///
+/// `fs::write` 建文件走 0666 & umask，密钥在目录里对其他本机用户可读。
+/// 已在磁盘上的旧文件如果已是 0644，这里一并收紧。
+fn write_private(path: &Path, text: &str) -> Result<(), String> {
+    fs::write(path, text).map_err(|e| e.to_string())?;
+    restrict_perms(path)
+}
+
+/// 把已存在的配置文件权限收紧到 0600（迁移旧版 0644 文件）。
+fn restrict_perms(path: &Path) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if path.exists() {
+            fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
 
 fn bool_true() -> bool {
     true
@@ -59,6 +82,17 @@ pub struct AppSettings {
     /// 桌面进程 PATH 里常没有 pi（macOS GUI 只有 /usr/bin 等），探测不到时必须能手动指定。
     #[serde(default)]
     pub pi_bin: Option<String>,
+    /// 会话结束后把产物自动归档进资料库。None = 未设置，按开启处理。
+    #[serde(default)]
+    pub auto_archive_artifacts: Option<bool>,
+    /// 本地模型下载源（endpoint）。None/空 = 用默认镜像，兼容旧配置。
+    #[serde(default)]
+    pub download_source: Option<String>,
+    /// 完全访问权限：开启后交互路径上的风险命令跳过逐条审批。
+    /// 灾难黑名单与受保护路径**不受影响仍拦**（fail-closed 底线，见 agent-tool-gate）。
+    /// None = 未设置，按关闭处理。
+    #[serde(default)]
+    pub full_access: Option<bool>,
 }
 
 impl AppSettings {
@@ -109,6 +143,8 @@ pub fn settings_load(app: AppHandle) -> AppSettings {
         Ok(t) => t,
         Err(_) => return AppSettings::default(),
     };
+    // 旧版本用默认权限写盘；读到就顺手收紧，避免密钥长期 0644。
+    let _ = restrict_perms(&path);
 
     if let Ok(mut s) = serde_json::from_str::<AppSettings>(&text) {
         s.ensure_default_model();
@@ -134,6 +170,9 @@ pub fn settings_load(app: AppHandle) -> AppSettings {
             theme: legacy.theme,
             language: legacy.language,
             pi_bin: None,
+            auto_archive_artifacts: None,
+            download_source: None,
+            full_access: None,
         };
     }
 
@@ -147,7 +186,7 @@ pub fn settings_save(app: AppHandle, settings: AppSettings) -> Result<(), String
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let text = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
-    fs::write(&path, text).map_err(|e| e.to_string())?;
+    write_private(&path, &text)?;
     Ok(())
 }
 
@@ -172,11 +211,12 @@ pub async fn settings_test_model(config: ModelConfig) -> Result<String, String> 
         .build()
         .map_err(|e| format!("HTTP 客户端初始化失败: {e}"))?;
 
-    let resp = client
-        .get(&target)
-        .send()
-        .await
-        .map_err(|e| format!("无法连接到 {provider} 服务端: {e}", provider = config.provider))?;
+    let resp = client.get(&target).send().await.map_err(|e| {
+        format!(
+            "无法连接到 {provider} 服务端: {e}",
+            provider = config.provider
+        )
+    })?;
 
     let status = resp.status();
     if status.is_server_error() {
@@ -223,6 +263,9 @@ pub fn pi_model_launch(app: &AppHandle) -> Option<PiModelLaunch> {
     })
 }
 
+/// 本地 llama-server 在 models.json 里用的 provider id。
+pub const LOCAL_PROVIDER: &str = "local-llama";
+
 /// 合并式写入：只覆盖当前 provider 条目，保留文件里其它 provider。
 /// 未声明 `api` 时 Pi 按 `openai-completions` 兜底，兼容绝大多数 OpenAI 协议端点。
 fn write_models_json(app: &AppHandle, model: &ModelConfig) -> Result<(), String> {
@@ -233,7 +276,11 @@ fn write_models_json(app: &AppHandle, model: &ModelConfig) -> Result<(), String>
         .ok()
         .and_then(|t| serde_json::from_str(&t).ok())
         .unwrap_or_else(|| serde_json::json!({ "providers": {} }));
-    if !root.get("providers").map(|v| v.is_object()).unwrap_or(false) {
+    if !root
+        .get("providers")
+        .map(|v| v.is_object())
+        .unwrap_or(false)
+    {
         root["providers"] = serde_json::json!({});
     }
     let mut entry = serde_json::json!({
@@ -244,12 +291,20 @@ fn write_models_json(app: &AppHandle, model: &ModelConfig) -> Result<(), String>
     if !model.api_key.trim().is_empty() {
         entry["apiKey"] = serde_json::Value::String(model.api_key.clone());
     }
+    // 本地 provider 不在 Pi 的内置清单里：必须显式声明 api 和一条可用凭据，
+    // 否则 provider 组装阶段会因「找不到 api / 无认证方式」被丢弃，
+    // 内核启动时报 Unknown provider。本地端点不校验 key，占位即可。
+    if model.provider == LOCAL_PROVIDER {
+        entry["api"] = serde_json::json!("openai-completions");
+        if entry.get("apiKey").is_none() {
+            entry["apiKey"] = serde_json::json!("local");
+        }
+    }
     root["providers"][model.provider.as_str()] = entry;
-    fs::write(
+    write_private(
         &path,
-        serde_json::to_string_pretty(&root).map_err(|e| e.to_string())?,
-    )
-    .map_err(|e| e.to_string())?;
+        &serde_json::to_string_pretty(&root).map_err(|e| e.to_string())?,
+    )?;
     Ok(())
 }
 
@@ -282,5 +337,22 @@ mod tests {
         let parsed: AppSettings = serde_json::from_str(legacy).unwrap_or_default();
         // 旧版直接反序列化会失败，走 load 里的兼容分支；这里只验证新格式解析
         assert!(parsed.models.is_empty() || parsed.models[0].provider == "openai");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn write_private_sets_0600() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("pi-wb-perm-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("secret.json");
+        fs::write(&p, "{}").unwrap();
+        fs::set_permissions(&p, fs::Permissions::from_mode(0o644)).unwrap();
+
+        write_private(&p, "{\"k\":1}").unwrap();
+
+        let mode = fs::metadata(&p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+        let _ = fs::remove_dir_all(&dir);
     }
 }

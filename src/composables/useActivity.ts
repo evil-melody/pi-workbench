@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { computed, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
 import type { PiMsg } from './usePi'
 
@@ -85,7 +86,7 @@ export function useActivity(
         return
       }
 
-      if (text.includes('error') || text.includes('失败') || text.includes('错误')) {
+      if (text.includes('error') || text.includes(t('失败')) || text.includes(t('错误'))) {
         state.value = { ...empty(), phase: 'failed' }
         return
       }
@@ -94,7 +95,7 @@ export function useActivity(
         state.value = {
           ...empty(),
           phase: 'completed',
-          delivered: text.includes('```') || text.includes('文件') || text.includes('保存'),
+          delivered: text.includes('```') || text.includes(t('文件')) || text.includes(t('保存')),
         }
         return
       }
@@ -108,11 +109,11 @@ export function useActivity(
 }
 
 export function activityMessage(state: ActivityState): string {
-  if (state.phase === 'waiting') return '需要你确认'
-  if (state.phase === 'interrupted') return '任务已中断，已有成果保留'
-  if (state.phase === 'failed') return '本轮未完成，请查看原始过程'
-  if (state.phase === 'completed') return state.delivered ? '本轮结束 · 已交付成果' : '本轮已结束'
-  if (state.phase === 'idle') return '准备好了'
-  if (state.tool) return '正在执行工具'
-  return '正在处理'
+  if (state.phase === 'waiting') return t('需要你确认')
+  if (state.phase === 'interrupted') return t('任务已中断，已有成果保留')
+  if (state.phase === 'failed') return t('本轮未完成，请查看原始过程')
+  if (state.phase === 'completed') return state.delivered ? t('本轮结束 · 已交付成果') : t('本轮已结束')
+  if (state.phase === 'idle') return t('准备好了')
+  if (state.tool) return t('正在执行工具')
+  return t('正在处理')
 }

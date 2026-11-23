@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { t } from '@/i18n'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import AppSelect, { type SelectOption } from '@/components/ui/AppSelect.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import { isTauriRuntime } from '@/composables/useRuntime'
 
 /**
@@ -51,7 +53,7 @@ async function load() {
     models.value = s?.models ?? []
     defaultId.value = s?.default_model_id ?? models.value.find((m) => m.enabled)?.id ?? ''
   } catch (e) {
-    note.value = `读取模型配置失败：${String(e)}`
+    note.value = t('读取模型配置失败：{0}', [String(e)])
   } finally {
     loading.value = false
   }
@@ -71,7 +73,7 @@ async function pick(id: string) {
     emit('change', id)
   } catch (e) {
     defaultId.value = prev
-    note.value = `切换模型失败：${String(e)}`
+    note.value = t('切换模型失败：{0}', [String(e)])
   }
 }
 
@@ -82,16 +84,16 @@ defineExpose({ reload: load })
 
 <template>
   <div class="model-switcher" :class="{ compact }">
-    <button
+    <AppButton
       v-if="needsSetup"
-      type="button"
+      variant="secondary"
       class="ms-setup"
-      :title="'还没有可用的模型配置，去设置页添加'"
+      :title="t('还没有可用的模型配置，去设置页添加')"
       @click="router.push('/settings')"
     >
       <AppIcon name="settings" :size="13" />
-      <span>配置模型</span>
-    </button>
+      <span>{{ t('配置模型') }}</span>
+    </AppButton>
 
     <template v-else>
       <!--
@@ -102,7 +104,7 @@ defineExpose({ reload: load })
         :model-value="defaultId"
         :options="options"
         :disabled="!inTauri || loading"
-        :placeholder="inTauri ? (loading ? '读取中…' : '选择模型') : '浏览器预览无模型'"
+        :placeholder="inTauri ? (loading ? t('读取中…') : t('选择模型')) : t('浏览器预览无模型')"
         :width="width"
         @update:model-value="pick"
       />

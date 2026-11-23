@@ -1,28 +1,32 @@
 .app-input {
   width: 100%;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
+  /* 表单控件统一 36 高（--row-h）：与按钮、选择器同一基座。
+     D-16 的 44 下限针对可点图标；文本输入靠宽度已远超 44，故取 36。 */
+  height: var(--row-h);
+  padding: 0 12px;
+  border: var(--stroke-field);
+  border-radius: var(--r);
+  background: var(--bg-field);
   color: var(--text);
   font-family: inherit;
-  font-size: 12px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  font-size: var(--fs-ui);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
 .app-input::placeholder {
-  color: var(--text-dim);
-  opacity: 0.85;
+  color: var(--text-faint);
 }
 
-.app-input:hover:not(:disabled) {
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .app-input:hover:not(:disabled) {
+    border-color: var(--border-strong);
+}
 }
 
 .app-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.22);
+  box-shadow: var(--focus-ring);
   outline: none;
 }
 
@@ -33,5 +37,5 @@
 
 .app-input.mono {
   font-family: var(--mono);
-  font-size: 11.5px;
+  font-size: var(--fs-ui);
 }

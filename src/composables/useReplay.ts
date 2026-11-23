@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 import { invoke } from '@tauri-apps/api/core'
 import { ref } from 'vue'
 import { IN_TAURI, type PiMsg, splitPromptBody } from '@/composables/usePi'
@@ -10,6 +11,13 @@ import { applyEvent, emptyUsageState, type EventCtx } from '@/composables/piEven
  * 这里放一个模块级信箱，对话页 watch 到非空就消费回放并清空。
  */
 export const pendingReplayIndex = ref<number | null>(null)
+
+/**
+ * 侧栏会话行的「当前会话」标记：点开哪条回放就记哪条。
+ * 段号来自 journal（全局唯一），列表按目录过滤后不会误命中别的项目。
+ * 新会话开始（useChatSession.startNewSession）时清空。
+ */
+export const activeReplayIndex = ref<number | null>(null)
 
 /**
  * A4/G4 崩溃重放与会话持久化：从 B2 journal（`pi_journal_read` 读回的
@@ -28,37 +36,61 @@ export interface ReplayResult {
   error?: string
 }
 
+/**
+ * 一段会话在 journal 里的范围。
+ *
+ * 分段依据是桥落的 `session_open`（带 cwd）。内核重启 / 空闲回收 / 冷启动
+ * 会在同 cwd 再落普通标记——那是同一段对话的续段，不是新会话；只有 cwd 变化
+ * 或 `reason:"new"`（点「新会话」）才是真正的边界。
+ */
+interface SessionOpen {
+  pos: number
+  cwd: string
+  explicit: boolean
+}
+
+function sessionOpens(events: any[]): SessionOpen[] {
+  const opens: SessionOpen[] = []
+  events.forEach((e, i) => {
+    if (e && typeof e === 'object' && e.type === 'session_open') {
+      opens.push({
+        pos: i,
+        cwd: normDir(e.cwd),
+        explicit: e.reason === 'new' || e.explicit === true,
+      })
+    }
+  })
+  return opens
+}
+
+/** 连续同 cwd 且边界非显式的段属于同一会话，返回首尾段号（含）。 */
+function groupRange(opens: SessionOpen[], at: number): [number, number] {
+  let start = at
+  while (start > 0 && opens[start - 1].cwd === opens[start].cwd && !opens[start].explicit) start--
+  let end = at
+  while (end + 1 < opens.length && opens[end + 1].cwd === opens[end].cwd && !opens[end + 1].explicit) end++
+  return [start, end]
+}
+
 /// journal 是**多项目共用**的（内核按 cwd 启停，事件全流进同一个文件）。
-/// 回放只取最后一个 cwd 匹配的 `session_open`（pi_start 落的标记）到**下一个**
+/// 回放只取当前项目最近一段会话（含同一对话的内核重启续段）到**下一个**
 /// 标记之间的事件——切到结尾会把下一个项目的段也包进来（串项目的根因）。
 /// 尾斜杠视为同一目录。
 export function selectSessionEvents(events: any[], cwd?: string): any[] {
   if (!cwd) return events
-  const norm = normDir
-  const target = norm(cwd)
-  let start = -1
-  let sawMarker = false
-  for (let i = 0; i < events.length; i++) {
-    const e = events[i]
-    if (e && typeof e === 'object' && e.type === 'session_open') {
-      sawMarker = true
-      if (norm(e.cwd) === target) start = i
-    }
-  }
-  // 有标记但都不匹配当前项目 → 这段 journal 属于别的项目，不回放。
-  if (sawMarker && start < 0) return []
+  const target = normDir(cwd)
+  const opens = sessionOpens(events)
   // legacy journal（无标记）→ 全量尽力而为。
-  if (start < 0) return events
-  // 段尾 = 下一个 session_open（不论 cwd）；没有就是 journal 结尾。
-  let end = events.length
-  for (let i = start + 1; i < events.length; i++) {
-    const e = events[i]
-    if (e && typeof e === 'object' && e.type === 'session_open') {
-      end = i
-      break
-    }
-  }
-  return events.slice(start + 1, end)
+  if (!opens.length) return events
+  let at = -1
+  opens.forEach((o, i) => {
+    if (o.cwd === target) at = i
+  })
+  // 有标记但都不匹配当前项目 → 这段 journal 属于别的项目，不回放。
+  if (at < 0) return []
+  const [start, end] = groupRange(opens, at)
+  const stop = end + 1 < opens.length ? opens[end + 1].pos : events.length
+  return events.slice(opens[start].pos + 1, stop)
 }
 
 /** 从 journal 重建转写。`lastN` 限制只取末尾 N 条事件（缺省全量）。
@@ -71,11 +103,11 @@ export async function loadReplay(
   sessionIndex?: number,
 ): Promise<ReplayResult> {
   if (!IN_TAURI) {
-    return { messages: [], eventCount: 0, error: '浏览器模式：journal 不可用' }
+    return { messages: [], eventCount: 0, error: t('浏览器模式：journal 不可用') }
   }
   let events: any[]
   try {
-    events = await invoke<any[]>('pi_journal_read', { lastN: lastN ?? null })
+    events = await invoke<any[]>('pi_journal_read', { last_n: lastN ?? null })
   } catch (e: any) {
     return { messages: [], eventCount: 0, error: String(e?.message ?? e) }
   }
@@ -102,7 +134,8 @@ export async function loadReplay(
 const normDir = (s: unknown) => String(s ?? '').replace(/\/+$/, '')
 
 /**
- * 按 journal 全局段号取某一段（配合 `pi_journal_sessions` 的 index）。
+ * 按 journal 全局段号取一次会话（配合 `pi_journal_sessions` 的 index）。
+ * 段号可能是会话组内的任意一段（老数据的重启续段），取整组事件。
  * `cwd` 给出时做一致性校验：段号与目录对不上（journal 被轮转/清理）返回空，
  * 绝不把别的项目的会话回放进当前对话。
  */
@@ -111,20 +144,16 @@ export function selectSessionByIndex(
   sessionIndex: number,
   cwd?: string,
 ): any[] {
-  const opens: { pos: number; cwd: string }[] = []
-  events.forEach((e, i) => {
-    if (e && typeof e === 'object' && e.type === 'session_open') {
-      opens.push({ pos: i, cwd: String(e.cwd ?? '') })
-    }
-  })
+  const opens = sessionOpens(events)
   const seg = opens[sessionIndex]
   if (!seg) return []
-  if (cwd && normDir(seg.cwd) !== normDir(cwd)) return []
-  const end = sessionIndex + 1 < opens.length ? opens[sessionIndex + 1].pos : events.length
-  return events.slice(seg.pos + 1, end)
+  if (cwd && seg.cwd !== normDir(cwd)) return []
+  const [start, end] = groupRange(opens, sessionIndex)
+  const stop = end + 1 < opens.length ? opens[end + 1].pos : events.length
+  return events.slice(opens[start].pos + 1, stop)
 }
 
-/** 一条运行记录（journal 按 session_open 分段的摘要）。 */
+/** 一条运行记录 = 一次会话（journal 连续同 cwd 段已合并的摘要）。 */
 export interface RunRecord {
   /** journal 全局段号，回放传给 loadReplay 的 sessionIndex。 */
   index: number
@@ -145,8 +174,8 @@ export interface RunRecord {
 }
 
 /**
- * 运行记录列表（WorkDSH「之前的运行记录」对位）：journal 按 session_open
- * 分段汇总，**新→旧**排序。`cwd` 给出时只列该项目的段。
+ * 运行记录列表（WorkDSH「之前的运行记录」对位）：后端把 journal 的连续同 cwd
+ * 段并成一次会话（内核重启不算新会话），前端按 cwd 过滤、**新→旧**排序。
  *
  * `includeArchived` 透传给后端 `pi_journal_sessions`：后端已在合并层
  * 过滤 deleted、默认过滤 archived、置顶段提前、title 覆盖——
@@ -157,7 +186,7 @@ export async function listRunHistory(cwd?: string, includeArchived = false): Pro
   if (!IN_TAURI) return []
   let all: any[]
   try {
-    all = await invoke<any[]>('pi_journal_sessions', { includeArchived })
+    all = await invoke<any[]>('pi_journal_sessions', { include_archived: includeArchived })
   } catch {
     return []
   }
@@ -182,10 +211,27 @@ export async function listRunHistory(cwd?: string, includeArchived = false): Pro
     // 零任务的段（内核自动启停、只留启动标记）不是「运行记录」：
     // 列出来只会是一排「（该会话没有用户消息）」噪音。
     .filter((s) => Number.isInteger(s.index) && s.prompts > 0)
-    .reverse()
-    // 置顶稳定置前：后端合并已按置顶分组，reverse（新→旧）之后仍要保证
-    // pinned 在列表头部。Array.prototype.sort 稳定，同组相对顺序不变。
-    .sort((a, b) => Number(b.pinned ?? false) - Number(a.pinned ?? false))
+    // 最新在顶部：后端 `pi_journal_sessions` 已按 pinned desc + 段号 desc 排好，
+    // 但段号 ≠ 结束时间（长会话跨段、归档/置顶不改段号），且前端此前多一次
+    // `.reverse()` 把顺序整体翻回「旧→新」。这里显式重排、不再 reverse：
+    // 置顶优先 → 组内按结束时间倒序（缺结束时间退回开始时间，都缺则按段号）。
+    // 排序留在水源层，组件模板只 slice 分页、不再 sort 副本。
+    .sort((a, b) => {
+      const pin = Number(b.pinned === true) - Number(a.pinned === true)
+      if (pin !== 0) return pin
+      const key = orderKey(b) - orderKey(a)
+      // 键相等只在「双方都没有时间戳」时发生（journal 老数据），退回段号倒序。
+      return key !== 0 ? key : b.index - a.index
+    })
+}
+
+/**
+ * 倒序排序键：结束时间 → 开始时间 → -1（都没有，交给段号兜底）。
+ * 缺时间戳统一返回 -1 而不是段号，是为了不让「段号这种小整数」和
+ * 「毫秒时间戳」放进同一个数值比较里得出无意义的先后。
+ */
+function orderKey(r: RunRecord): number {
+  return r.endedAtMs ?? r.startedAtMs ?? -1
 }
 
 /**

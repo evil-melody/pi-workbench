@@ -2,9 +2,9 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   cursor: pointer;
   user-select: none;
 }
@@ -29,13 +29,21 @@
   width: 15px;
   height: 15px;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   background: var(--bg);
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 
-.app-check:not(.off):hover .box {
-  border-color: var(--accent);
+@media (hover: hover) {
+
+  .app-check:not(.off):hover .box {
+    border-color: var(--accent);
+}
+}
+
+/* 按下与其余可点控件同构：退到 bg-hover，几何不变。 */
+.app-check:not(.off):active .box {
+  background: var(--bg-hover);
 }
 
 .native:checked + .box {
@@ -48,11 +56,12 @@
   top: 1px;
   left: 4px;
   color: var(--bg);
-  font-size: 10px;
+  font-size: var(--fs-micro);
   line-height: 12px;
   content: '✓';
 }
 
 .native:focus-visible + .box {
-  box-shadow: 0 0 0 2px rgba(110, 168, 254, 0.3);
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
 }

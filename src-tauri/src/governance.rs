@@ -80,7 +80,9 @@ pub fn enforce_model_policy(
     if provider.is_none() && model.is_none() {
         return Ok(());
     }
-    let provider = provider.map(|p| p.trim().to_lowercase()).unwrap_or_default();
+    let provider = provider
+        .map(|p| p.trim().to_lowercase())
+        .unwrap_or_default();
     let model = model.map(|m| m.trim().to_lowercase()).unwrap_or_default();
 
     if !policy.allowed_providers.is_empty() {
@@ -98,7 +100,9 @@ pub fn enforce_model_policy(
             continue;
         }
         if d == model || d == format!("{provider}/{model}") {
-            return Err(format!("model-policy：模型「{provider}/{model}」在拒绝名单"));
+            return Err(format!(
+                "model-policy：模型「{provider}/{model}」在拒绝名单"
+            ));
         }
     }
     Ok(())
@@ -108,7 +112,7 @@ pub fn enforce_model_policy(
 // 用量聚合（usage）
 // ---------------------------------------------------------------------------
 
-/// 单模型的用量条目。
+/// 单模型的用量条目。IPC 与前端 `ActivityPanel.vue` 一致用 snake_case。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct UsageEntry {
     pub provider: String,
@@ -277,19 +281,15 @@ pub fn governance_get(state: State<GovernanceState>) -> GovernanceConfig {
 /// journal 用量聚合（usage 五件套）：从 B2 事件 journal 统计 tokens/cost。
 ///
 /// `since_ms`（可选）：只统计该时间戳之后的事件（本地日/周报场景）。
-#[tauri::command(async)]
-pub fn governance_usage(
-    pi: State<PiState>,
-    since_ms: Option<u64>,
-) -> Result<UsageSummary, String> {
+#[tauri::command(rename_all = "snake_case", async)]
+pub fn governance_usage(pi: State<PiState>, since_ms: Option<u64>) -> Result<UsageSummary, String> {
     let path = pi
         .journal_path
         .lock()
         .unwrap()
         .clone()
         .ok_or_else(|| "journal 未启用（内核未启动）".to_string())?;
-    let file = fs::File::open(&path)
-        .map_err(|e| format!("读取 journal 失败（{path:?}）: {e}"))?;
+    let file = fs::File::open(&path).map_err(|e| format!("读取 journal 失败（{path:?}）: {e}"))?;
     let mut buf = String::new();
     let reader = BufReader::new(file);
     for line in reader.lines() {
@@ -305,6 +305,37 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// 契约守卫：`ActivityPanel.vue` 按 snake_case 读 `governance_usage`。
+    #[test]
+    fn usage_serializes_snake_case() {
+        let summary = UsageSummary {
+            entries: vec![UsageEntry {
+                provider: "p".into(),
+                model: "m".into(),
+                calls: 1,
+                total_tokens: 2,
+                cost_total: 0.5,
+                ..Default::default()
+            }],
+            total_calls: 1,
+            total_tokens: 2,
+            total_cost: 0.5,
+            first_ts_ms: Some(1),
+            last_ts_ms: Some(2),
+        };
+        let v = serde_json::to_value(&summary).unwrap();
+        for k in ["entries", "total_calls", "total_tokens", "total_cost", "first_ts_ms", "last_ts_ms"] {
+            assert!(v.get(k).is_some(), "缺少 snake_case 字段 {k}: {v}");
+        }
+        for k in ["totalCalls", "totalTokens", "totalCost"] {
+            assert!(v.get(k).is_none(), "误发 camelCase 字段 {k}: {v}");
+        }
+        let entry = &v["entries"][0];
+        for k in ["cache_read", "cache_write", "total_tokens", "cost_total"] {
+            assert!(entry.get(k).is_some(), "缺少 snake_case 字段 {k}: {entry}");
+        }
+    }
+
     fn policy(allowed: Vec<&str>, denied: Vec<&str>) -> ModelPolicy {
         ModelPolicy {
             allowed_providers: allowed.into_iter().map(String::from).collect(),
@@ -314,7 +345,10 @@ mod tests {
 
     #[test]
     fn policy_allows_when_lists_empty() {
-        assert!(enforce_model_policy(&policy(vec![], vec![]), Some("anthropic"), Some("claude-x")).is_ok());
+        assert!(
+            enforce_model_policy(&policy(vec![], vec![]), Some("anthropic"), Some("claude-x"))
+                .is_ok()
+        );
     }
 
     #[test]
@@ -345,7 +379,14 @@ mod tests {
         assert!(enforce_model_policy(&policy(vec!["anthropic"], vec!["x"]), None, None).is_ok());
     }
 
-    fn usage_line(provider: &str, model: &str, input: u64, output: u64, cost: f64, ts: u64) -> String {
+    fn usage_line(
+        provider: &str,
+        model: &str,
+        input: u64,
+        output: u64,
+        cost: f64,
+        ts: u64,
+    ) -> String {
         json!({
             "type": "message_end",
             "pi_ts": ts,

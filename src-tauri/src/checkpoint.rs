@@ -21,12 +21,34 @@ pub struct TurnMarker {
     pub prompt_head: String,
 }
 
+/// 一个受影响文件：绝对路径 + 它归属的最早备份轮（还原到该轮开始前的状态）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct RewindFile {
+    pub path: String,
+    pub from_seq: u64,
+}
+
+/// #76 M3：回退**之前**的 dry-run——确认框拿它列「将还原 / 将被删除」，
+/// 与 `rewind` 共用同一段收集逻辑，所见即所得（预览说什么，还原就做什么）。
+#[derive(Debug, Clone, Serialize)]
+pub struct RewindPreview {
+    pub seq: u64,
+    /// 第 seq 轮起被 edit/write 改过的文件——将还原到各文件最早备份的内容。
+    pub restore: Vec<RewindFile>,
+    /// 第 seq 轮起 write 新建的文件——将随回退删除。
+    pub delete: Vec<RewindFile>,
+    /// 收集异常（镜像不一致等），与 rewind 的 failed 同语义。
+    pub failed: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct RewindReport {
     pub seq: u64,
-    /// 还原成功的绝对路径。
-    pub restored: Vec<String>,
-    /// 还原失败的「路径: 原因」。
+    /// 还原成功的文件（含归属轮）。
+    pub restored: Vec<RewindFile>,
+    /// 随回退删除的新建文件。
+    pub removed: Vec<RewindFile>,
+    /// 还原/删除失败的「路径: 原因」。
     pub failed: Vec<String>,
     /// 成功 fork 到的 user entry（None=未找到匹配/无 leaf，仅还原了文件）。
     pub fork_entry_id: Option<String>,
@@ -140,42 +162,128 @@ fn prune(base: &Path, latest: u64) {
     }
 }
 
-/// 还原某个 turn 备份的全部文件。文件缺失等单点失败逐条记录，不影响其余还原。
+/// `.created` 哨兵子目录名：write 新建文件的标记落 `turn-<seq>/.created/<镜像路径>`。
+/// 备份本体只覆盖「改前存在」的文件，新建文件必须另有标记才能在回退时删除——
+/// 这是「将被删除」分类的唯一来源（#76 M3）。
+pub const CREATED_SENTINEL_DIR: &str = ".created";
+
+/// 收集第 from_seq 轮起（含）所有 turn 备份的受影响文件。
+/// rewind 与 preview 共用——预览说什么，还原就做什么（所见即所得）。
+///
+/// - restore：同一文件多轮备份只取**最早**那份（回退到 from_seq 之前的状态）；
+/// - delete：`.created/` 哨兵对应的新建文件（同样取最早哨兵归属轮）；
+/// - 镜像 round-trip 校验失败逐条进 failed，不影响其余收集。
+fn collect_since(base: &Path, from_seq: u64) -> (Vec<RewindFile>, Vec<RewindFile>, Vec<String>) {
+    let mut restore: Vec<RewindFile> = Vec::new();
+    let mut delete: Vec<RewindFile> = Vec::new();
+    let mut failed: Vec<String> = Vec::new();
+    let Ok(rd) = std::fs::read_dir(base) else {
+        failed.push(format!("checkpoint 目录不可读: {}", base.display()));
+        return (restore, delete, failed);
+    };
+    let mut seqs: Vec<u64> = rd
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter_map(|name| {
+            name.strip_prefix("turn-")
+                .and_then(|s| s.strip_suffix(".json"))
+                .and_then(|s| s.parse::<u64>().ok())
+        })
+        .filter(|s| *s >= from_seq)
+        .collect();
+    seqs.sort_unstable();
+    if seqs.is_empty() {
+        failed.push(format!("turn-{from_seq} 起没有可用的快照"));
+        return (restore, delete, failed);
+    }
+    for seq in seqs {
+        let dir = turn_dir(base, seq);
+        let mut files = Vec::new();
+        collect_files(&dir, &dir, &mut files);
+        for rel in files {
+            let rel_str = rel.to_string_lossy().to_string();
+            // 哨兵：新建文件的可删标记，不参与还原。
+            if let Some(mirror) = rel_str
+                .strip_prefix(&format!("{CREATED_SENTINEL_DIR}/"))
+                .or_else(|| rel_str.strip_prefix(&format!("{CREATED_SENTINEL_DIR}\\")))
+            {
+                let abs = Path::new("/").join(mirror);
+                if mirror_rel(&abs) != PathBuf::from(mirror) {
+                    failed.push(format!("{}: 哨兵路径镜像不一致，已跳过", abs.display()));
+                    continue;
+                }
+                let path = abs.to_string_lossy().to_string();
+                if !delete.iter().any(|f| f.path == path) {
+                    delete.push(RewindFile { path, from_seq: seq });
+                }
+                continue;
+            }
+            let abs = Path::new("/").join(&rel);
+            // 完整性校验：镜像路径必须 round-trip 回同一绝对路径，
+            // 否则说明备份目录被外部动过（或规则与扩展侧不一致），不还原。
+            if mirror_rel(&abs) != rel {
+                failed.push(format!("{}: 备份路径镜像不一致，已跳过", abs.display()));
+                continue;
+            }
+            let path = abs.to_string_lossy().to_string();
+            // 多轮备份取最早：更晚轮次的同文件备份不覆盖首次记录。
+            if !restore.iter().any(|f| f.path == path) {
+                restore.push(RewindFile { path, from_seq: seq });
+            }
+        }
+    }
+    restore.sort_by(|a, b| a.path.cmp(&b.path));
+    delete.sort_by(|a, b| a.path.cmp(&b.path));
+    (restore, delete, failed)
+}
+
+/// #76 M3：回退前 dry-run——列「将还原 / 将被删除」，不落任何盘。
+pub fn preview(base: &Path, from_seq: u64) -> RewindPreview {
+    let (restore, delete, failed) = collect_since(base, from_seq);
+    RewindPreview { seq: from_seq, restore, delete, failed }
+}
+
+/// 还原第 from_seq 轮起的全部备份 + 删除其间新建的文件。
+/// 单点失败逐条记录，不影响其余操作。
 pub fn rewind(base: &Path, seq: u64) -> Result<RewindReport, String> {
-    let dir = turn_dir(base, seq);
+    let (restore, delete, mut failed) = collect_since(base, seq);
     let mut rep = RewindReport {
         seq,
         restored: Vec::new(),
+        removed: Vec::new(),
         failed: Vec::new(),
         fork_entry_id: None,
     };
-    if !dir.exists() {
-        rep.failed.push(format!("turn-{seq}: 快照目录不存在"));
-        return Ok(rep);
-    }
-    let mut files = Vec::new();
-    collect_files(&dir, &dir, &mut files);
-    for rel in files {
-        let abs = Path::new("/").join(&rel);
-        // 完整性校验：镜像路径必须 round-trip 回同一绝对路径，
-        // 否则说明备份目录被外部动过（或规则与扩展侧不一致），不还原。
-        if mirror_rel(&abs) != rel {
-            rep.failed
-                .push(format!("{}: 备份路径镜像不一致，已跳过", abs.display()));
-            continue;
-        }
-        let src = dir.join(&rel);
+    for f in &restore {
+        let abs = Path::new(&f.path);
+        let src = turn_dir(base, f.from_seq).join(mirror_rel(abs));
         if let Some(parent) = abs.parent() {
             if std::fs::create_dir_all(parent).is_err() {
-                rep.failed.push(format!("{}: 创建父目录失败", abs.display()));
+                failed.push(format!("{}: 创建父目录失败", abs.display()));
                 continue;
             }
         }
-        match std::fs::copy(&src, &abs) {
-            Ok(_) => rep.restored.push(abs.to_string_lossy().to_string()),
-            Err(e) => rep.failed.push(format!("{}: {e}", abs.display())),
+        match std::fs::copy(&src, abs) {
+            Ok(_) => rep.restored.push(f.clone()),
+            Err(e) => failed.push(format!("{}: {e}", abs.display())),
         }
     }
+    for f in &delete {
+        let abs = Path::new(&f.path);
+        // 文件已被外部删除视为成功——回退语义已达成，不必报错吓用户。
+        let gone = !abs.exists() || std::fs::remove_file(abs).is_ok();
+        // 哨兵本体一并清掉：留着下次 preview 还会列它。
+        let sentinel = turn_dir(base, f.from_seq)
+            .join(CREATED_SENTINEL_DIR)
+            .join(mirror_rel(abs));
+        let _ = std::fs::remove_file(sentinel);
+        if gone {
+            rep.removed.push(f.clone());
+        } else {
+            failed.push(format!("{}: 删除新建文件失败", abs.display()));
+        }
+    }
+    rep.failed = failed;
     Ok(rep)
 }
 
@@ -276,7 +384,10 @@ mod tests {
     #[test]
     fn begin_turn_creates_marker_and_returns_increasing_seq() {
         let base = tmp("begin");
-        assert_eq!(begin_turn(&base, Some("leaf1"), "第一轮 prompt").unwrap(), 1);
+        assert_eq!(
+            begin_turn(&base, Some("leaf1"), "第一轮 prompt").unwrap(),
+            1
+        );
         assert_eq!(begin_turn(&base, None, "第二轮 prompt").unwrap(), 2);
         let m = read_marker(&base, 1).unwrap();
         assert_eq!(m.leaf_id.as_deref(), Some("leaf1"));
@@ -319,7 +430,9 @@ mod tests {
         std::fs::write(&file, "new").unwrap();
 
         let rep = rewind(&base, 1).unwrap();
-        assert_eq!(rep.restored, vec![file.to_string_lossy().to_string()]);
+        assert_eq!(rep.restored.len(), 1);
+        assert_eq!(rep.restored[0].path, file.to_string_lossy().to_string());
+        assert_eq!(rep.restored[0].from_seq, 1);
         assert!(rep.failed.is_empty());
         assert_eq!(std::fs::read_to_string(&file).unwrap(), "old");
         let _ = std::fs::remove_dir_all(&base);
@@ -334,5 +447,120 @@ mod tests {
         assert_eq!(rep.failed.len(), 1);
         assert!(rep.failed[0].contains("42"));
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    // —— #76 M3：区间语义 + 新建文件哨兵 ——
+
+    /// 在 turn-<seq> 备份一个文件（模拟扩展 first-write-wins）。
+    fn seed_backup(base: &Path, seq: u64, file: &Path, content: &str) {
+        let dest = turn_dir(base, seq).join(mirror_rel(file));
+        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        std::fs::write(&dest, content).unwrap();
+    }
+
+    /// 在 turn-<seq> 落一个 `.created` 哨兵（模拟扩展 write-新建）。
+    fn seed_sentinel(base: &Path, seq: u64, file: &Path) {
+        let dest = turn_dir(base, seq)
+            .join(CREATED_SENTINEL_DIR)
+            .join(mirror_rel(file));
+        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        std::fs::write(&dest, "").unwrap();
+    }
+
+    #[test]
+    fn rewind_range_union_takes_earliest_backup_per_file() {
+        let base = tmp("rewind-range");
+        let src = tmp("rewind-range-src");
+        let a = src.join("a.ts");
+        let b = src.join("b.ts");
+        begin_turn(&base, None, "p1").unwrap();
+        begin_turn(&base, None, "p2").unwrap();
+        // a 两轮都改过：turn-1 备份 v1、turn-2 备份 v2——回退到 1 应取最早的 v1。
+        seed_backup(&base, 1, &a, "a-v1");
+        seed_backup(&base, 2, &a, "a-v2");
+        seed_backup(&base, 2, &b, "b-v1");
+        std::fs::write(&a, "a-now").unwrap();
+        std::fs::write(&b, "b-now").unwrap();
+
+        let rep = rewind(&base, 1).unwrap();
+        assert!(rep.failed.is_empty(), "{:?}", rep.failed);
+        assert_eq!(rep.restored.len(), 2);
+        let fa = rep.restored.iter().find(|f| f.path == a.to_string_lossy()).unwrap();
+        assert_eq!(fa.from_seq, 1, "多轮备份取最早");
+        assert_eq!(std::fs::read_to_string(&a).unwrap(), "a-v1");
+        assert_eq!(std::fs::read_to_string(&b).unwrap(), "b-v1");
+
+        // 从第 2 轮起回退：区间只剩 turn-2——a 还原到 v2（不是 v1）、b 到 v1。
+        std::fs::write(&a, "a-now2").unwrap();
+        let rep2 = rewind(&base, 2).unwrap();
+        assert_eq!(rep2.restored.len(), 2);
+        assert_eq!(std::fs::read_to_string(&a).unwrap(), "a-v2", "区间起点决定取哪份备份");
+        assert_eq!(std::fs::read_to_string(&b).unwrap(), "b-v1");
+        let _ = std::fs::remove_dir_all(&base);
+        let _ = std::fs::remove_dir_all(&src);
+    }
+
+    #[test]
+    fn rewind_deletes_created_files_via_sentinel() {
+        let base = tmp("rewind-created");
+        let src = tmp("rewind-created-src");
+        let new_file = src.join("fresh.ts");
+        begin_turn(&base, None, "p").unwrap();
+        // write 新建：无备份、有哨兵；文件真实存在。
+        seed_sentinel(&base, 1, &new_file);
+        std::fs::write(&new_file, "created").unwrap();
+
+        let rep = rewind(&base, 1).unwrap();
+        assert!(rep.failed.is_empty(), "{:?}", rep.failed);
+        assert!(rep.restored.is_empty());
+        assert_eq!(rep.removed.len(), 1);
+        assert_eq!(rep.removed[0].path, new_file.to_string_lossy().to_string());
+        assert!(!new_file.exists(), "新建文件随回退删除");
+        // 哨兵本体已清：再 preview 不会重复列它。
+        let pv = preview(&base, 1);
+        assert!(pv.delete.is_empty());
+        let _ = std::fs::remove_dir_all(&base);
+        let _ = std::fs::remove_dir_all(&src);
+    }
+
+    #[test]
+    fn rewind_tolerates_already_deleted_created_file() {
+        let base = tmp("rewind-created-gone");
+        let src = tmp("rewind-created-gone-src");
+        let new_file = src.join("gone.ts");
+        begin_turn(&base, None, "p").unwrap();
+        seed_sentinel(&base, 1, &new_file);
+        // 用户自己删了新建文件——回退语义已达成，不算失败。
+
+        let rep = rewind(&base, 1).unwrap();
+        assert_eq!(rep.removed.len(), 1);
+        assert!(rep.failed.is_empty(), "{:?}", rep.failed);
+        let _ = std::fs::remove_dir_all(&base);
+        let _ = std::fs::remove_dir_all(&src);
+    }
+
+    #[test]
+    fn preview_lists_restore_and_delete_without_touching_disk() {
+        let base = tmp("preview");
+        let src = tmp("preview-src");
+        let edited = src.join("e.ts");
+        let created = src.join("c.ts");
+        begin_turn(&base, None, "p1").unwrap();
+        begin_turn(&base, None, "p2").unwrap();
+        seed_backup(&base, 2, &edited, "old");
+        seed_sentinel(&base, 2, &created);
+        std::fs::write(&edited, "new").unwrap();
+        std::fs::write(&created, "x").unwrap();
+
+        let pv = preview(&base, 1);
+        assert!(pv.failed.is_empty(), "{:?}", pv.failed);
+        assert_eq!(pv.restore.len(), 1);
+        assert_eq!(pv.restore[0].from_seq, 2, "归属最早备份轮");
+        assert_eq!(pv.delete.len(), 1);
+        // dry-run 不落盘：文件内容原样。
+        assert_eq!(std::fs::read_to_string(&edited).unwrap(), "new");
+        assert!(created.exists());
+        let _ = std::fs::remove_dir_all(&base);
+        let _ = std::fs::remove_dir_all(&src);
     }
 }

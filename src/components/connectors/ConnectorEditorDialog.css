@@ -17,7 +17,7 @@
 }
 
 .ce-label {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--fg-dim, var(--text-dim));
   display: flex;
   align-items: baseline;
@@ -26,49 +26,52 @@
 
 .ce-set {
   font-style: normal;
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--ok);
 }
 
 .ce-hint {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--fg-dim, var(--text-dim));
 }
 
 .ce-hint code {
   background: var(--bg-soft, var(--bg-hover));
-  border-radius: 3px;
+  border-radius: var(--r-sm);
   padding: 0 3px;
 }
 
 .ce-err {
-  font-size: 11px;
+  font-size: var(--fs-micro);
   color: var(--danger);
 }
 
 .ce-error {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--danger);
   background: var(--danger-soft);
   border: 1px solid var(--danger);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 6px 8px;
 }
 
 .ce-btn {
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-ui);
   padding: 6px 14px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--border, var(--border));
   background: var(--surface, var(--bg-elev));
   color: var(--fg, var(--text));
   cursor: pointer;
 }
 
-.ce-btn:hover {
-  border-color: var(--fg-dim, var(--text-dim));
+@media (hover: hover) {
+
+  .ce-btn:hover {
+    border-color: var(--fg-dim, var(--text-dim));
+}
 }
 
 .ce-btn.primary {
@@ -77,6 +80,9 @@
   color: var(--accent-ink);
 }
 
-.ce-btn.primary:hover {
-  filter: brightness(0.92);
+@media (hover: hover) {
+
+  .ce-btn.primary:hover {
+    filter: brightness(0.92);
+}
 }

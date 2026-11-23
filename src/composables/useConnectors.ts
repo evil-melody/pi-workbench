@@ -1,3 +1,4 @@
+import { t } from '@/i18n'
 /**
  * 连接器域前端封装。
  *
@@ -12,6 +13,7 @@
  *   3. 会话选择不是「记一下」，要显式 apply_scope 才会真的改写注入内核的白名单。
  */
 import { invoke } from '@tauri-apps/api/core'
+import { listOf } from '@/utils/ipc'
 
 export type ConnectorTransport = 'stdio' | 'streamable-http'
 
@@ -73,7 +75,8 @@ export function emptyInput(): ConnectorInput {
   }
 }
 
-export const connectorsList = (): Promise<ConnectorSummary[]> => invoke<ConnectorSummary[]>('connectors_list')
+export const connectorsList = (): Promise<ConnectorSummary[]> =>
+  listOf(invoke<ConnectorSummary[]>('connectors_list'))
 
 export const connectorsConfig = (id: string): Promise<ConnectorConfigView> =>
   invoke<ConnectorConfigView>('connectors_config', { id })
@@ -90,39 +93,83 @@ export const connectorsSetEnabled = (id: string, enabled: boolean): Promise<Conn
   invoke<ConnectorSummary>('connectors_set_enabled', { id, enabled })
 
 export const connectorsSelection = (sessionId: string): Promise<string[]> =>
-  invoke<string[]>('connectors_selection', { sessionId })
+  invoke<string[]>('connectors_selection', { session_id: sessionId })
 
 export const connectorsSetSelection = (
   sessionId: string,
   connectorIds: string[],
-): Promise<string[]> => invoke<string[]>('connectors_set_selection', { sessionId, connectorIds })
+): Promise<string[]> => invoke<string[]>('connectors_set_selection', { session_id: sessionId, connector_ids: connectorIds })
 
 /** 把选择真正落到内核白名单：返回应用后的完整工具作用域。 */
 export const connectorsApplyScope = (sessionId: string): Promise<string[]> =>
-  invoke<string[]>('connectors_apply_scope', { sessionId })
+  invoke<string[]>('connectors_apply_scope', { session_id: sessionId })
 
-const ERROR_TEXT: Array<[string, string]> = [
-  ['connector/title-required', '连接器名称不能为空'],
-  ['connector/title-too-long', '连接器名称过长（上限 80 字）'],
-  ['connector/description-too-long', '描述过长（上限 240 字）'],
-  ['connector/server-name-invalid', '服务标识只能包含字母、数字、- 和 _，且不能为空'],
-  ['connector/server-name-conflict', '该服务标识已被占用，工具命名空间不能重名'],
-  ['connector/command-required', 'stdio 传输必须填写启动命令'],
-  ['connector/command-too-long', '启动命令过长'],
-  ['connector/args-too-many', '启动参数过多（上限 64 个）'],
-  ['connector/arg-too-long', '单个启动参数过长'],
-  ['connector/url-required', 'streamable-http 传输必须填写 URL'],
-  ['connector/url-invalid', 'URL 必须以 http:// 或 https:// 开头'],
-  ['connector/not-found', '连接器不存在，可能已被删除'],
-  ['connector/disabled', '该连接器已停用，无法选中'],
-  ['connector/not-ready', '该连接器还没握手成功，暂时不能选中'],
-  ['connector/selection-limit-exceeded', '单个会话最多选 32 个连接器'],
-]
+// ── 外部导入源（Cordis 归一化：适配器只产出规范候选，导入走 connectorsCreate 主路径） ──
+
+export interface ConnectorCandidate {
+  server_name: string
+  title: string
+  description: string
+  transport: ConnectorTransport
+  command?: string
+  args?: string[]
+  url?: string
+  /** 源配置里是否启用（WorkBuddy disabled:true → false）。 */
+  source_enabled: boolean
+  /** 与本地连接器重名 = 冲突，不可导入。 */
+  conflict: boolean
+  /** 不可导入的原因（i18n key）；null = 可导入。 */
+  skip_reason: string | null
+}
+
+export interface ConnectorImportScan {
+  /** 源文件绝对路径；空 = 本机没有 WorkBuddy。 */
+  root: string
+  candidates: ConnectorCandidate[]
+}
+
+export const connectorsImportScan = (): Promise<ConnectorImportScan> =>
+  invoke<ConnectorImportScan>('connectors_import_scan')
+
+/** 候选 → 规范入参：与手工新建完全同构，域路径零分叉。 */
+export function candidateToInput(c: ConnectorCandidate): ConnectorInput {
+  return {
+    title: c.title.trim() || c.server_name,
+    description: c.description.trim(),
+    server_name: c.server_name,
+    transport: c.transport,
+    command: c.command ?? '',
+    args: c.args ?? [],
+    url: c.url ?? '',
+    // 凭据不迁移：导入后由用户在编辑器里自己配。
+    authorization_token: '',
+  }
+}
+
+function connectorErrorTable(): Array<[string, string]> {
+  return [
+  ['connector/title-required', t('连接器名称不能为空')],
+  ['connector/title-too-long', t('连接器名称过长（上限 80 字）')],
+  ['connector/description-too-long', t('描述过长（上限 240 字）')],
+  ['connector/server-name-invalid', t('服务标识只能包含字母、数字、- 和 _，且不能为空')],
+  ['connector/server-name-conflict', t('该服务标识已被占用，工具命名空间不能重名')],
+  ['connector/command-required', t('stdio 传输必须填写启动命令')],
+  ['connector/command-too-long', t('启动命令过长')],
+  ['connector/args-too-many', t('启动参数过多（上限 64 个）')],
+  ['connector/arg-too-long', t('单个启动参数过长')],
+  ['connector/url-required', t('streamable-http 传输必须填写 URL')],
+  ['connector/url-invalid', t('URL 必须以 http:// 或 https:// 开头')],
+  ['connector/not-found', t('连接器不存在，可能已被删除')],
+  ['connector/disabled', t('该连接器已停用，无法选中')],
+  ['connector/not-ready', t('该连接器还没握手成功，暂时不能选中')],
+  ['connector/selection-limit-exceeded', t('单个会话最多选 32 个连接器')],
+  ]
+}
 
 /** 与专家域同一口径：认得的错误码给固定文案，认不得的回退兜底，不把后端原文抛给界面。 */
-export function describeConnectorError(err: unknown, fallback = '操作失败'): string {
+export function describeConnectorError(err: unknown, fallback = t('操作失败')): string {
   const raw = String((err as { message?: string })?.message ?? err)
-  for (const [code, text] of ERROR_TEXT) {
+  for (const [code, text] of connectorErrorTable()) {
     if (raw.includes(code)) return text
   }
   return fallback
@@ -131,22 +178,24 @@ export function describeConnectorError(err: unknown, fallback = '操作失败'):
 /** 服务标识的长度与字符集校验，纯前端先把明显错误标出来，省一次往返。 */
 export function validateServerName(name: string): string | null {
   const trimmed = name.trim()
-  if (!trimmed) return '不能为空'
-  if (trimmed.length > 32) return '不能超过 32 个字符'
-  if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) return '只能包含字母、数字、- 和 _'
+  if (!trimmed) return t('不能为空')
+  if (trimmed.length > 32) return t('不能超过 32 个字符')
+  if (!/^[A-Za-z0-9_-]+$/.test(trimmed)) return t('只能包含字母、数字、- 和 _')
   // 纯 - / _ 净化后会被后端 trim 成空串，前端先拦下来，免一次必失败的请求。
-  if (!/[A-Za-z0-9]/.test(trimmed)) return '至少要包含一个字母或数字'
+  if (!/[A-Za-z0-9]/.test(trimmed)) return t('至少要包含一个字母或数字')
   return null
 }
 
-export const STATE_TEXT: Record<ConnectorState, string> = {
-  discovering: '握手中',
-  ready: '已连接',
-  offline: '连接异常',
-  disabled: '已停用',
+export function stateText(state: ConnectorState): string {
+  const table: Record<ConnectorState, string> = {
+    discovering: t('握手中'),
+    ready: t('已连接'),
+    offline: t('连接异常'),
+    disabled: t('已停用'),
+  }
+  return table[state]
 }
 
-export const TRANSPORT_TEXT: Record<ConnectorTransport, string> = {
-  stdio: 'stdio 子进程',
-  'streamable-http': 'Streamable HTTP',
+export function transportText(transport: ConnectorTransport): string {
+  return transport === 'stdio' ? t('stdio 子进程') : 'Streamable HTTP'
 }

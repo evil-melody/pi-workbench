@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   describeConnectorError,
   emptyInput,
-  STATE_TEXT,
-  TRANSPORT_TEXT,
+  stateText,
+  transportText,
   validateServerName,
   type ConnectorSummary,
 } from '@/composables/useConnectors'
@@ -11,19 +11,17 @@ import {
 /** 状态与传输的展示文案必须与 Rust 的 kebab-case 序列化一一对应，否则 UI 会显示 undefined。 */
 describe('连接器状态与传输文案', () => {
   it('四个状态都有中文文案，且不与原始枚举值混淆', () => {
-    expect(STATE_TEXT).toEqual({
-      discovering: '握手中',
-      ready: '已连接',
-      offline: '连接异常',
-      disabled: '已停用',
-    })
+    expect(stateText('discovering')).toBe('握手中')
+    expect(stateText('ready')).toBe('已连接')
+    expect(stateText('offline')).toBe('连接异常')
+    expect(stateText('disabled')).toBe('已停用')
     // 断言的恰恰是「传输值不会混进状态表」，所以这里必须绕过 ConnectorState 的字面量类型。
-    expect((STATE_TEXT as Record<string, string | undefined>)['streamable-http']).toBeUndefined()
+    expect((stateText as (s: string) => string | undefined)('streamable-http')).toBeUndefined()
   })
 
   it('传输协议文案覆盖两种取值', () => {
-    expect(TRANSPORT_TEXT.stdio).toBe('stdio 子进程')
-    expect(TRANSPORT_TEXT['streamable-http']).toBe('Streamable HTTP')
+    expect(transportText('stdio')).toBe('stdio 子进程')
+    expect(transportText('streamable-http')).toBe('Streamable HTTP')
   })
 })
 

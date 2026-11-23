@@ -13,7 +13,7 @@
  */
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -171,8 +171,7 @@ fn decode_definitions(raw: &Value) -> Vec<ConnectorDefinition> {
         .or_else(|| raw.as_array())
         .cloned()
         .unwrap_or_default();
-    rows
-        .iter()
+    rows.iter()
         .filter_map(|row| serde_json::from_value::<ConnectorDefinition>(row.clone()).ok())
         .collect()
 }
@@ -186,7 +185,9 @@ fn decode_selections(raw: &Value) -> HashMap<String, Vec<String>> {
                 if let Some(arr) = ids.as_array() {
                     out.insert(
                         session.clone(),
-                        arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect(),
+                        arr.iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect(),
                     );
                 }
             }
@@ -224,7 +225,11 @@ fn migrate_from_legacy(app: &AppHandle) -> ConnectorStore {
     };
     let mut store = ConnectorStore::default();
     for (i, row) in rows.iter().enumerate() {
-        let name = row.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let name = row
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         let command = row
             .get("command")
             .and_then(|v| v.as_str())
@@ -236,7 +241,11 @@ fn migrate_from_legacy(app: &AppHandle) -> ConnectorStore {
         let args = row
             .get("args")
             .and_then(|v| v.as_array())
-            .map(|a| a.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
             .unwrap_or_default();
         let now = now_ms();
         let server_name = sanitize_server_name(&name);
@@ -273,12 +282,16 @@ pub fn save_store(app: &AppHandle, store: &ConnectorStore) -> Result<(), String>
     let p = store_file(app, DEFINITIONS_FILE)?;
     fs::write(
         &p,
-        serde_json::to_string_pretty(&json!({ "definitions": store.definitions })).map_err(|e| e.to_string())?,
+        serde_json::to_string_pretty(&json!({ "definitions": store.definitions }))
+            .map_err(|e| e.to_string())?,
     )
     .map_err(|e| e.to_string())?;
     let sp = store_file(app, SELECTIONS_FILE)?;
-    fs::write(&sp, serde_json::to_string_pretty(&json!(store.selections)).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+    fs::write(
+        &sp,
+        serde_json::to_string_pretty(&json!(store.selections)).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -341,7 +354,11 @@ fn validate_input(input: &ConnectorInput) -> Result<(), String> {
     Ok(())
 }
 
-fn assert_unique_server(store: &ConnectorStore, server_name: &str, except_id: Option<&str>) -> Result<(), String> {
+fn assert_unique_server(
+    store: &ConnectorStore,
+    server_name: &str,
+    except_id: Option<&str>,
+) -> Result<(), String> {
     let hit = store
         .definitions
         .iter()
@@ -379,10 +396,10 @@ fn runtime(id: &str) -> Runtime {
 }
 
 fn set_runtime(id: &str, state: ConnectorState, diagnostic: Option<String>) {
-    runtimes().lock().unwrap().insert(
-        id.to_string(),
-        Runtime { state, diagnostic },
-    );
+    runtimes()
+        .lock()
+        .unwrap()
+        .insert(id.to_string(), Runtime { state, diagnostic });
 }
 
 /// 把定义落到运行时上：停用 → disabled；非 stdio → offline 并给诊断；
@@ -424,7 +441,10 @@ pub fn restore(app: &AppHandle, state: &ConnectorRuntimeState, mcp: &State<McpSt
     }
 }
 
-fn summary_of(dev: &ConnectorDefinition, mcp: &State<McpState>) -> Result<ConnectorSummary, String> {
+fn summary_of(
+    dev: &ConnectorDefinition,
+    mcp: &State<McpState>,
+) -> Result<ConnectorSummary, String> {
     let rt = runtime(&dev.id);
     let tool_names: Vec<String> = crate::mcp::server_tools(mcp, &dev.server_name)
         .into_iter()
@@ -456,8 +476,10 @@ fn summary_of(dev: &ConnectorDefinition, mcp: &State<McpState>) -> Result<Connec
 // ── 命令 ──────────────────────────────────────────────────────
 
 #[tauri::command]
-#[allow(non_snake_case)]
-pub fn connectors_list(state: State<ConnectorRuntimeState>, mcp: State<McpState>) -> Vec<ConnectorSummary> {
+pub fn connectors_list(
+    state: State<ConnectorRuntimeState>,
+    mcp: State<McpState>,
+) -> Vec<ConnectorSummary> {
     let store = state.store.lock().unwrap();
     let mut out: Vec<ConnectorSummary> = Vec::new();
     for dev in store.definitions.iter() {
@@ -690,29 +712,31 @@ pub fn connectors_set_enabled(
 
 // ── 会话级选择 ────────────────────────────────────────────────
 
-#[tauri::command]
+#[tauri::command(rename_all = "snake_case")]
 #[allow(non_snake_case)]
-pub fn connectors_selection(state: State<ConnectorRuntimeState>, sessionId: String) -> Vec<String> {
+pub fn connectors_selection(state: State<ConnectorRuntimeState>, session_id: String) -> Vec<String> {
     state
         .store
         .lock()
         .unwrap()
         .selections
-        .get(&sessionId)
+        .get(&session_id)
         .cloned()
         .unwrap_or_default()
 }
 
-#[tauri::command(async)]
+#[tauri::command(rename_all = "snake_case", async)]
 #[allow(non_snake_case)]
 pub fn connectors_set_selection(
-    sessionId: String,
-    connectorIds: Vec<String>,
+    session_id: String,
+    connector_ids: Vec<String>,
     state: State<ConnectorRuntimeState>,
 ) -> Result<Vec<String>, String> {
-    let unique = dedup_limit(connectorIds);
+    let unique = dedup_limit(connector_ids);
     if unique.len() > SELECTION_MAX {
-        return Err(format!("connector/selection-limit-exceeded（上限 {SELECTION_MAX}）"));
+        return Err(format!(
+            "connector/selection-limit-exceeded（上限 {SELECTION_MAX}）"
+        ));
     }
     {
         let store = state.store.lock().unwrap();
@@ -733,7 +757,7 @@ pub fn connectors_set_selection(
         }
     }
     let mut store = state.store.lock().unwrap();
-    store.selections.insert(sessionId.clone(), unique.clone());
+    store.selections.insert(session_id.clone(), unique.clone());
     Ok(unique)
 }
 
@@ -782,7 +806,11 @@ fn scope_for(
         .filter(|d| d.enabled)
         .map(|d| d.server_name.clone())
         .collect();
-    let selected = guard.selections.get(session_id).cloned().unwrap_or_default();
+    let selected = guard
+        .selections
+        .get(session_id)
+        .cloned()
+        .unwrap_or_default();
     let selected_servers: HashSet<String> = guard
         .definitions
         .iter()
@@ -826,15 +854,15 @@ fn tool_server(fqn: &str) -> Option<String> {
     Some(rest[..idx].to_string())
 }
 
-#[tauri::command(async)]
+#[tauri::command(rename_all = "snake_case", async)]
 #[allow(non_snake_case)]
 pub fn connectors_apply_scope(
     app: AppHandle,
-    sessionId: String,
+    session_id: String,
     state: State<ConnectorRuntimeState>,
     mcp: State<McpState>,
 ) -> Result<Vec<String>, String> {
-    let scope = tool_scope_for(&app, &state, &mcp, &sessionId);
+    let scope = tool_scope_for(&app, &state, &mcp, &session_id);
     crate::tools::write_active(&app, &scope)?;
     Ok(scope)
 }
@@ -844,6 +872,141 @@ pub fn connectors_apply_scope(
 #[derive(Default)]
 pub struct ConnectorRuntimeState {
     pub store: Mutex<ConnectorStore>,
+}
+
+// ── 外部导入源（Cordis 思想：适配器只做归一化，域路径唯一） ──────────
+//
+// 别的产品自己的 MCP 配置（WorkBuddy 的 `~/.workbuddy/mcp.json` 是
+// `mcpServers` 字典，带 type/url/disabled）与我们的存储形状完全不同。
+// 适配层只做两件事：外来形状 → 规范 ConnectorInput 候选、冲突预标记。
+// 导入时前端逐项走 `connectors_create` —— 校验、serverName 唯一性、握手
+// 全走同一条域路径，不存在「批量写入」这条旁路（旁路迟早与主路行为漂移）。
+// 凭据不迁移：源文件里的 env/token 一律不带过来，导入后由用户自己配。
+
+/// 适配器解析出的一个可导入候选：规范入参 + 前端列表需要的展示信息。
+#[derive(Clone, Serialize)]
+pub struct ConnectorCandidate {
+    pub server_name: String,
+    pub title: String,
+    pub description: String,
+    pub transport: ConnectorTransport,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub args: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    /// 源配置里是否启用（WorkBuddy `disabled: true` → false）。停用的仍可导入，
+    /// 但前端要标出来——用户可能根本不想把它带过来。
+    pub source_enabled: bool,
+    /// 本地已有同 server_name 的连接器 = 冲突，前端禁用该项的导入。
+    pub conflict: bool,
+    /// 解析不出可用入参的原因（缺 command / URL 非法等）；Some = 不可导入。
+    pub skip_reason: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct ConnectorImportScan {
+    /// 源文件绝对路径（前端做 ~ 缩写展示）。空 = 本机没有 WorkBuddy。
+    pub root: String,
+    pub candidates: Vec<ConnectorCandidate>,
+}
+
+/// WorkBuddy 的 MCP 配置文件。不存在返回 None（没装过 WorkBuddy 的机器）。
+pub(crate) fn workbuddy_mcp_file() -> Option<PathBuf> {
+    let home = std::env::var("HOME").ok()?;
+    let f = Path::new(&home).join(".workbuddy/mcp.json");
+    f.is_file().then_some(f)
+}
+
+/// 纯函数：WorkBuddy `mcpServers` 字典 → 候选清单。known 用于冲突预标记。
+/// 形状容错：非字典、条目非对象一律跳过，不抛——扫描是尽力而为，不是校验器。
+pub(crate) fn parse_workbuddy_mcp(raw: &Value, known_servers: &HashSet<String>) -> Vec<ConnectorCandidate> {
+    let Some(map) = raw.get("mcpServers").and_then(|v| v.as_object()) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for (name, cfg) in map {
+        let server_name = sanitize_server_name(name);
+        let title = name.clone();
+        let description = cfg
+            .get("description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let source_enabled = !cfg.get("disabled").and_then(|v| v.as_bool()).unwrap_or(false);
+        let conflict = !server_name.is_empty() && known_servers.contains(&server_name);
+        let typ = cfg.get("type").and_then(|v| v.as_str()).unwrap_or("");
+        let (transport, command, args, url, skip_reason) = match typ {
+            "http" | "streamableHttp" | "sse" => {
+                let u = cfg.get("url").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+                if u.is_empty() {
+                    (ConnectorTransport::StreamableHttp, None, None, None, Some("connector/import-url-missing".into()))
+                } else if !(u.starts_with("http://") || u.starts_with("https://")) {
+                    (ConnectorTransport::StreamableHttp, None, None, None, Some("connector/import-url-invalid".into()))
+                } else {
+                    (ConnectorTransport::StreamableHttp, None, None, Some(u), None)
+                }
+            }
+            _ => {
+                let c = cfg.get("command").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+                if c.is_empty() {
+                    (ConnectorTransport::Stdio, None, None, None, Some("connector/import-command-missing".into()))
+                } else {
+                    let a = cfg
+                        .get("args")
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter()
+                                .filter_map(|x| x.as_str().map(String::from))
+                                .collect::<Vec<_>>()
+                        });
+                    (ConnectorTransport::Stdio, Some(c), a, None, None)
+                }
+            }
+        };
+        let skip_reason = skip_reason.or_else(|| {
+            server_name.is_empty().then(|| "connector/server-name-invalid".into())
+        });
+        out.push(ConnectorCandidate {
+            server_name,
+            title,
+            description,
+            transport,
+            command,
+            args,
+            url,
+            source_enabled,
+            conflict,
+            skip_reason,
+        });
+    }
+    out.sort_by(|a, b| a.title.cmp(&b.title));
+    out
+}
+
+#[tauri::command(async)]
+#[allow(non_snake_case)]
+pub fn connectors_import_scan(
+    state: State<ConnectorRuntimeState>,
+) -> Result<ConnectorImportScan, String> {
+    let Some(file) = workbuddy_mcp_file() else {
+        return Ok(ConnectorImportScan { root: String::new(), candidates: Vec::new() });
+    };
+    let text = fs::read_to_string(&file).map_err(|e| format!("connector/import-read: {e}"))?;
+    let raw: Value = serde_json::from_str(&text).map_err(|e| format!("connector/import-parse: {e}"))?;
+    let known: HashSet<String> = state
+        .store
+        .lock()
+        .unwrap()
+        .definitions
+        .iter()
+        .map(|d| d.server_name.clone())
+        .collect();
+    Ok(ConnectorImportScan {
+        root: file.to_string_lossy().into_owned(),
+        candidates: parse_workbuddy_mcp(&raw, &known),
+    })
 }
 
 // ── 测试 ──────────────────────────────────────────────────────
@@ -896,16 +1059,25 @@ mod tests {
     #[test]
     fn empty_server_name_is_rejected() {
         let mut bad = input("名称", "!!!");
-        assert_eq!(validate_input(&bad), Err("connector/server-name-invalid".to_string()));
+        assert_eq!(
+            validate_input(&bad),
+            Err("connector/server-name-invalid".to_string())
+        );
         bad.server_name = String::new();
-        assert_eq!(validate_input(&bad), Err("connector/server-name-invalid".to_string()));
+        assert_eq!(
+            validate_input(&bad),
+            Err("connector/server-name-invalid".to_string())
+        );
     }
 
     #[test]
     fn stdio_without_command_is_rejected() {
         let mut bad = input("名称", "srv");
         bad.command = Some(String::new());
-        assert_eq!(validate_input(&bad), Err("connector/command-required".to_string()));
+        assert_eq!(
+            validate_input(&bad),
+            Err("connector/command-required".to_string())
+        );
     }
 
     #[test]
@@ -914,9 +1086,15 @@ mod tests {
         bad.transport = ConnectorTransport::StreamableHttp;
         bad.command = None;
         bad.url = Some(String::new());
-        assert_eq!(validate_input(&bad), Err("connector/url-required".to_string()));
+        assert_eq!(
+            validate_input(&bad),
+            Err("connector/url-required".to_string())
+        );
         bad.url = Some("file:///tmp/mcp".into());
-        assert_eq!(validate_input(&bad), Err("connector/url-invalid".to_string()));
+        assert_eq!(
+            validate_input(&bad),
+            Err("connector/url-invalid".to_string())
+        );
     }
 
     #[test]
@@ -943,19 +1121,19 @@ mod tests {
 
     #[test]
     fn selections_survive_decode_from_either_key_name() {
-        let raw: Value = serde_json::from_str(
-            r#"{"definitions":[],"selections":{"s1":["a"]}}"#,
-        )
-        .unwrap();
+        let raw: Value =
+            serde_json::from_str(r#"{"definitions":[],"selections":{"s1":["a"]}}"#).unwrap();
         let store = decode_store(&raw.to_string()).unwrap();
         assert_eq!(store.selections.get("s1"), Some(&vec!["a".to_string()]));
 
-        let raw2: Value = serde_json::from_str(
-            r#"{"definitions":[],"sessionSelections":{"s9":["b","c"]}}"#,
-        )
-        .unwrap();
+        let raw2: Value =
+            serde_json::from_str(r#"{"definitions":[],"sessionSelections":{"s9":["b","c"]}}"#)
+                .unwrap();
         let store2 = decode_store(&raw2.to_string()).unwrap();
-        assert_eq!(store2.selections.get("s9"), Some(&vec!["b".to_string(), "c".to_string()]));
+        assert_eq!(
+            store2.selections.get("s9"),
+            Some(&vec!["b".to_string(), "c".to_string()])
+        );
     }
 
     /// 早期 `mcp.json` 存的是裸数组：解码必须同时接受「有包一层 definitions」和「裸数组」两种形状。
@@ -1056,5 +1234,69 @@ mod tests {
             c
         };
         assert_eq!(scope, sorted, "作用域必须稳定排序");
+    }
+
+    // ── 外部导入源适配器（Cordis 归一化） ──────────────────────
+
+    fn wb_entry(cfg: Value) -> Value {
+        json!({ "mcpServers": { "demo-server": cfg } })
+    }
+
+    #[test]
+    fn workbuddy_stdio_entry_becomes_canonical_candidate() {
+        let raw = wb_entry(json!({ "command": "uvx", "args": ["semble[mcp]", "semble"], "disabled": true }));
+        let out = parse_workbuddy_mcp(&raw, &HashSet::new());
+        assert_eq!(out.len(), 1);
+        let c = &out[0];
+        assert_eq!(c.server_name, "demo-server");
+        assert_eq!(c.transport, ConnectorTransport::Stdio);
+        assert_eq!(c.command.as_deref(), Some("uvx"));
+        assert_eq!(c.args.as_deref(), Some(&["semble[mcp]".to_string(), "semble".to_string()][..]));
+        assert!(!c.source_enabled, "disabled:true → 源侧停用");
+        assert!(c.skip_reason.is_none());
+        assert!(!c.conflict);
+    }
+
+    #[test]
+    fn workbuddy_http_types_map_to_streamable_transport() {
+        for typ in ["http", "streamableHttp"] {
+            let raw = wb_entry(json!({ "type": typ, "url": "https://lightai.cloud.tencent.com/mcp" }));
+            let out = parse_workbuddy_mcp(&raw, &HashSet::new());
+            assert_eq!(out[0].transport, ConnectorTransport::StreamableHttp, "type={typ}");
+            assert_eq!(out[0].url.as_deref(), Some("https://lightai.cloud.tencent.com/mcp"), "type={typ}");
+            assert!(out[0].skip_reason.is_none(), "type={typ}");
+        }
+    }
+
+    #[test]
+    fn workbuddy_bad_entries_get_skip_reasons_not_panics() {
+        // 缺 command 的 stdio、非法 URL、缺 url 的 http：都给原因，不给可导入项。
+        let cases = vec![
+            (json!({ "args": ["serve"] }), "connector/import-command-missing"),
+            (json!({ "type": "http", "url": "ftp://bad" }), "connector/import-url-invalid"),
+            (json!({ "type": "streamableHttp" }), "connector/import-url-missing"),
+        ];
+        for (cfg, expected) in cases {
+            let shown = cfg.clone();
+            let out = parse_workbuddy_mcp(&wb_entry(cfg), &HashSet::new());
+            assert_eq!(out[0].skip_reason.as_deref(), Some(expected), "cfg={shown}");
+        }
+    }
+
+    #[test]
+    fn workbuddy_conflict_marks_known_server_names() {
+        let known: HashSet<String> = ["demo-server".to_string()].into_iter().collect();
+        let out = parse_workbuddy_mcp(&wb_entry(json!({ "command": "x" })), &known);
+        assert!(out[0].conflict, "与本地连接器重名 → 预标记冲突");
+    }
+
+    #[test]
+    fn workbuddy_non_dict_shapes_yield_nothing() {
+        // 没有 mcpServers / 值是数组 / 条目不是对象：扫描尽力而为，不抛。
+        assert!(parse_workbuddy_mcp(&json!({}), &HashSet::new()).is_empty());
+        assert!(parse_workbuddy_mcp(&json!({ "mcpServers": [] }), &HashSet::new()).is_empty());
+        let out = parse_workbuddy_mcp(&json!({ "mcpServers": { "bad": 42 } }), &HashSet::new());
+        assert_eq!(out.len(), 1);
+        assert!(out[0].skip_reason.is_some(), "非对象条目 → 给跳过原因而不是崩");
     }
 }

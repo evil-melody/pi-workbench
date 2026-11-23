@@ -13,21 +13,21 @@
   height: 30px;
   display: grid;
   place-items: center;
-  border-radius: 9px;
+  border-radius: var(--r);
   background: var(--accent);
   color: var(--accent-ink);
 }
 
 .pc-head h3 {
   margin: 0;
-  font-size: 15px;
-  font-weight: 650;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-semibold);
   color: var(--text);
 }
 
 .pc-sub {
   margin: 4px 0 0;
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   line-height: 1.55;
   color: var(--text-dim);
 }
@@ -48,7 +48,7 @@
 
 .pc-list dt {
   flex: 0 0 auto;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
 }
 
@@ -56,14 +56,14 @@
   margin: 0;
   min-width: 0;
   text-align: right;
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   color: var(--text);
   word-break: break-all;
 }
 
 .pc-list dd.mono {
   font-family: 'SFMono-Regular', Menlo, Consolas, monospace;
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
 }
 
 .pc-expire {
@@ -72,17 +72,17 @@
 }
 
 .pc-expire.urgent {
-  color: var(--warn, #f59e0b);
+  color: var(--warn);
   font-weight: 600;
 }
 
 .pc-note {
   margin: 12px 0 0;
   padding: 10px 12px;
-  border-radius: 9px;
+  border-radius: var(--r);
   background: var(--surface-2);
   border: 1px solid var(--border);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   line-height: 1.6;
   color: var(--text-dim);
 }
@@ -96,18 +96,21 @@
 
 .pc-btn {
   padding: 8px 16px;
-  border-radius: 9px;
+  border-radius: var(--r);
   border: 1px solid var(--border);
   background: var(--bg-panel);
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-ui);
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
-.pc-btn:hover:not(:disabled) {
-  background: var(--bg-hover);
-  border-color: var(--border-strong);
+@media (hover: hover) {
+
+  .pc-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+    border-color: var(--border-strong);
+}
 }
 
 .pc-btn.primary {
@@ -117,8 +120,11 @@
   font-weight: 600;
 }
 
-.pc-btn.primary:hover:not(:disabled) {
-  filter: brightness(1.08);
+@media (hover: hover) {
+
+  .pc-btn.primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+}
 }
 
 .pc-btn:disabled {

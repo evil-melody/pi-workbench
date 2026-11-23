@@ -1,6 +1,11 @@
 <template>
-  <div class="chat" :class="{ hero: showHero }">
-    <section class="center" :class="{ hero: showHero }">
+  <div class="chat" :class="{ hero: showHero, 'aside-open': traceOpen }">
+      <!-- M10 拖拽遮罩：文件悬在窗口上方时整块中心区给出可落提示。
+           pointer-events:none —— 它只是提示层，拖放判定归 Tauri 原生通道。 -->
+      <div v-if="dragOver" class="drop-veil" aria-hidden="true">
+        <span class="drop-hint"><AppIcon name="download" :size="18" />{{ t('松开鼠标附加文件或图片') }}</span>
+      </div>
+      <section ref="centerEl" class="center" :class="{ hero: showHero }">
       <p v-if="notice" class="notice" role="status">
         <AppIcon name="info" :size="13" />
         <span>{{ notice }}</span>
@@ -15,17 +20,25 @@
         :projects="projects"
         :cwd="cwd"
         :busy="heroPicking"
+        v-model:expert="expertQueue"
+        v-model:team="teamQueue"
+        v-model:mode="workMode"
+        :attachments="pendingAttachments"
         @send="submitHero"
         @pick-project="setActiveProject"
         @pick-directory="onPickDirectory"
         @bind-directory="onBindDirectory"
         @pick-mode="setMode"
+        @attach="onAttach"
+        @remove-attachment="removeAttachment"
+        @insert="onComposerInsert"
       />
 
       <template v-else>
         <header class="chat-header">
           <div class="header-pill">
-            <!-- 项目名与工作目录是同一件事：一个控件收口，头部不再排两段文本 -->
+            <!-- 项目名与工作目录是同一件事：一个控件收口，头部不再排两段文本。
+                 角色 / 模式 / 模型与落地页一致下沉到输入框工具条，顶栏只留项目与动作。 -->
             <WorkspacePicker
               :projects="projects"
               :cwd="cwd"
@@ -33,105 +46,133 @@
               @pick-directory="onPickDirectory"
               @bind-directory="onBindDirectory"
             />
-            <span class="sep">·</span>
-            <RoleSwitcher :root="cwd" width="auto" />
-            <span class="sep">·</span>
-            <ModeSwitcher :model-value="modeLabel" width="auto" @update:model-value="setMode" />
-            <span class="sep">·</span>
-            <ModelSwitcher compact width="auto" />
           </div>
 
           <div class="chat-controls">
         <!-- 过程（会话树 / 轨迹 / 工作流 / 连接器）默认收起：主内容永远是对话本身 -->
-          <button
+          <AppButton
+            variant="secondary"
             class="trace-toggle"
             :class="{ on: traceOpen }"
-            :title="traceOpen ? '收起过程面板' : '展开过程面板：会话树 / 轨迹 / 工作流 / 连接器'"
+            :title="traceOpen ? t('收起过程面板') : t('展开过程面板：会话树 / 轨迹 / 智能体 / 工作流 / 连接器')"
             @click="traceOpen = !traceOpen"
           >
             <AppIcon name="activity" :size="14" />
-            <span>轨迹</span>
+            <span>{{ t('轨迹') }}</span>
             <i v-if="trackCalls" class="trace-badge">{{ trackCalls }}</i>
-          </button>
+          </AppButton>
 
-          <!-- G5 计划模式（对齐 Cursor Plan mode）：开启后发送的任务先出分步计划卡，
-               点「开始执行」才真正动工具。 -->
-          <button
-            class="plan-toggle"
-            :class="{ on: planMode }"
-            :title="planMode ? '计划模式已开启：先出计划，确认后执行' : '开启计划模式：先审方案再动手'"
-            @click="planMode = !planMode"
+          <!-- 工作区（并行 agent 的 worktree）：属于当前会话的执行环境，
+               因此挂在对话页抽屉里做页签，不占一级菜单。 -->
+          <AppButton
+            variant="secondary"
+            class="wt-toggle"
+            :title="t('工作区：并行 agent 的 worktree（分支 / 端口 / 合并 / 派发）')"
+            @click="openWorktreePanel"
+          >
+            <AppIcon name="layers" :size="14" />
+            <span>{{ t('并行工作区') }}</span>
+          </AppButton>
+
+          <!-- 计划/问答模式不再占顶栏开关：收进输入框「+」菜单的模式行
+               （1:1 WorkBuddy），状态单一来源，chip 回显当前模式。 -->
+
+          <!-- #68 C2「历史提问」：顶栏入口，与右侧刻度条共用一份列表展开态。
+               WorkBuddy 把它排在控组第一位——导航先于迁移，顺序对齐。
+               「仅主窗口本地任务」：独立回放窗口（?replay= 深链）不出导航——
+               回放的是一份历史档案，在里面跳提问没有语义。 -->
+          <AppButton
+            v-if="!queryReplayActive"
+            variant="text"
+            class="io-btn prompts-btn"
+            :title="t('历史提问：跳转导航')"
+            :aria-expanded="promptListOpen"
+            @click="promptListOpen = !promptListOpen"
           >
             <AppIcon name="list" :size="13" />
-            <span>计划</span>
-          </button>
+            <span>{{ t('历史提问') }}</span>
+          </AppButton>
 
           <!-- 会话迁移：导出当前对话为 JSON / 导入历史会话。 -->
-          <div class="io-group" role="group" aria-label="会话迁移">
+          <div class="io-group" role="group" :aria-label="t('会话迁移')">
             <!--
               B3 压缩：内核原生 session.compact（长会话摘要回灌），压缩后上下文窗口
               重新拿回空间；fork（分支）在会话树里，这里只放最常用的压缩。
             -->
-            <button
-              class="io-btn"
+            <AppButton variant="text" class="io-btn"
               :disabled="compacting || streaming"
-              title="压缩当前会话：把历史轮次摘要化，释放上下文窗口空间"
+              :title="t('压缩当前会话：把历史轮次摘要化，释放上下文窗口空间')"
               @click="onCompact"
             >
               <AppIcon name="layers" :size="13" :class="{ spin: compacting }" />
-              <span>{{ compacting ? '压缩中…' : '压缩' }}</span>
-            </button>
-            <button class="io-btn" title="导出当前会话为 JSON 文件" @click="onExport">
+              <span>{{ compacting ? t('压缩中…') : t('压缩') }}</span>
+            </AppButton>
+            <AppButton variant="text" class="io-btn" :title="t('导出当前会话为 JSON 文件')" @click="onExport">
               <AppIcon name="download" :size="13" />
-              <span>导出</span>
-            </button>
-            <button class="io-btn" title="从 JSON 文件导入会话" @click="onImport">
+              <span>{{ t('导出') }}</span>
+            </AppButton>
+            <AppButton variant="text" class="io-btn" :title="t('从 JSON 文件导入会话')" @click="onImport">
               <AppIcon name="upload" :size="13" />
-              <span>导入</span>
-            </button>
+              <span>{{ t('导入') }}</span>
+            </AppButton>
           </div>
         </div>
         </header>
 
         <p v-if="ioNote" class="io-note" role="status">{{ ioNote }}</p>
 
-        <p v-if="!IN_TAURI" class="nokernel">
-          浏览器模式：Pi 内核未接入，对话不可用。请运行 <code>npm run app:dev</code> 启动桌面 App。
-        </p>
+        <p v-if="!IN_TAURI" class="nokernel">{{ t('浏览器模式：Pi 内核未接入，对话不可用。请运行') }}<code>npm run app:dev</code>{{ t('启动桌面 App。') }}</p>
+
+        <!-- #66 M8：MCP 加载进度——对话流顶部的临时条，由连接器握手态驱动，
+             全就绪后自毁，不落历史。 -->
+        <McpProgressStrip />
 
         <MessageList
+          ref="msgListEl"
           :messages="messages"
           :streaming="streaming"
+          :interrupted="abortedTurn"
+          :resending="resending"
           :artifacts="artifacts"
           :root="cwd"
           @rewind="onRewindRequest"
+          @edit-resend="onEditResend"
+          @regen="onRegen"
           @plan-execute="onPlanExecute"
           @plan-revise="onPlanRevise"
+          @quote-add="onQuoteAdd"
+          @active-prompt="activePromptId = $event"
+        />
+
+        <!-- #68 M6 提问导航刻度条：右侧竖条，一提问一刻度，当前更长更深；
+             hover / 顶栏「历史提问」展开列表；点刻度或列表项定位。
+             阈值（轮数/宽度）在组件内判，这里只喂数据面。 -->
+        <PromptRail
+          v-if="!queryReplayActive"
+          :prompts="promptItems"
+          :active-id="activePromptId"
+          :host="centerEl"
+          v-model:open="promptListOpen"
+          @jump="msgListEl?.scrollToPrompt($event)"
         />
 
         <!--
           本轮 agent 轨迹：抽屉可以收起，但步骤本身要看得见 ——
           发出任务后如果只剩一个转圈，用户无从判断 agent 到底动没动。
+          F6：同名工具合并计数成一行「bash ×3 read ×1 · 共 9 步 42.6s」。
         -->
         <div v-if="stepsVisible" class="step-strip" role="status">
-          <span class="step-head">
-            <AppIcon
-              :name="streaming ? 'activity' : 'check-circle'"
-              :size="12"
-              :class="{ spin: streaming }"
-            />
-            <span>{{ streaming ? '执行中' : '本轮步骤' }}</span>
+          <span class="step-groups">
+            <span v-for="g in stepGroups" :key="g.title" class="step-chip" :title="g.detail">
+              <span class="step-name">{{ g.title }}</span>
+              <span v-if="g.count > 1" class="step-count">×{{ g.count }}</span>
+            </span>
+            <span v-if="!stepGroups.length" class="step-muted">{{ t('等待内核上报步骤…') }}</span>
           </span>
-          <span
-            v-for="(s, i) in liveSteps"
-            :key="i"
-            class="step-chip"
-            :title="s.detail"
-          >
-            <AppIcon name="zap" :size="11" />
-            <span class="step-name">{{ s.title }}</span>
+          <span class="step-times">
+            <span class="step-sum">{{ t('共 {0} 步', [stepTotal]) }}</span>
+            <span v-if="runSpanText" class="step-dur">{{ runSpanText }}</span>
           </span>
-          <span v-if="!liveSteps.length" class="step-muted">等待内核上报步骤…</span>
         </div>
 
         <!--
@@ -140,103 +181,154 @@
         -->
         <ApprovalDialog />
 
-        <!-- G3 回滚确认：还原文件 + 重开会话，均无法在 App 内撤销，须显式确认。 -->
-        <AppModal :open="!!rewindTarget" title="回到此处？" size="sm">
-          <p class="rewind-warn">
-            将把第 {{ rewindTarget?.turnSeq }} 轮起改动的文件还原到该轮之前，并重开会话到这条消息处。
-            之后的对话内容会被移除，<strong>此操作无法撤销</strong>。
+        <!--
+          G3 回滚确认：还原文件 + 重开会话，均无法在 App 内撤销，须显式确认。
+          #76 M3：打开即 checkpoint_preview（dry-run），把「对话+产物一起回退」
+          摊开——将还原（含归属轮）/ 将被删除（write 新建）/ 不在范围（bash）三类。
+        -->
+        <AppModal :open="!!rewindTarget" :title="t('回到此处？')" size="md">
+          <p class="rewind-warn">{{ t('将把第 {0} 轮起改动的文件还原到该轮之前，并重开会话到这条消息处。 之后的对话内容会被移除，', [rewindTarget?.turnSeq]) }}<strong>{{ t('此操作无法撤销') }}</strong>。
           </p>
-          <p class="rewind-note">
-            注意：bash 命令产生的文件变更不在还原范围（对齐 Claude Code checkpoint 的限制）。
-          </p>
+          <div v-if="rewindPreviewLoading" class="rewind-preview-loading">{{ t('正在核对受影响产物…') }}</div>
+          <template v-else-if="rewindPreview">
+            <div v-if="rewindPreview.restore.length" class="rewind-group">
+              <div class="rewind-group-title">{{ t('将还原到该轮之前（{0}）', [rewindPreview.restore.length]) }}</div>
+              <ul class="rewind-list">
+                <li v-for="f in rewindPreview.restore" :key="'r' + f.path" :title="f.path">
+                  <span class="rewind-file">{{ baseName(f.path) }}</span>
+                  <span class="rewind-seq">{{ t('第 {0} 轮起', [f.from_seq]) }}</span>
+                </li>
+              </ul>
+            </div>
+            <div v-if="rewindPreview.delete.length" class="rewind-group">
+              <div class="rewind-group-title danger">{{ t('将被删除（{0}）', [rewindPreview.delete.length]) }}</div>
+              <ul class="rewind-list">
+                <li v-for="f in rewindPreview.delete" :key="'d' + f.path" :title="f.path">
+                  <span class="rewind-file">{{ baseName(f.path) }}</span>
+                  <span class="rewind-seq">{{ t('第 {0} 轮新建', [f.from_seq]) }}</span>
+                </li>
+              </ul>
+            </div>
+            <div v-if="!rewindPreview.restore.length && !rewindPreview.delete.length" class="rewind-preview-empty">
+              {{ t('该轮起没有文件改动记录') }}
+            </div>
+          </template>
+          <p class="rewind-note">{{ t('注意：bash 命令产生的文件变更不在还原范围（对齐 Claude Code checkpoint 的限制）。') }}</p>
           <template #footer>
-            <button class="btn" :disabled="rewinding" @click="rewindTarget = null">
-              取消
-            </button>
-            <button class="btn danger" :disabled="rewinding" @click="onRewindConfirm">
-              {{ rewinding ? '还原中…' : '确认回滚' }}
-            </button>
+            <AppButton variant="secondary" class="btn" :disabled="rewinding" @click="rewindTarget = null">{{ t('取消') }}</AppButton>
+            <AppButton variant="danger" class="btn danger" :disabled="rewinding" @click="onRewindConfirm">
+              {{ rewinding ? t('还原中…') : t('确认回滚') }}
+            </AppButton>
+          </template>
+        </AppModal>
+
+        <!-- #69 M7：编辑排队项——只改正文，附件/引用标记块经 splitPromptBody→buildPrompt 原样带回 -->
+        <AppModal :open="queueEditAt !== null" :title="t('编辑队列消息')" size="sm" @close="queueEditAt = null">
+          <AppTextarea v-model="queueEditDraft" :rows="4" :auto-grow="true" :invalid="queueEditInvalid" />
+          <p v-if="queueEditInvalid" class="queue-edit-err">{{ t('修改后的内容不能为空') }}</p>
+          <template #footer>
+            <AppButton variant="secondary" class="btn" @click="queueEditAt = null">{{ t('取消') }}</AppButton>
+            <AppButton variant="primary" class="btn" :disabled="queueEditSaving" @click="queueEditSave">
+              {{ queueEditSaving ? t('保存中…') : t('保存') }}
+            </AppButton>
           </template>
         </AppModal>
 
         <form class="composer" @submit.prevent="submit">
-          <div v-if="pendingAttachments.length" class="att-tray">
-            <div v-for="a in pendingAttachments" :key="a.id" class="att-chip" :class="a.kind">
-              <img v-if="a.kind === 'image'" :src="a.src" class="att-thumb" alt="" />
-              <AppIcon v-else name="file" :size="16" />
-              <span class="att-name" :title="a.path">{{ a.name }}</span>
-              <button type="button" class="att-x" title="移除附件" @click="removeAttachment(a.id)">
-                <AppIcon name="close" :size="12" />
-              </button>
-            </div>
-          </div>
           <!--
             G6 队列 strip：流式中的提交进内核 follow_up 队列（本轮完全结束后
             自动执行）；插话（steer）在工具跑完、下次 LLM 调用前注入。
             队列内容以内核 queue_update 回推为权威，前端不维护副账。
+            #69 M7：条目可拖拽重排（跨段拖 = 插话⇄排队类型转换），
+            键盘 ↑↓ 同语义，hover 出编辑/删除——变更走 clear+重发编排。
+            展示与拖拽瞬时态在 QueueStrip 组件内，这里只接变更事件。
           -->
-          <div v-if="queueTotal > 0" class="queue-strip">
-            <div v-if="queue.steering.length" class="queue-seg steer">
-              <span class="queue-tag">插话</span>
-              <span class="queue-hint">下一轮模型调用前注入</span>
-              <span v-for="(t, i) in queue.steering" :key="'s' + i" class="queue-item" :title="t">{{ t }}</span>
-            </div>
-            <div v-if="queue.followUp.length" class="queue-seg followup">
-              <span class="queue-tag">排队</span>
-              <span class="queue-hint">本轮结束后执行</span>
-              <span v-for="(t, i) in queue.followUp" :key="'f' + i" class="queue-item" :title="t">{{ t }}</span>
-            </div>
-            <button class="queue-clear" title="清空队列，被清出的文本恢复回输入框" @click="onClearQueue">
-              清空
-            </button>
-          </div>
-          <div class="input-wrap">
+          <QueueStrip :queue="queue" @op="runQueueOp" @edit-open="queueEditOpen" @clear="onClearQueue" />
+
+          <!-- M5：轮次落定后扩展产出的延续问题；填入不自动发，可换一批/关闭。 -->
+          <SuggestChips
+            :items="visibleSuggestions"
+            @pick="pickSuggestion"
+            @rotate="rotateSuggestions"
+            @close="suggestDismissed = true"
+          />
+
+          <!-- 一体容器：正文在上、操作条在下，外框只出现一次（与落地页同一组件） -->
+          <ComposerShell class="input-wrap">
+            <template #tray>
+              <AttachmentTray :attachments="pendingAttachments" @remove="removeAttachment" />
+              <!-- 引用托盘：与附件并列，同一容器规则（换行、间距）；chip 本体共用 QuoteChip -->
+              <div v-if="pendingQuotes.length" class="quote-tray">
+                <QuoteChip v-for="q in pendingQuotes" :key="q.id" :quote="q" removable @remove="removeQuote" />
+              </div>
+            </template>
+
             <AppTextarea
               v-model="draft"
-              placeholder="给 Pi 下达编码任务…（可附带图片或文件）"
+              :placeholder="t('给 Pi 下达编码任务…（可附带图片或文件）')"
               :rows="1"
               auto-grow
               :max-rows="8"
               @keydown.enter="onEnter"
             />
-            <div class="composer-tools">
-              <button
-                type="button"
-                class="attach"
-                :title="IN_TAURI ? '附带图片或文件' : '附件需在桌面 App 中使用'"
-                :disabled="!IN_TAURI"
-                @click="onAttach"
-              >
-                <AppIcon name="paperclip" :size="16" />
-              </button>
+
+            <template #left>
+              <!-- 1:1 WorkBuddy 召唤形态：+ 号收 添加文件/模式/专家/技能/连接器/角色，
+                   附件按钮与独立的专家/角色触发器一并取消（状态双源是用户截图病灶）。 -->
+              <ComposerPlusMenu
+                :cwd="cwd"
+                :expert="expertQueue"
+                :team="teamQueue"
+                :mode="workMode"
+                :can-attach="IN_TAURI"
+                @attach="onAttach"
+                @insert="onComposerInsert"
+                @update:expert="expertQueue = $event"
+                @update:team="teamQueue = $event"
+                @update:mode="workMode = $event"
+              />
               <!-- G6 插话：仅流式中且有草稿时出现，steer 注入当前轮。 -->
-              <button
-                v-if="streaming && (draft.trim() || pendingAttachments.length)"
+              <AppButton
+                v-if="streaming && (draft.trim() || pendingAttachments.length || pendingQuotes.length)"
                 type="button"
+                variant="icon"
                 class="steer"
-                title="插话：本轮工具跑完后、下次模型调用前注入（steer）"
+                :title="t('插话：本轮工具跑完后、下次模型调用前注入（steer）')"
                 @click="onSteer"
               >
                 <AppIcon name="zap" :size="14" />
-              </button>
-              <ComposerStatus
-                class="composer-tools-status"
-                :state="activity"
-                :running="streaming"
-                :usage="usage.last"
-                :project-id="activeProjectId"
-                @interrupt="abort"
-              />
-              <button
+              </AppButton>
+              <!-- 与落地页同一处：模型 / 思考档贴在输入框上，顶栏不再重复 -->
+              <div class="composer-meta">
+                <ModelSwitcher compact width="auto" />
+                <ModeSwitcher :model-value="thinkingLevel" width="auto" @update:model-value="setMode" />
+              </div>
+            </template>
+
+            <template #right>
+              <ComposerStatus class="composer-tools-status" :state="activity" :running="streaming" />
+              <!-- 发送 / 停止同一位置切换：运行中这个位置永远是停止。 -->
+              <AppButton
+                v-if="streaming"
+                type="button"
+                class="stop"
+                :title="t('停止本轮')"
+                @click="abort"
+              >
+                <AppIcon name="stop" :size="14" />
+              </AppButton>
+              <AppButton
+                v-else
                 type="submit"
+                variant="primary"
                 class="send"
-                :title="streaming ? '排队：本轮结束后自动执行' : '发送'"
-                :disabled="(!draft.trim() && pendingAttachments.length === 0) || !cwd"
+                :title="t('发送')"
+                :disabled="(!draft.trim() && pendingAttachments.length === 0 && pendingQuotes.length === 0) || !cwd"
               >
                 <AppIcon name="send" :size="15" />
-              </button>
-            </div>
-          </div>
+              </AppButton>
+            </template>
+          </ComposerShell>
         </form>
       </template>
     </section>
@@ -245,42 +337,66 @@
       文件树 / 终端 / 浏览器不再常驻这一页：它们是「进项目」之后的工具，
       归项目详情页（`/projects/:id`）。对话页只留一条按需展开的过程抽屉。
     -->
+    <!-- 抽屉不再绑死会话态：落地页也能开（深链 ?panel=worktree 从项目工作台过来
+         时消息为空，旧写法会把入口吞掉）。grid 右列按 traceOpen 分配，hero 不受影响。 -->
     <TraceDrawer
-      v-if="!showHero"
       :open="traceOpen"
       :calls="trackCalls"
       :state="activity"
       :running="streaming"
       :messages="messages"
       :session-id="PI_SESSION_ID"
+      :usage="usage.last"
+      :turns="chatCounts.turns"
+      :steps="chatCounts.steps"
+      :project-id="activeProjectId"
+      :focus-tab="drawerTab"
+      :root="cwd"
+      :cwd="cwd"
       @close="traceOpen = false"
+      @enter-worktree="enterWorktree"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
+import { t } from '@/i18n'
+import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue'
+import { traceOpen, drawerTab, expertQueue } from '@/composables/useChatSession'
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { open as pickFiles } from '@tauri-apps/plugin-dialog'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import MessageList from '@/components/chat/MessageList.vue'
 import ApprovalDialog from '@/components/chat/ApprovalDialog.vue'
 import ComposerStatus from '@/components/chat/ComposerStatus.vue'
+import ComposerShell from '@/components/chat/ComposerShell.vue'
 import ChatHero from '@/components/chat/ChatHero.vue'
 import ModeSwitcher from '@/components/chat/ModeSwitcher.vue'
 import ModelSwitcher from '@/components/chat/ModelSwitcher.vue'
 import WorkspacePicker from '@/components/chat/WorkspacePicker.vue'
 import TraceDrawer from '@/components/chat/TraceDrawer.vue'
-import RoleSwitcher from '@/components/layout/RoleSwitcher.vue'
+import ComposerPlusMenu from '@/components/chat/ComposerPlusMenu.vue'
+import QuoteChip from '@/components/chat/QuoteChip.vue'
+import type { WorkMode } from '@/utils/workMode'
+import { teamDispatchInstruction } from '@/utils/teamDispatch'
+import { expertsList } from '@/composables/useExperts'
 import AppIcon from '@/components/ui/AppIcon.vue'
+import AppButton from '@/components/ui/AppButton.vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
-import { IN_TAURI, usePi, type PiAttachment } from '@/composables/usePi'
-import { fmtCost, fmtTokens } from '@/composables/piEvents'
+import PromptRail from '@/components/chat/PromptRail.vue'
+import QueueStrip from '@/components/chat/QueueStrip.vue'
+import SuggestChips from '@/components/chat/SuggestChips.vue'
+import { IN_TAURI, usePi, buildPrompt, splitPromptBody, type PiAttachment, type PiQuote, type RewindPreview } from '@/composables/usePi'
+import { fmtCost, fmtTokens, queueEntries, type QueueMutation } from '@/composables/piEvents'
 import { useArtifacts } from '@/composables/useArtifacts'
+import { libraryArchiveSession, libraryCreate } from '@/composables/useLibrary'
+import { agentMemoryList, agentMemoryStore } from '@/composables/useAgentOps'
+import { extractMemoryCandidates, dedupeCandidates } from '@/composables/useMemoryExtract'
 import { useActivity } from '@/composables/useActivity'
 import { PI_EVENTS, usePiEvents } from '@/composables/usePiEvents'
 import { shouldShowHero } from '@/composables/chatStage'
+import { setThinkingMode, thinkingLevel } from '@/composables/useThinkingMode'
 import { traceLog } from '@/composables/useWebLog'
 import { pickDirectoryGuarded, PICK_TIMEOUT_NOTE } from '@/composables/useDirPicker'
 import { trimPreamble } from '@/composables/contextBudget'
@@ -300,16 +416,56 @@ import {
   importConversation,
   type ConvMessage,
 } from '@/composables/useConversationIO'
-import { loadReplay, parseReplayQuery, pendingReplayIndex } from '@/composables/useReplay'
-import { buildExecPrompt, withPlanInstruction } from '@/utils/planMode'
+import {
+  activeReplayIndex,
+  loadReplay,
+  parseReplayQuery,
+  pendingReplayIndex,
+} from '@/composables/useReplay'
+import { buildExecPrompt, withAskInstruction, withPlanInstruction } from '@/utils/planMode'
+import AttachmentTray from '@/components/chat/AttachmentTray.vue'
+import McpProgressStrip from '@/components/chat/McpProgressStrip.vue'
+import { useRunFocus } from '@/composables/useRunFocus'
+import { listOf } from '@/utils/ipc'
+import { currentRunToolCalls } from '@/utils/runSteps'
 
-const { messages, streaming, usage, ensure, start, stop, send, pushUser, pushSystem, rpc, abortTurn, suppressExitNotice, beginTurn, rewindTurn, planPending, queue, followUp, steerTurn, clearQueue } = usePi()
+const { messages, streaming, usage, ensure, start, stop, send, noteUser, pushUser, pushSystem, rpc, abortTurn, suppressExitNotice, timeoutTick, beginTurn, rewindTurn, previewTurn, planPending, suggestions, queue, followUp, steerTurn, clearQueue, applyQueueOp } = usePi()
 
 const cwd = ref('')
 /** 路由 query：独立回放窗口的 replay 段号 / cwd 从这里读（见 consumeReplayQuery）。 */
 const route = useRoute()
-/** 过程抽屉（会话树 / 轨迹 / 工作流 / 连接器）是否展开。 */
-const traceOpen = ref(false)
+const router = useRouter()
+/** 过程抽屉（会话树 / 轨迹 / 工作流 / 连接器）是否展开。会话级态，切页保留、新会话清。 */
+// traceOpen / drawerTab / expertQueue 从 useChatSession 导入（见上方 import 区）。
+async function openWorktreePanel() {
+  // 抽屉/页签是模块级会话态，深链进来时可能已停在 worktree 且 open=true——
+  // 同值赋值不触发 watch，抽屉会留在上一次的轨迹页签。制造一次边沿强制落位。
+  const wasOpen = traceOpen.value
+  if (wasOpen) traceOpen.value = false
+  drawerTab.value = undefined
+  await nextTick()
+  drawerTab.value = 'worktree'
+  traceOpen.value = true
+}
+
+/**
+ * 把会话切进某个 worktree。
+ *
+ * Pi 的 cwd 在进程启动时固定、协议里没有 set_cwd，所以换工作区只能停内核重起；
+ * 旧对话里全是主仓路径，换区必须清上下文，否则模型会照着旧路径改文件。
+ */
+async function enterWorktree(payload: { path: string; branch: string }) {
+  const { path, branch } = payload
+  traceOpen.value = false
+  await stop().catch(() => {})
+  messages.value = []
+  cwd.value = path
+  // 留一条系统标记：消息清空后仍停在会话态（不会退回落地页），
+  // 且用户能看出「上下文从这一刻换了工作区」。
+  // 内核重启交给 watch(cwd) —— cwd 变了就重起（Pi 的 cwd 只能在进程启动时定）。
+  pushSystem(t('会话已切入 worktree：{branch}（新会话，工作目录 {path}）', { branch, path }))
+}
+const { focusSeq } = useRunFocus()
 const { state: activity, interrupt } = useActivity(messages, streaming)
 
 /** 会话迁移操作的瞬时提示（导出去向 / 导入结果 / 错误）。 */
@@ -343,11 +499,11 @@ function toConv(
 async function onExport() {
   try {
     const res = await exportConversation(toConv(messages.value), 'pi-workbench-conversation')
-    if (res === 'clipboard') flashIoNote('已复制到剪贴板（浏览器模式）')
+    if (res === 'clipboard') flashIoNote(t('已复制到剪贴板（浏览器模式）'))
     else if (res === 'cancelled') return
-    else flashIoNote(`已导出到 ${res}`)
+    else flashIoNote(t('已导出到 {0}', [res]))
   } catch (e: any) {
-    flashIoNote(`导出失败：${e?.message ?? e}`)
+    flashIoNote(t('导出失败：{0}', [e?.message ?? e]))
   }
 }
 
@@ -361,10 +517,10 @@ async function onImport() {
       tool: m.tool,
       ...(m.attachments?.length ? { attachments: m.attachments } : {}),
     }))
-    flashIoNote(`已导入 ${imported.length} 条消息`)
+    flashIoNote(t('已导入 {0} 条消息', [imported.length]))
   } catch (e: any) {
     if (e?.message === 'cancelled') return
-    flashIoNote(`导入失败：${e?.message ?? e}`)
+    flashIoNote(t('导入失败：{0}', [e?.message ?? e]))
   }
 }
 
@@ -373,6 +529,16 @@ const piEvents = usePiEvents(300)
 provide(PI_EVENTS, piEvents)
 onMounted(() => {
   void piEvents.ensure()
+  // 接力提示要用专家名，而不是裸 id。
+  void expertsList()
+    .then((list) => {
+      expertNames.value = Object.fromEntries(list.map((e) => [e.id, e.name]))
+    })
+    .catch(() => {})
+  // M10 拖拽上传：窗口级监听，hero 与会话态共用（落地页也要能拖文件进来）。
+  void initDragDrop()
+  // #69 M10 粘贴字节：同样窗口级——hero 与会话态共用一份判定与落盘。
+  window.addEventListener('paste', onPasteImage)
 })
 
 /**
@@ -383,15 +549,46 @@ onMounted(() => {
  */
 const showHero = computed(() => shouldShowHero(messages.value.length, streaming.value))
 
+/** 气泡下「运行链路」入口 → 展开过程抽屉；图在轨迹页签里渲染（见 TraceDrawer）。 */
+watch(focusSeq, () => {
+  if (!showHero.value) traceOpen.value = true
+})
+
+/**
+ * dsh 式统计行的两个计数：轮次 = 用户消息条数，步数 = 带工具的消息条数。
+ * 放在 ChatView 而不是 ComposerStatus 里，是为了不让状态条反过来依赖消息列表
+ * （它只管输入框附近的状态，数据由上层喂）。
+ */
+const chatCounts = computed(() => ({
+  turns: messages.value.filter((m) => m.role === 'user').length,
+  steps: messages.value.filter((m) => m.tool).length,
+}))
+
+/**
+ * 本轮是否被用户中止（dsh 中断收据的数据源）。MessageList 只在「末尾 turn +
+ * 这个标记为真」时渲染「已中断」；下一轮开始流式即清零，不会串到别的轮次上。
+ */
+const abortedTurn = ref(false)
+watch(
+  streaming,
+  (on, was) => {
+    if (on && !was) abortedTurn.value = false
+  },
+)
+
 /**
  * G1 中断本轮：优先内核原生 `abort`（优雅中止，进程/会话树/上下文全保留）；
  * 仅当内核已无应答（abort 自身失败）才退回复古的 `pi_stop` 杀进程兜底，
  * 并抑制伴生的「内核进程已退出」系统消息——那是用户主动停的，不该报警。
  */
 async function abort() {
+  // 用户主动中断：接力队列一起作废，别在停手后自动换下一位继续跑。
+  relayRemaining.value = []
+  relayPrev.value = ''
   interrupt()
   try {
     await abortTurn()
+    abortedTurn.value = true
     traceLog('abort:graceful')
   } catch (e) {
     traceLog('abort:fallback-stop', String(e))
@@ -399,11 +596,42 @@ async function abort() {
     await stop().catch(() => {})
   }
 }
+
 const draft = ref('')
+
+/**
+ * M5 推荐 chip：扩展在轮次落定后经 entry_appended 写入三条延续问题。
+ * 填入草稿不自动发——用户保留改写权；「换一批」本地轮转顺序（无源可换，
+ * 不伪装成新生成）；关闭只藏当前批，下一条推荐到达自动复位。
+ */
+const suggestOffset = ref(0)
+const suggestDismissed = ref(false)
+const visibleSuggestions = computed(() => {
+  const items = suggestions.value
+  if (!items.length || suggestDismissed.value) return []
+  const n = items.length
+  const off = suggestOffset.value % n
+  return [...items.slice(off), ...items.slice(0, off)]
+})
+watch(suggestions, () => {
+  suggestOffset.value = 0
+  suggestDismissed.value = false
+})
+function pickSuggestion(text: string) {
+  onComposerInsert(text)
+}
+function rotateSuggestions() {
+  suggestOffset.value++
+}
+
 const projects = ref<{ id: string; name: string; path: string | null }[]>([])
 
 /** 首页「先选目录再发送」的暂存文本（见 `submitHero`）。 */
 const pendingHero = ref('')
+/** 暂存的专家：目录选完补发时一起带上，不然「先选目录」会吞掉首页选的专家。 */
+const pendingHeroExperts = ref<string[]>([])
+/** 暂存的附件（含 webview src）：目录取消时原样放回托盘，不让人重拖一遍。 */
+const pendingHeroAtts = ref<PendingAttachment[]>([])
 /** 父级正在拉起目录选择器：只用于让 Hero 显示等待态。 */
 const heroPicking = ref(false)
 /** 非阻塞提示：不再用 `alert()` 打断（Tauri 里会卡住整个 webview）。 */
@@ -429,42 +657,162 @@ interface PendingAttachment {
   name: string
   kind: 'image' | 'file'
   path: string
+  size?: number
   /** Tauri webview 里显示本地图需经 convertFileSrc 转成可加载的 src。 */
   src: string
 }
 
 const pendingAttachments = ref<PendingAttachment[]>([])
 
+/**
+ * 待发送引用：从 assistant 正文选区摘出来的文本片段（可带批注）。
+ * 与附件同层并列在托盘里，发送时以 `[引用 / quotes]` 块随 prompt 下发。
+ */
+const pendingQuotes = ref<PiQuote[]>([])
+
+/** 本轮最近一次下发的原文与附件：超时后回填输入框，用户回车即可续上。 */
+const lastDispatch = ref<{ text: string; attachments: PiAttachment[]; quotes: PiQuote[] } | null>(null)
+
+/** 发送载荷只带内核/回放需要的字段，不把 webview src 写进 journal。 */
+function attachmentsPayload(): PiAttachment[] {
+  return pendingAttachments.value.map(({ id, name, kind, path, size }) => ({ id, name, kind, path, size }))
+}
+
 function isImageName(name: string) {
   return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name)
 }
 
+/** 收进待发送托盘的公共落子：选文件/拖拽/粘贴三条通道共用（铁律：重复逻辑抽离）。 */
+function pushTrayAttachment(info: { path: string; name: string; size: number }) {
+  pendingAttachments.value.push({
+    id: `att${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    name: info.name,
+    kind: isImageName(info.name) ? 'image' : 'file',
+    path: info.path,
+    size: info.size,
+    src: convertFileSrc(info.path),
+  })
+}
+
+/**
+ * 把一个磁盘路径收进待发送托盘（选文件与拖拽共用同一条落盘路径）。
+ *
+ * 复制进托管目录：用户原文件可能被删/移动，落盘副本更稳。
+ * 返回 true 表示已入托盘；失败时给可读原因并返回 false。
+ */
+async function addAttachmentPath(p: string): Promise<boolean> {
+  try {
+    const info = await invoke<{ path: string; name: string; size: number }>('attachment_add', { src: p })
+    pushTrayAttachment(info)
+    return true
+  } catch (e: any) {
+    warn(t('附件添加失败：{0}', [e?.message ?? e]))
+    return false
+  }
+}
+
+/**
+ * #69 M10 粘贴字节：剪贴板图片没有磁盘路径，读成 base64 走
+ * `attachment_add_bytes` 落同一托管目录——托盘与回放分不出图是拖进来
+ * 的还是粘进来的，不需要第二套渲染。
+ *
+ * 监听挂 window 而不是 hero/composer 两个 textarea：托盘状态本来就在这里，
+ * 分开绑是重复代码；判定条件是「焦点在对话输入区 + 剪贴板里有图片」，
+ * 纯文本粘贴不拦（走默认通道），其他页面的输入框粘贴不抢（target 不在
+ * 对话区直接放过）。
+ */
+async function addAttachmentBytes(blob: Blob, mime: string): Promise<boolean> {
+  if (!IN_TAURI) {
+    warn(t('附件需要桌面 App：请运行 npm run app:dev 启动后再用'))
+    return false
+  }
+  try {
+    const buf = new Uint8Array(await blob.arrayBuffer())
+    // 分块转二进制串：大图一次性 fromCharCode(...buf) 会爆参数栈。
+    let bin = ''
+    for (let i = 0; i < buf.length; i += 0x8000) {
+      bin += String.fromCharCode(...buf.subarray(i, i + 0x8000))
+    }
+    const info = await invoke<{ path: string; name: string; size: number }>(
+      'attachment_add_bytes',
+      { data: btoa(bin), ext: mime.split('/')[1]?.split(';')[0] ?? '' },
+    )
+    pushTrayAttachment(info)
+    return true
+  } catch (e: any) {
+    warn(t('附件添加失败：{0}', [e?.message ?? e]))
+    return false
+  }
+}
+
+function onPasteImage(e: ClipboardEvent) {
+  const el = e.target as HTMLElement | null
+  if (!el || el.tagName !== 'TEXTAREA') return
+  // 只认对话输入区：hero 与会话态 composer，别的 textarea（专家草稿/记忆）不抢粘贴。
+  if (!el.closest('.hero-input-wrap') && !el.closest('.composer')) return
+  const items = e.clipboardData?.items
+  if (!items) return
+  const imgs: File[] = []
+  for (const it of items) {
+    if (it.kind === 'file' && it.type.startsWith('image/')) {
+      const f = it.getAsFile()
+      if (f) imgs.push(f)
+    }
+  }
+  // 没有图片就是纯文本粘贴——不 preventDefault，默认行为继续。
+  if (!imgs.length) return
+  e.preventDefault()
+  for (const f of imgs) void addAttachmentBytes(f, f.type)
+}
+
 async function onAttach() {
   if (!IN_TAURI) {
-    warn('附件需要桌面 App：请运行 npm run app:dev 启动后再用')
+    warn(t('附件需要桌面 App：请运行 npm run app:dev 启动后再用'))
     return
   }
   const selected = await pickFiles({
     multiple: true,
-    title: '选择要附带的图片或文件',
+    title: t('选择要附带的图片或文件'),
   })
   if (!selected || selected.length === 0) return
   const paths = Array.isArray(selected) ? selected : [selected]
-  for (const p of paths) {
-    try {
-      // 复制进托管目录：用户原文件可能被删/移动，落盘副本更稳。
-      const dest = await invoke<string>('attachment_add', { src: p })
-      const name = p.replace(/\\/g, '/').split('/').filter(Boolean).pop() || 'file'
-      pendingAttachments.value.push({
-        id: `att${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-        name,
-        kind: isImageName(name) ? 'image' : 'file',
-        path: dest,
-        src: convertFileSrc(dest),
-      })
-    } catch (e: any) {
-      warn(`附件添加失败：${e?.message ?? e}`)
-    }
+  for (const p of paths) await addAttachmentPath(p)
+}
+
+/**
+ * M10 拖拽上传：文件从系统拖进窗口 → 松手即入附件托盘。
+ *
+ * 走 Tauri 原生 drag-drop 通道（`getCurrentWebview().onDragDropEvent`）而不是
+ * HTML5 drop 事件：webview 里 OS 文件拖拽根本不给 DataTransfer（只有文件名没有
+ * 路径），原生通道直接给绝对路径列表，正好喂给 attachment_add。粘贴图片走
+ * 窗口 paste 事件 + `attachment_add_bytes`（#69 收口，见 onPasteImage）。
+ *
+ * 监听只挂一次（onMounted 注册 / onUnmounted 摘除），drop 之外的事件类型
+ * enter/over/leave 只翻转高亮态，不碰数据。
+ */
+const dragOver = ref(false)
+let unlistenDrag: (() => void) | null = null
+/** 组件已卸载但监听还在路上：动态 import + onDragDropEvent 都是异步的，
+ *  快速切路由时若不补这一刀，回调会在下一次挂载后重复触发（一次 drop 落两份附件）。 */
+let dragDisposed = false
+
+async function initDragDrop() {
+  if (!IN_TAURI) return
+  try {
+    const { getCurrentWebview } = await import('@tauri-apps/api/webview')
+    const un = await getCurrentWebview().onDragDropEvent((e) => {
+      if (e.payload.type === 'drop') {
+        dragOver.value = false
+        for (const p of e.payload.paths) void addAttachmentPath(p)
+        return
+      }
+      if (e.payload.type === 'enter') dragOver.value = true
+      else if (e.payload.type === 'leave') dragOver.value = false
+    })
+    if (dragDisposed) un()
+    else unlistenDrag = un
+  } catch {
+    // 拖拽通道挂不上不是致命错误：选文件按钮还在，静默降级。
   }
 }
 
@@ -472,21 +820,136 @@ function removeAttachment(id: string) {
   pendingAttachments.value = pendingAttachments.value.filter((a) => a.id !== id)
 }
 
+function removeQuote(id: string) {
+  pendingQuotes.value = pendingQuotes.value.filter((q) => q.id !== id)
+}
+
+/** MessageList 选区浮层/产物卡点「添加到对话」→ 落托盘。批注空就不存批注字段。 */
+function onQuoteAdd(payload: { text: string; note?: string; source?: string; kind?: 'text' | 'widget' }) {
+  const text = payload.text.trim()
+  if (!text) return
+  pendingQuotes.value.push({
+    id: `q${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    kind: payload.kind ?? 'text',
+    text,
+    ...(payload.note?.trim() ? { note: payload.note.trim() } : {}),
+    ...(payload.source ? { source: payload.source } : {}),
+  })
+}
+
 /** 轨迹 tab 徽标：内核真实上报的工具调用次数（stats 是 computed，模板不自动解包）。 */
 const trackCalls = computed(() => piEvents.stats.value.calls)
 
 /**
- * 本轮 agent 步骤：内核上报的工具调用，最近几条。
+ * 本轮 agent 步骤（F6：聚合为一行）。
  *
  * 轨迹抽屉默认是收起的，但「agent 现在在干什么」不该藏起来 —— 用户要的是
- * 对话区就能看见轨迹，而不是先猜再点开面板。
+ * 对话区就能看见轨迹。之前是一排重复的 `⚡bash` chip（同名各占一格、只留最近
+ * 4 条），信息密度低又跨轮串台；现在按「最后一次 turn_start 之后」取本轮工具
+ * 调用，同名合并计数，右槽给总步数与累计时长。
+ * 时长直接用内核事件已有的 `at`（到达毫秒）首尾相减，不新增状态通道。
  */
-const liveSteps = computed(() =>
-  piEvents.events.value.filter((e) => e.kind === 'tool_call').slice(-4),
-)
-const stepsVisible = computed(() => streaming.value || liveSteps.value.length > 0)
+const runToolCalls = computed(() => currentRunToolCalls(piEvents.events.value))
 
-const { byMessage: artifacts, auto: autoArtifacts } = useArtifacts(cwd)
+/** 同名工具合并计数，按次数从多到少；上限 6 组，再多就只留在轨迹抽屉里。 */
+const stepGroups = computed(() => {
+  const map = new Map<string, { title: string; count: number; detail: string }>()
+  for (const e of runToolCalls.value) {
+    const hit = map.get(e.title)
+    if (hit) hit.count += 1
+    else map.set(e.title, { title: e.title, count: 1, detail: e.detail })
+  }
+  return [...map.values()].sort((a, b) => b.count - a.count).slice(0, 6)
+})
+
+const stepTotal = computed(() => runToolCalls.value.length)
+
+/** 本轮累计时长（<1 步没有区间，返回空串由模板隐藏）。 */
+const runSpanText = computed(() => {
+  const cs = runToolCalls.value
+  if (cs.length < 2) return ''
+  const s = Math.max(0, cs[cs.length - 1].at - cs[0].at) / 1000
+  if (s < 60) return `${s.toFixed(1)}s`
+  return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+})
+
+const stepsVisible = computed(() => streaming.value || stepTotal.value > 0)
+
+const { byMessage: artifacts, scan: scanArtifacts, auto: autoArtifacts } = useArtifacts(cwd)
+
+/* ── 会话产物自动归档 ────────────────────────────────────────
+ * 触发点：每次运行落定（streaming true → false），成功与失败都走这里。
+ * 归档是旁路：任何错误只提示，不改变会话状态。 */
+let archiveArmed = false
+
+function localDate(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+async function archiveArtifacts() {
+  try {
+    // 落定后补扫一次：auto 扫描有 500ms 防抖，这里要拿最新结果。
+    await scanArtifacts(messages.value)
+    const paths = [...new Set(Object.values(artifacts.value).flat().map((a) => a.path))]
+    if (paths.length) {
+      const title =
+        (messages.value.find((m) => m.role === 'user')?.text ?? '').trim().slice(0, 40) ||
+        t('会话')
+      const report = await libraryArchiveSession(PI_SESSION_ID, title, localDate(), paths)
+      if (report.failed) warn(t('资料库自动归档失败，可在资料库重试'))
+    }
+    // Hindsight retain：纯对话没有产物文件也要沉淀，否则资料库永远空着。
+    await archiveConversationNote()
+    await distillMemoryFromTurn()
+  } catch {
+    // 归档失败不能影响会话本身：提示留在顶部，会话继续可用。
+    warn(t('资料库自动归档失败，可在资料库重试'))
+  }
+}
+
+/** 把一轮问答写成 markdown 存进资料库「对话沉淀/日期」。只有真内容才存。 */
+async function archiveConversationNote() {
+  const first = messages.value.find((m) => m.role === 'user' && m.text?.trim())
+  if (!first) return
+  const pairs = messages.value.filter((m) => m.text?.trim() && !m.tool)
+  if (pairs.length < 2) return
+  const body = pairs
+    .map((m) => `## ${m.role === 'user' ? t('用户') : t('Pi')}\n\n${m.text}`)
+    .join('\n\n')
+  const title = first.text.trim().slice(0, 40).replace(/[\\/:*?"<>|]/g, '_') || t('会话')
+  try {
+    await libraryCreate(`对话沉淀/${localDate()}`, `${title}.md`, `# ${title}\n\n${body}\n`) // i18n-ignore: 资料库目录是数据路径，非 UI 文案
+  } catch {
+    // 与产物归档同策略：旁路失败不打断会话。
+  }
+}
+
+/** 已抽过的用户消息：同一次会话里不重复写记忆。 */
+const distilledIds = new Set<string>()
+
+/** Mem0/Hindsight 的 retain 轻量版：只从新增的用户消息里抽显式事实。 */
+async function distillMemoryFromTurn() {
+  if (!IN_TAURI) return
+  const fresh = messages.value.filter(
+    (m) => m.role === 'user' && m.text?.trim() && !m.queued && !distilledIds.has(m.id),
+  )
+  if (!fresh.length) return
+  try {
+    const existing = (await agentMemoryList()).map((e) => e.text)
+    const candidates = dedupeCandidates(
+      fresh.flatMap((m) => extractMemoryCandidates(m.text)),
+      existing,
+    )
+    // dedupeCandidates 内部已用 seen 去重（含同批候选之间），这里直接写。
+    for (const c of candidates) await agentMemoryStore(c.text, c.tags)
+  } catch {
+    // 抽取是旁路：失败静默，下次落定还能再试（id 未标记）。
+    return
+  }
+  for (const m of fresh) distilledIds.add(m.id)
+}
 let stopArtifacts: (() => void) | null = null
 
 /**
@@ -496,7 +959,7 @@ let stopArtifacts: (() => void) | null = null
  * 查这个项目的目录 —— 清单还没就位的话，它只能当「查不到」处理。
  */
 async function loadActive() {
-  projects.value = await invoke<any[]>('projects_list').catch(() => [])
+  projects.value = await listOf(invoke<any[]>('projects_list'))
   await loadActiveProject()
   // 重新挂载时活动项目往往**没变**（共享 ref 不变 → watcher 不触发），
   // 所以这里必须自己补一次，否则从项目页回到对话页就会停在空白首页。
@@ -524,7 +987,7 @@ async function syncCwdFromActive(id: string | null) {
   }
   // 已经在问用户要目录了就别重复弹（watcher 与挂载时的那次会撞在一起）
   if (heroPicking.value) return
-  warn(`项目「${p.name}」还没有工作目录，选一个文件夹后就能开工。`)
+  warn(t('项目「{0}」还没有工作目录，选一个文件夹后就能开工。', [p.name]))
   await pickHeroDirectory(p.id)
 }
 
@@ -541,7 +1004,7 @@ async function maybeIndexProject(id: string | null) {
   if (!id) return
   const status = await refreshCodebaseStatus(id).catch(() => null)
   if (status && status.status === 'none') {
-    void indexProjectCodebase(id).catch((e) => warn(`代码库索引失败：${String(e)}`))
+    void indexProjectCodebase(id).catch((e) => warn(t('代码库索引失败：{0}', [String(e)])))
   }
 }
 
@@ -555,15 +1018,15 @@ async function onBindDirectory(payload: { id: string; dir: string }) {
     // 绑定的就是当前活动项目时 id 没变，watcher 不会再触发 —— 这里直接落定。
     cwd.value = payload.dir
     // 换目录 = 换工作区，必须重新建索引（旧的索引已对不上新目录）。
-    void indexProjectCodebase(payload.id).catch((e) => warn(`代码库索引失败：${String(e)}`))
+    void indexProjectCodebase(payload.id).catch((e) => warn(t('代码库索引失败：{0}', [String(e)])))
   } catch (e) {
-    warn(`绑定工作目录失败：${String(e)}`)
+    warn(t('绑定工作目录失败：{0}', [String(e)]))
   }
 }
 
 async function onPickDirectory(dir: string) {
   if (!dir) return
-  const name = dir.replace(/\\/g, '/').split('/').filter(Boolean).pop() || '新项目'
+  const name = dir.replace(/\\/g, '/').split('/').filter(Boolean).pop() || t('新项目')
   try {
     const snapshot = await createProject(name, '', undefined, dir)
     const p = {
@@ -576,7 +1039,7 @@ async function onPickDirectory(dir: string) {
     }
     await setActiveProject(p.id)
   } catch (e) {
-    warn(`创建项目失败：${String(e)}`)
+    warn(t('创建项目失败：{0}', [String(e)]))
   }
 }
 
@@ -589,12 +1052,39 @@ async function onPickDirectory(dir: string) {
  * 它自己没有机会「选完再发」。
  */
 async function submitHero(text: string) {
+  // 专家是持续选择：与 WorkBuddy 一致，选中后每条消息都带同一身份，直到用户移除 chip。
+  const experts = expertQueue.value.slice()
+  // #66 M10：附件托盘状态一直在父级，「只拖图不写字」也从这里下发。
+  const atts = attachmentsPayload()
+  if (!text.trim() && !atts.length) return
   if (!cwd.value) {
     pendingHero.value = text
+    pendingHeroExperts.value = experts
+    // 暂存完整对象（含 webview src）：目录取消时能原样放回托盘。
+    pendingHeroAtts.value = pendingAttachments.value.slice()
+    pendingAttachments.value = []
     await pickHeroDirectory()
     return
   }
-  await dispatchToPi(text)
+  pendingAttachments.value = []
+  await dispatchToPi(text, atts.length ? atts : undefined, experts)
+}
+
+/**
+ * 目录选择取消/超时：暂存的专家放回 picker（文本本来就还留在 hero 草稿里）。
+ * 取消不该让用户白选一次专家——它和草稿是同一轮未发送的输入。
+ */
+function restorePendingHero() {
+  pendingHero.value = ''
+  if (pendingHeroExperts.value.length) {
+    expertQueue.value = pendingHeroExperts.value
+    pendingHeroExperts.value = []
+  }
+  // 取消目录选择：暂存的附件放回托盘（与草稿同语义——没发出去就还在）。
+  if (pendingHeroAtts.value.length) {
+    pendingAttachments.value = pendingHeroAtts.value.slice()
+    pendingHeroAtts.value = []
+  }
 }
 
 /**
@@ -609,13 +1099,13 @@ async function pickHeroDirectory(bindProjectId?: string) {
   try {
     const { dir, timedOut } = await pickDirectoryGuarded()
     if (timedOut) {
-      pendingHero.value = ''
-      warn(PICK_TIMEOUT_NOTE)
+      restorePendingHero()
+      warn(PICK_TIMEOUT_NOTE())
       return
     }
     if (!dir) {
-      pendingHero.value = ''
-      warn('没有选择工作目录。')
+      restorePendingHero()
+      warn(t('没有选择工作目录。'))
       return
     }
     if (bindProjectId) {
@@ -629,52 +1119,197 @@ async function pickHeroDirectory(bindProjectId?: string) {
 }
 
 /** 下发到内核：项目上下文前缀（预算裁剪后）+ 用户原文 + 附件引用块。 */
-async function dispatchToPi(text: string, attachments?: PiAttachment[]) {
+/**
+ * 专家接力：勾选顺序即执行顺序。第一位随本轮 prompt 下发，
+ * 之后每轮落定（streaming=false）把上一位产出作为下一位的输入再发。
+ * 取消/中断时清空队列，避免停了之后还自动续跑。
+ */
+/** 本轮绑定的专家团（0/1 项）：chip 持续展示，发送时转成 team_dispatch 工具指令。
+ *  以前点团队把命令塞进输入框，用户看见一串内部 id（用户截图病灶）。 */
+const teamQueue = ref<string[]>([])
+const relayRemaining = ref<string[]>([])
+const relayPrev = ref('')
+const expertNames = ref<Record<string, string>>({})
+
+function expertLabel(id: string) {
+  return expertNames.value[id] ?? id
+}
+
+async function runRelay() {
+  const [next, ...rest] = relayRemaining.value
+  if (!next) return
+  const from = relayPrev.value
+  relayRemaining.value = rest
+  relayPrev.value = next
+  const last = [...messages.value]
+    .reverse()
+    .find((m) => m.role === 'assistant' && m.text?.trim())
+  if (!last?.text?.trim()) {
+    pushSystem(t('交接中止：上一位专家没有产出'))
+    relayRemaining.value = []
+    return
+  }
+  pushSystem(t('交接：{0} → {1}', [from ? expertLabel(from) : t('上一位'), expertLabel(next)]))
+  const body = `${t('上一位专家的产出：')}\n\n${last.text.trim()}\n\n${t('请在此基础上继续。')}`
+  if (!(await ensureKernelReady())) {
+    relayRemaining.value = []
+    return
+  }
+  try {
+    await send(body, undefined, { id: next, handoffFrom: from || undefined })
+    traceLog('expert:relay', `${from}->${next}`)
+  } catch (e) {
+    pushSystem(t('交接失败：{0}', [String(e)]))
+    relayRemaining.value = []
+  }
+}
+
+watch(streaming, (on) => {
+  if (!on) void runRelay()
+})
+
+// 运行落定才归档：回放/初始化时 streaming 一直是 false，不会误触发。
+watch(streaming, (on) => {
+  if (on) {
+    archiveArmed = true
+    return
+  }
+  if (!archiveArmed) return
+  archiveArmed = false
+  void archiveArtifacts()
+})
+
+/**
+ * 下发前对齐内核：模型 / 工具白名单只在进程启动时读，`pi_start` 按启动签名判断
+ * 复用还是重建。少了这一步，「本地模型已接入但没点重启」会静默沿用旧 provider，
+ * 消息发给了错的模型，界面没有任何提示。
+ */
+async function ensureKernelReady(): Promise<boolean> {
+  if (!cwd.value) {
+    warn(t('请先选择项目或工作目录'))
+    return false
+  }
+  try {
+    await start(cwd.value)
+    return true
+  } catch (e) {
+    pushSystem(t('内核启动失败：{0}', [String(e)]))
+    warn(String(e))
+    traceLog('dispatch:start-fail', String(e))
+    return false
+  }
+}
+
+async function dispatchToPi(
+  text: string,
+  attachments?: PiAttachment[],
+  experts?: string[],
+  quotes?: PiQuote[],
+) {
+  const [firstExpert, ...restExperts] = experts ?? []
+  relayRemaining.value = restExperts
+  relayPrev.value = firstExpert ?? ''
   traceLog('dispatch', text.slice(0, 50))
+  // 记下本轮原文：超时收口后放回输入框（超时不是取消，不能让用户重打一遍）。
+  lastDispatch.value = { text, attachments: attachments ?? [], quotes: quotes ?? [] }
   // 乐观 UI：用户消息**先**落列表、落地页立刻切走。前缀收集是锦上添花，
   // 它若挂起（invoke 遇主线程被堵可能永不返回），绝不能挡住「消息至少看得见」——
   // 之前 pushUser 排在 await 之后，卡住时表现为「终端有日志、页面毫无反应」。
-  pushUser(text, attachments)
+  pushUser(text, attachments, quotes)
+  // 先落 journal 再收前缀：这段窗口内刷新 / 切会话，回放仍能还原这条消息。
+  // 落盘失败也不阻断——send 会自行合成（journaled=false 时不跳过）。
+  const noted = await noteUser(text, attachments, quotes)
+  // 发送前对齐内核（模型配置变更后不走旧进程），失败已落系统消息，消息气泡保留。
+  if (!(await ensureKernelReady())) return
   // 前缀收集加硬超时：3.5s 拿不到就空前缀发送。上下文少了可以忍，界面卡死不能忍。
   const rawPreamble = await withTimeout(taskContextPreamble(), 3_500, '').catch(() => '')
   const { preamble } = trimPreamble(rawPreamble)
   const body = preamble ? `${preamble}\n\n---\n\n${text}` : text
-  // G5：plan 模式——指令前缀拼在最外（preamble 之前，回放时被 `---` 切分剥掉），
-  // 同时挂上待确认计划；该轮 assistant 回复落定时解析成计划卡。
+  // G5/G7：工作模式前缀拼在最外（preamble 之前，回放时被 `---` 切分剥掉）。
+  // plan 挂待确认计划，该轮 assistant 回复落定时解析成计划卡；ask 只出不做。
   // 注意 user 气泡仍显示原文（pushUser 在上面已用 text 落过），不露指令。
-  const finalBody = planMode.value ? withPlanInstruction(body) : body
-  if (planMode.value) planPending.value = { task: text }
+  const finalBody =
+    workMode.value === 'plan'
+      ? withPlanInstruction(body)
+      : workMode.value === 'ask'
+        ? withAskInstruction(body)
+        : body
+  // 团队绑定：指令让模型调 team_dispatch 工具（立即返回运行号，成员后台跑）。
+  // 不能拼 `/team dispatch` 命令——命令通道不产 agent 事件，前端等 settled 会卡 180s。
+  // 与模式前缀同理——user 气泡已是原文，这里只改下发体。
+  const teamId = teamQueue.value[0] ?? ''
+  const dispatchBody = teamDispatchInstruction(teamId, finalBody)
+  if (workMode.value === 'plan') planPending.value = { task: text }
   // G3：开轮快照（Rust 记会话树叶子 + 打 marker），seq 挂到刚 push 的 user 消息上。
   // 失败不阻断发送——少一次回滚机会可以忍，消息发不出去不能忍。
   const turnSeq = await beginTurn(text)
   const userMsg = messages.value[messages.value.length - 1]
   if (turnSeq > 0 && userMsg && userMsg.role === 'user') userMsg.turnSeq = turnSeq
   try {
-    await send(finalBody, attachments)
+    await send(dispatchBody, attachments, firstExpert ? { id: firstExpert } : undefined, noted, quotes)
     traceLog('dispatch:sent')
   } catch (e) {
     const msg = String(e)
     // 内核已死（process_exit 之后）不该让用户手动救：自动拉起再补发一次。
-    if (msg.includes('pi 未启动') && cwd.value) {
+    if (msg.includes(t('pi 未启动')) && cwd.value) {
       traceLog('dispatch:kernel-restart')
       try {
         await start(cwd.value)
-        await send(finalBody, attachments)
+        await send(dispatchBody, attachments, firstExpert ? { id: firstExpert } : undefined, noted, quotes)
         traceLog('dispatch:sent:after-restart')
         return
       } catch (e2) {
-        pushSystem(`内核自动重启后仍下发失败：${String(e2)}`)
+        pushSystem(t('内核自动重启后仍下发失败：{0}', [String(e2)]))
         warn(String(e2))
         traceLog('dispatch:fail', String(e2))
         return
       }
     }
     // 失败必须落进消息流：只在顶部飘一条 6 秒 notice，用户看到的就是「点了没反应」。
-    pushSystem(`内核未响应：${msg}`)
+    pushSystem(t('内核未响应：{0}', [msg]))
     warn(msg)
     traceLog('dispatch:fail', msg)
   }
 }
+
+/**
+ * 回合空闲超时收口（判据见 usePi.idleTimeoutMs）：
+ * 消息回填输入框 → 内核自检 → 不可用就重新拉起。
+ * 与用户主动取消（abort：中断收据）是两条可区分的路径。
+ */
+watch(timeoutTick, async () => {
+  const last = lastDispatch.value
+  if (last && !draft.value.trim()) {
+    draft.value = last.text
+    if (last.attachments.length && pendingAttachments.value.length === 0) {
+      pendingAttachments.value = last.attachments.map((a) => ({
+        ...a,
+        id: `att${Date.now()}_${a.id}`,
+        src: a.kind === 'image' ? convertFileSrc(a.path) : '',
+      }))
+    }
+    // 引用同样恢复回托盘：超时收口不能把用户摘的片段吞掉。
+    if (last.quotes.length && pendingQuotes.value.length === 0) {
+      pendingQuotes.value = last.quotes.map((q) => ({ ...q, id: `q${Date.now()}_${q.id}` }))
+    }
+  }
+  // usePi 已尽力 abort 掉这一轮。get_tree 有回包 = 内核还活着、本轮已收口；
+  // 没回包 = 内核不可用，重新拉起，否则下一次发送会撞上残留状态。
+  try {
+    await rpc('get_tree', {}, 5_000)
+    traceLog('turn:timeout-kernel-alive')
+  } catch (e) {
+    traceLog('turn:timeout-kernel-dead', String(e))
+    suppressExitNotice()
+    await stop().catch(() => {})
+    try {
+      if (cwd.value) await start(cwd.value)
+      pushSystem(t('内核无响应，已重新拉起。'))
+    } catch (e2) {
+      pushSystem(t('内核重启失败：{0}', [String(e2)]))
+    }
+  }
+})
 
 /**
  * G3「回到此处」：确认后还原该轮 edit/write 改过的文件 + fork 会话树到该
@@ -685,10 +1320,61 @@ async function dispatchToPi(text: string, attachments?: PiAttachment[]) {
 const rewinding = ref(false)
 const rewindTarget = ref<{ id: string; turnSeq: number; text: string } | null>(null)
 
+/**
+ * #68 M6 提问导航刻度条的数据面：messages 里 user 行的投影（id/text/ts）。
+ *
+ * 显示与否不归这里——轮数阈值与容器宽度阈值在 PromptRail 内判；
+ * 当前位置（activePromptId）由 MessageList 滚动折算上报，这里只中转。
+ * 顶栏「历史提问」（C2）经 promptListOpen 驱动同一份列表的展开。
+ */
+const centerEl = ref<HTMLElement | null>(null)
+const msgListEl = ref<InstanceType<typeof MessageList> | null>(null)
+const activePromptId = ref<string | null>(null)
+const promptListOpen = ref(false)
+const promptItems = computed(() =>
+  messages.value
+    .filter((m) => m.role === 'user')
+    .map((m) => ({ id: m.id, text: m.text, ts: m.ts })),
+)
+
 function onRewindRequest(msg: { id: string; turnSeq?: number; text: string }) {
   const seq = msg.turnSeq
   if (!seq || rewinding.value) return
   rewindTarget.value = { id: msg.id, turnSeq: seq, text: msg.text }
+}
+
+/*
+ * #76 M3：确认框打开即 dry-run 预览（checkpoint_preview 只读不落盘）。
+ * 请求序号守卫：弹窗快速开关/换目标时旧响应不能覆盖新预览——
+ * 带着 seq 回来对不上就丢。失败降级为 null：确认框照常可确认，
+ * 预览是辅助信息，不能反过来拦住回退。
+ */
+const rewindPreview = ref<RewindPreview | null>(null)
+const rewindPreviewLoading = ref(false)
+let rewindPreviewSeq = 0
+
+watch(rewindTarget, async (target) => {
+  if (!target) {
+    rewindPreview.value = null
+    rewindPreviewLoading.value = false
+    return
+  }
+  const mySeq = ++rewindPreviewSeq
+  rewindPreview.value = null
+  rewindPreviewLoading.value = true
+  try {
+    const pv = await previewTurn(target.turnSeq)
+    if (mySeq === rewindPreviewSeq) rewindPreview.value = pv
+  } catch {
+    // 降级静默：预览拿不到就不列，边界提示仍在
+  } finally {
+    if (mySeq === rewindPreviewSeq) rewindPreviewLoading.value = false
+  }
+})
+
+/** 文件路径只显示文件名——全路径在 title 里。 */
+function baseName(p: string): string {
+  return p.split('/').pop() || p
 }
 
 async function onRewindConfirm() {
@@ -702,22 +1388,72 @@ async function onRewindConfirm() {
     const parts: string[] = []
     parts.push(
       rep.restored.length
-        ? `已还原 ${rep.restored.length} 个文件`
-        : '该轮没有改动过文件',
+        ? t('已还原 {0} 个文件', [rep.restored.length])
+        : t('该轮没有改动过文件'),
     )
+    if (rep.removed.length) parts.push(t('已删除 {0} 个新建文件', [rep.removed.length]))
     parts.push(
-      rep.fork_entry_id ? '会话已重开到该消息处（新分支）' : '会话树未能重开（仅还原了文件）',
+      rep.fork_entry_id ? t('会话已重开到该消息处（新分支）') : t('会话树未能重开（仅还原了文件）'),
     )
-    if (rep.failed.length) parts.push(`${rep.failed.length} 项失败：${rep.failed.join('；')}`)
-    pushSystem(`已回到第 ${target.turnSeq} 轮之前：${parts.join('；')}。`)
+    if (rep.failed.length) parts.push(t('{0} 项失败：{1}', [rep.failed.length, rep.failed.join('；')]))
+    pushSystem(t('已回到第 {0} 轮之前：{1}。', [target.turnSeq, parts.join('；')]))
     traceLog('rewind:done', String(target.turnSeq))
   } catch (e) {
-    pushSystem(`回滚失败：${String(e)}`)
+    pushSystem(t('回滚失败：{0}', [String(e)]))
     traceLog('rewind:fail', String(e))
   } finally {
     rewinding.value = false
     rewindTarget.value = null
   }
+}
+
+/**
+ * #67 M1/M2 共用底座：把「某条 user 消息起的整轮」撤掉并重新派发。
+ *
+ * 与 G3「回到此处」同一 checkpoint 机制（还原文件 + fork 会话树），差别在
+ * 撤完之后不是留白，而是立刻用新文本重发——编辑重开带编辑后的文本，
+ * 刷新末条带原提问的文本。截断即清产物：`artifacts` 是 messages 的深 watch
+ * 扫描映射，消息没了，卡片随下一次扫描自然消失，不维护副账。
+ *
+ * 失败分层：rewindTurn 抛错落这里的 failNote（编辑/重发各有其词）；
+ * dispatch 阶段的失败 dispatchToPi 内部已落「内核未响应」进消息流，不重复报。
+ */
+const resending = ref(false)
+
+async function rollbackAndResend(
+  msg: { id: string; turnSeq?: number; text: string; attachments?: PiAttachment[]; quotes?: PiQuote[] },
+  text: string,
+  failNote: string,
+  origin: 'edit' | 'regen',
+) {
+  const seq = msg.turnSeq
+  if (!seq || streaming.value || rewinding.value || resending.value) return
+  resending.value = true
+  try {
+    await rewindTurn(seq)
+    const idx = messages.value.findIndex((m) => m.id === msg.id)
+    if (idx >= 0) messages.value.splice(idx)
+    // 专家身份取当前选择：与「现在重新发这条消息」的语义一致，不复刻历史轮身份。
+    await dispatchToPi(text, msg.attachments, expertQueue.value.slice(), msg.quotes)
+    traceLog(`resend:${origin}`, String(seq))
+  } catch (e) {
+    pushSystem(failNote)
+    traceLog(`resend:${origin}:fail`, String(e))
+  } finally {
+    resending.value = false
+  }
+}
+
+/** #67 M1：就地编辑提交 → 回滚该轮 + 用编辑后文本重派。 */
+function onEditResend(payload: { id: string; text: string }) {
+  const msg = messages.value.find((m) => m.id === payload.id)
+  if (!msg) return
+  void rollbackAndResend(msg, payload.text, t('对话编辑失败，请稍后重试'), 'edit')
+}
+
+/** #67 M2：刷新最后一条回复 → 撤该轮回复与产物，同文本重派。 */
+function onRegen(msg: { id: string; turnSeq?: number; text: string; attachments?: PiAttachment[]; quotes?: PiQuote[] }) {
+  void rollbackAndResend(msg, msg.text, t('对话重发失败，请稍后重试'), 'regen')
 }
 
 /**
@@ -731,7 +1467,8 @@ function onPlanExecute(m: {
 }) {
   if (!m.plan || m.plan.state !== 'pending' || streaming.value) return
   m.plan.state = 'executing'
-  planMode.value = false
+  // 执行轮回到默认模式（再注入计划指令会无限循环出计划）
+  workMode.value = 'agent'
   void dispatchToPi(buildExecPrompt(m.plan.task, m.plan.steps))
   traceLog('plan:execute', String(m.plan.steps.length))
 }
@@ -763,12 +1500,12 @@ async function onCompact() {
     const summary = typeof res === 'string' ? res : res?.summary ?? res?.text ?? ''
     pushSystem(
       summary
-        ? `会话已压缩。摘要：${String(summary).slice(0, 200)}`
-        : '会话已压缩，上下文窗口已释放。',
+        ? t('会话已压缩。摘要：{0}', [String(summary).slice(0, 200)])
+        : t('会话已压缩，上下文窗口已释放。'),
     )
     traceLog('compact:done')
   } catch (e) {
-    pushSystem(`压缩失败：${String(e)}`)
+    pushSystem(t('压缩失败：{0}', [String(e)]))
     traceLog('compact:fail', String(e))
   } finally {
     compacting.value = false
@@ -777,33 +1514,32 @@ async function onCompact() {
 
 async function submit() {
   const text = draft.value.trim()
-  // 允许「只发附件、不写正文」（例如「分析这张截图」直接带图）。
-  if (!text && pendingAttachments.value.length === 0) return
+  // 允许「只发附件/引用、不写正文」（例如「分析这张截图」直接带图、「看看这段」直接带引用）。
+  if (!text && pendingAttachments.value.length === 0 && pendingQuotes.value.length === 0) return
   if (!cwd.value) {
-    warn('请先在「项目」中添加并选中一个活动项目')
+    warn(t('请先在「项目」中添加并选中一个活动项目'))
     return
   }
-  const atts: PiAttachment[] = pendingAttachments.value.map((a) => ({
-    id: a.id,
-    name: a.name,
-    kind: a.kind,
-    path: a.path,
-  }))
+  const atts = attachmentsPayload()
+  const qs = pendingQuotes.value.slice()
   draft.value = ''
   pendingAttachments.value = []
+  pendingQuotes.value = []
   // G6：流式中提交 = 入队（内核 follow_up，本轮完全结束后自动执行），
   // 消息气泡照落——对话流连续，队列 chip 另行提示「排队中」。
   if (streaming.value) {
-    pushUser(text, atts)
+    pushUser(text, atts, qs)
     try {
-      await followUp(text, atts)
+      await followUp(text, atts, qs)
       traceLog('queue:follow-up', text.slice(0, 40))
     } catch (e) {
-      pushSystem(`入队失败：${String(e)}`)
+      pushSystem(t('入队失败：{0}', [String(e)]))
     }
     return
   }
-  await dispatchToPi(text, atts)
+  // 专家持续生效：发出去不清空，直到用户点 chip 的移除键才收回身份。
+  const experts = expertQueue.value.slice()
+  await dispatchToPi(text, atts, experts, qs)
 }
 
 /**
@@ -813,20 +1549,17 @@ async function submit() {
 async function onSteer() {
   const text = draft.value.trim()
   if (!text || !streaming.value || !cwd.value) return
-  const atts: PiAttachment[] = pendingAttachments.value.map((a) => ({
-    id: a.id,
-    name: a.name,
-    kind: a.kind,
-    path: a.path,
-  }))
+  const atts = attachmentsPayload()
+  const qs = pendingQuotes.value.slice()
   draft.value = ''
   pendingAttachments.value = []
-  pushUser(text, atts)
+  pendingQuotes.value = []
+  pushUser(text, atts, qs)
   try {
-    await steerTurn(text, atts)
+    await steerTurn(text, atts, qs)
     traceLog('queue:steer', text.slice(0, 40))
   } catch (e) {
-    pushSystem(`插话失败：${String(e)}`)
+    pushSystem(t('插话失败：{0}', [String(e)]))
   }
 }
 
@@ -840,7 +1573,7 @@ async function onClearQueue() {
     }
     traceLog('queue:clear', String(restored.length))
   } catch (e) {
-    pushSystem(`清空队列失败：${String(e)}`)
+    pushSystem(t('清空队列失败：{0}', [String(e)]))
   }
 }
 
@@ -860,36 +1593,89 @@ function onEnter(e: KeyboardEvent) {
 
 watch(cwd, async (v) => {
   if (!v) return
+  const startedAt = performance.now()
   // 启动失败不能静默：静默之后用户点发送就是「毫无反应」，且无从排查。
   await start(v).catch((e) => {
-    warn(`Pi 内核启动失败：${String(e)}`)
+    warn(t('Pi 内核启动失败：{0}', [String(e)]))
     traceLog('kernel:start-fail', String(e))
   })
+  traceLog('boot:kernel-start', `${Math.round(performance.now() - startedAt)}ms`)
   traceLog('kernel:started', v)
   // 内核重启后 thinking level 会回到默认，落一次当前选择保持一致。
   await applyThinking()
-  // 首页「先选目录再发送」：目录一就位就把暂存的那句补发出去。
+  // 首页「先选目录再发送」：目录一就位就把暂存的那句补发出去（专家、附件一起带上）。
   const pending = pendingHero.value
+  const pendingExperts = pendingHeroExperts.value
+  const pendingAtts = pendingHeroAtts.value.map(({ id, name, kind, path, size }) => ({ id, name, kind, path, size }))
   pendingHero.value = ''
-  if (pending) await dispatchToPi(pending)
+  pendingHeroExperts.value = []
+  pendingHeroAtts.value = []
+  if (pending || pendingAtts.length) await dispatchToPi(pending, pendingAtts.length ? pendingAtts : undefined, pendingExperts)
 })
 
-/** 首页「快速/标准/深度」→ 内核 thinking level。三档语义固定，不做花哨映射。 */
-const MODE_LEVEL: Record<string, string> = { 快速: 'low', 标准: 'medium', 深度: 'high' }
-const LEVEL_MODE: Record<string, string> = { low: '快速', medium: '标准', high: '深度' }
-const thinkingLevel = ref('medium')
-/** 反向映射：选完项目进入对话后，头部仍能显示/切换当前档位。 */
-const modeLabel = computed(() => LEVEL_MODE[thinkingLevel.value] ?? '标准')
-
 /**
- * G5 计划模式：开启时发送的任务先带计划指令前缀（内核先出分步计划、不动工具），
- * 该轮回复落定后消息流渲染计划卡，用户点「开始执行」才发执行 prompt。
- * 与 thinking level 正交——一个管「想多深」，一个管「先审后做」。
+ * 工作模式（1:1 WorkBuddy：默认/计划/仅问答，互斥）：
+ * - plan：发送的任务先带计划指令前缀（内核先出分步计划、不动工具），
+ *   该轮回复落定后消息流渲染计划卡，用户点「开始执行」才发执行 prompt；
+ * - ask：只答不动手前缀，不产生计划卡；
+ * - agent：不加前缀，正常执行。
+ * 与 thinking level 正交——一个管「想多深」，一个管「先审后做 / 只说不做」。
+ * 状态只有一份，选择入口是输入框「+」菜单（顶栏不再有独立 plan-toggle）。
  */
-const planMode = ref(false)
+const workMode = ref<WorkMode>('agent')
+/** 兼容旧引用：plan 分支判定仍读 planMode（执行后自动回 agent）。 */
+const planMode = computed(() => workMode.value === 'plan')
 
-/** G6：队列总数（steer 插话 + follow_up 排队），驱动 composer 上方队列 strip。 */
-const queueTotal = computed(() => queue.value.steering.length + queue.value.followUp.length)
+/** 「+」菜单技能行回插：斜杠命令进草稿，用户补一句上下文再发。 */
+function onComposerInsert(text: string) {
+  draft.value = draft.value.trim() ? `${draft.value.trim()}\n${text}` : text
+}
+
+/*
+ * #69 M7 队列变更编排：QueueStrip 把拖拽/↑↓/删除翻译成 QueueMutation 抛上来，
+ * 统一走 applyQueueOp（clear→快照→变更→按新序重发）。坐标系是扁平索引
+ * （steer 段在前），索引以「最近一次 clear 快照」为底，不依赖 UI 数组——
+ * 毫秒窗口内两者可能错位，越界由 mutateQueueSnapshot 判 null 回退原序。
+ */
+/** 变更统一出口：失败不静默——落消息流，strip 由 queue_update 回推自愈。 */
+async function runQueueOp(mutation: QueueMutation) {
+  try {
+    await applyQueueOp(mutation)
+    traceLog('queue:op', mutation.kind)
+  } catch (e) {
+    pushSystem(t('队列操作失败：{0}', [String(e)]))
+  }
+}
+
+const queueEditAt = ref<number | null>(null)
+const queueEditDraft = ref('')
+const queueEditInvalid = ref(false)
+const queueEditSaving = ref(false)
+
+function queueEditOpen(at: number) {
+  queueEditAt.value = at
+  // 预填只含正文——附件/引用标记块在保存时原样带回，不让用户看见标记语法
+  queueEditDraft.value = splitPromptBody(queueEntries(queue.value)[at]?.body ?? '').text
+  queueEditInvalid.value = false
+}
+
+async function queueEditSave() {
+  const at = queueEditAt.value
+  if (at === null || queueEditSaving.value) return
+  const text = queueEditDraft.value.trim()
+  if (!text) {
+    queueEditInvalid.value = true
+    return
+  }
+  // 只换正文：原条目携带的附件/引用标记块解析出来，buildPrompt 原样重组带回。
+  const orig = queueEntries(queue.value)[at]?.body ?? ''
+  const parts = splitPromptBody(orig)
+  const body = buildPrompt(text, parts.attachments, parts.quotes)
+  queueEditSaving.value = true
+  await runQueueOp({ kind: 'edit', at, body })
+  queueEditSaving.value = false
+  queueEditAt.value = null
+}
 
 async function applyThinking() {
   if (!cwd.value) return
@@ -897,7 +1683,7 @@ async function applyThinking() {
 }
 
 function setMode(mode: string) {
-  thinkingLevel.value = MODE_LEVEL[mode] ?? 'medium'
+  setThinkingMode(mode)
   void applyThinking()
 }
 
@@ -909,13 +1695,46 @@ async function ensureDefaultRole() {
 }
 
 onMounted(async () => {
+  // 首屏阶段打点：与 Rust 侧 [boot] 对齐，定位卡顿落在前端哪一段。
+  const bootAt = performance.now()
+  const bootMark = (stage: string) =>
+    traceLog(`boot:${stage}`, `${Math.round(performance.now() - bootAt)}ms`)
   // 独立回放窗口：先消费 query 段号（权威目标），再做常规初始化。
   void consumeReplayQuery()
+  // 深链直达工作区抽屉（项目工作台「并行工作区」入口带 ?panel=worktree）。
+  if (route.query.panel === 'worktree') openWorktreePanel()
   await ensure()
+  bootMark('ensure')
   await loadActive()
+  bootMark('loadActive')
   await ensureDefaultRole()
+  bootMark('defaultRole')
   stopArtifacts = autoArtifacts(messages, streaming)
+  bootMark('mounted')
+  // 团队面板「重放此节点」深链：内核就绪后发一条 prompt，让 Pi 调 team_replay 工具。
+  void consumeTeamReplayQuery()
 })
+
+/**
+ * 节点级重放深链（TeamsView 的重放按钮带 ?teamReplay=<id>&member=<key>&run=<id>）。
+ * 不直接 invoke 扩展工具（Pi 没有反向 RPC）；发一句明确的 prompt 让 agent 调
+ * team_replay。query 消费后立即 replace 掉，刷新页面不会重复触发。
+ */
+async function consumeTeamReplayQuery() {
+  const team = String(route.query.teamReplay ?? '').trim()
+  const member = String(route.query.member ?? '').trim()
+  const run = String(route.query.run ?? '').trim()
+  if (!team || !member) return
+  await router.replace({ path: '/chat', query: {} })
+  if (streaming.value) {
+    warn(t('本轮还在执行中，等结束后再从团队面板重放节点。'))
+    return
+  }
+  const prompt = run
+    ? t('调用 team_replay 工具重放团队 {0} 的成员 {1}（运行 {2}），并把结果告诉我。', [team, member, run])
+    : t('调用 team_replay 工具重放团队 {0} 的成员 {1}（最近一次运行），并把结果告诉我。', [team, member])
+  void send(prompt)
+}
 
 /**
  * G4：会话持久化回放。内核是 --no-session（内存态），但 journal 落了全量事件；
@@ -932,10 +1751,10 @@ let replayDone = false
  * tryReplay 必须让位——窗口里可能没有选中项目，而 query 给出的
  * 段号 + 目录才是权威目标，不能被活动项目的「最近一次会话」覆盖。
  */
-let queryReplayActive = false
+const queryReplayActive = ref(false)
 async function tryReplay() {
   const dir = cwd.value
-  if (!dir || replayDone || queryReplayActive || messages.value.length > 0) return
+  if (!dir || replayDone || queryReplayActive.value || messages.value.length > 0) return
   const rep = await loadReplay(undefined, dir)
   if (!rep.messages.length) return
   replayDone = true
@@ -952,7 +1771,7 @@ watch(cwd, () => void tryReplay(), { immediate: true })
 const loadingHistory = ref(false)
 async function openRunRecord(index: number) {
   if (streaming.value) {
-    warn('本轮还在执行中，等它结束后再打开历史会话。')
+    warn(t('本轮还在执行中，等它结束后再打开历史会话。'))
     return
   }
   if (loadingHistory.value) return
@@ -960,11 +1779,12 @@ async function openRunRecord(index: number) {
   try {
     const rep = await loadReplay(undefined, cwd.value || undefined, index)
     if (!rep.messages.length) {
-      warn('这条记录没有可重建的消息（可能只剩内核启动标记）。')
+      warn(t('这条记录没有可重建的消息（可能只剩内核启动标记）。'))
       return
     }
     replayDone = true
     messages.value = rep.messages
+    activeReplayIndex.value = index
     traceLog('history:open', String(index))
   } finally {
     loadingHistory.value = false
@@ -995,16 +1815,16 @@ watch(
 async function consumeReplayQuery() {
   const target = parseReplayQuery(route.query)
   if (!target) return
-  queryReplayActive = true
+  queryReplayActive.value = true
   if (streaming.value) {
-    warn('本轮还在执行中，等它结束后再打开历史会话。')
+    warn(t('本轮还在执行中，等它结束后再打开历史会话。'))
     return
   }
   loadingHistory.value = true
   try {
     const rep = await loadReplay(undefined, target.cwd || cwd.value || undefined, target.index)
     if (!rep.messages.length) {
-      warn('这条记录没有可重建的消息（可能只剩内核启动标记）。')
+      warn(t('这条记录没有可重建的消息（可能只剩内核启动标记）。'))
       return
     }
     replayDone = true
@@ -1018,6 +1838,14 @@ async function consumeReplayQuery() {
 onUnmounted(() => {
   stopArtifacts?.()
   stopArtifacts = null
+  // M10：窗口级拖拽监听随组件生命周期摘除，不留给下一挂载实例双份回调。
+  // dragDisposed 先置位：initDragDrop 是异步的，若 promise 还没落地就卸载，
+  // unlistenDrag 仍是 null，靠这个标志让回调落地时自我摘除。
+  dragDisposed = true
+  unlistenDrag?.()
+  unlistenDrag = null
+  // #69：粘贴监听同随生命周期摘除（与拖拽同一窗口级监听的纪律）。
+  window.removeEventListener('paste', onPasteImage)
 })
 </script>
 

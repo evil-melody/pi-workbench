@@ -4,7 +4,13 @@ graphify-out
 node_modules
 .visual-check
 dist
+# 本机运行状态与工具缓存，不入库
+.pi/
+.trae-html-share-packages/
 src-tauri/target
 src-tauri/gen
 # Vite 配置文件加载器留下的临时产物（每个进程一份，vite.config.ts / vitest.config.ts 都会生成）
 *.timestamp-*.mjs
+# UI 巡检/压测截图与实测 JSON：本机证据，不入库（同 .visual-check）
+docs/ui-redo-2026-11-10/
+docs/ui-stress-2026-11-10/

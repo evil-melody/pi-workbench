@@ -20,10 +20,7 @@ pub struct ToolSet {
 /// Pi 自身没有把工具集暴露成 RPC 命令，因此「注入 Pi」在这里落到同一份配置上：
 /// 写入白名单后需重启内核（`pi_start`）才会生效。
 fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| e.to_string())?;
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir.join("settings.json"))
 }
@@ -59,11 +56,7 @@ fn assert_injectable() -> Result<(), String> {
 }
 
 #[tauri::command(async)]
-pub fn tools_activate(
-    app: AppHandle,
-    tools: Vec<String>,
-    enable: bool,
-) -> Result<ToolSet, String> {
+pub fn tools_activate(app: AppHandle, tools: Vec<String>, enable: bool) -> Result<ToolSet, String> {
     if tools.iter().any(|t| t.trim().is_empty()) {
         return Err("工具名不能为空".into());
     }
@@ -82,8 +75,11 @@ pub fn tools_activate(
             .map(|s| serde_json::Value::String(s.clone()))
             .collect(),
     );
-    fs::write(&settings, serde_json::to_string_pretty(&json).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+    fs::write(
+        &settings,
+        serde_json::to_string_pretty(&json).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
 
     next.sort();
     Ok(ToolSet {
@@ -144,8 +140,11 @@ pub fn write_active(app: &AppHandle, tools: &[String]) -> Result<Vec<String>, St
             .map(|s| serde_json::Value::String(s.clone()))
             .collect(),
     );
-    fs::write(&settings, serde_json::to_string_pretty(&json).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+    fs::write(
+        &settings,
+        serde_json::to_string_pretty(&json).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     Ok(next)
 }
 
@@ -253,7 +252,10 @@ mod tests {
 
     #[test]
     fn merge_keeps_everything_else_when_deactivating() {
-        let current: Vec<String> = ["read", "bash", "tmp"].iter().map(|s| s.to_string()).collect();
+        let current: Vec<String> = ["read", "bash", "tmp"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         let after = merge_active(&current, &["tmp".into()], false);
         assert_eq!(after.len(), 2);
         let added = merge_active(&["read".into()], &["read".into(), "z".into()], true);

@@ -11,6 +11,10 @@ use crate::net::{fetch_text, require_http_url};
 ///
 /// `enabled` 不是一份独立的开关状态，而是「它的工具是否落在 settings.json 的
 /// `defaultTools` 里」——因此 UI 显示的启用态与内核实际行为一致，不会出现两处各说各话。
+///
+/// `loaded` 是另一层：扩展文件是否物理在 `extensions/` 目录里。pi 0.87.1 内核
+/// **无条件自动加载 agent 目录下全部扩展**（`-ne` 也只关发现，传 `-e` 仍加载），
+/// 所以「不加载某个扩展」的唯一诚实做法是把文件移出该目录——见 `extensions_set_enabled`。
 #[derive(Debug, Clone, Serialize)]
 pub struct ExtensionInfo {
     pub id: String,
@@ -21,6 +25,21 @@ pub struct ExtensionInfo {
     pub path: String,
     pub tools: Vec<String>,
     pub enabled: bool,
+    /// 扩展文件当前是否在加载目录（停用项在 extensions-disabled/）。
+    pub loaded: bool,
+    /// 是否可从本机删除（manifest 声明的默认扩展只读，只能停用不能删）。
+    pub removable: bool,
+}
+
+/// 停用扩展的隔离目录：与 `extensions/` 同级，内核不会发现它。
+fn disabled_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| e.to_string())?
+        .join("extensions-disabled");
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir)
 }
 
 /// 头部注释里的 `@key: value` 行。
@@ -133,7 +152,10 @@ fn extension_name_from_url(url: &str) -> Option<String> {
     if stem.is_empty() || stem.len() > NAME_MAX {
         return None;
     }
-    if !stem.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+    if !stem
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
         return None;
     }
     Some(stem.to_string())
@@ -187,8 +209,14 @@ pub fn seed_defaults(app: &AppHandle) -> Result<(), String> {
     };
     let target = extensions_dir(app)?;
     let sources = extension_source_dirs(app);
+    // 用户停用（移入 extensions-disabled/）的默认扩展不能再被 seed 复制回来——
+    // 否则「停用」在下次启动就失效，开关就是假的。
+    let disabled = disabled_dir(app)?;
 
     for id in &manifest.extensions {
+        if id.ends_with(".ts") && disabled.join(id).exists() {
+            continue;
+        }
         sync_default_file(&sources, id, &target)?;
     }
     Ok(())
@@ -224,29 +252,65 @@ fn sync_default_file(sources: &[PathBuf], id: &str, target: &Path) -> Result<(),
     Ok(())
 }
 
-/// 扫描能力清单声明的 extension，产出前端可直接渲染的清单。
+/// 清单 id 的唯一真源：manifest 声明项 ∪ 加载目录实际文件 ∪ 停用目录实际文件。
 ///
-/// 清单里写的是文件名，`extensions/` 下才是实体；文件不可读时退化为占位条目，
-/// 让 UI 能明确显示「声明了但读不到」而不是静默消失。
+/// 原先只列 manifest，导致「从链接安装」的扩展落盘后永远不进 UI（真 bug）——
+/// 装完返回找不到就报「读取失败」，但文件其实在。这里改成联合，加载态由文件位置判定。
+fn extension_ids(app: &AppHandle) -> Vec<String> {
+    let declared = CapabilityManifest::discover()
+        .map(|m| m.extensions)
+        .unwrap_or_default();
+    collect_ids(
+        &declared,
+        &[extensions_dir(app), disabled_dir(app)].into_iter().flatten().collect::<Vec<_>>(),
+    )
+}
+
+/// 纯函数：声明项 ∪ 各目录实际 `.ts` 文件，去重排序。与文件 IO/AppHandle 解耦，便于单测。
+fn collect_ids(declared: &[String], dirs: &[PathBuf]) -> Vec<String> {
+    let mut out = declared.to_vec();
+    for dir in dirs {
+        if let Ok(entries) = fs::read_dir(dir) {
+            for e in entries.flatten() {
+                let name = e.file_name().to_string_lossy().into_owned();
+                if name.ends_with(".ts") && !out.contains(&name) {
+                    out.push(name);
+                }
+            }
+        }
+    }
+    out.sort();
+    out
+}
+
+/// 扫描能力清单声明的 extension + 目录里实际落盘的扩展，产出前端可直接渲染的清单。
+///
+/// 文件不可读时退化为占位条目，让 UI 能明确显示「声明了但读不到」而不是静默消失。
 pub fn list(app: &AppHandle) -> Vec<ExtensionInfo> {
-    let Some(manifest) = CapabilityManifest::discover() else {
-        return Vec::new();
-    };
+    let ids = extension_ids(app);
     let dir = match extensions_dir(app) {
         Ok(d) => d,
         Err(_) => return Vec::new(),
     };
+    let disabled = disabled_dir(app).unwrap_or_else(|_| dir.clone());
     let active = crate::tools::active_tools(app);
+    let declared = CapabilityManifest::discover()
+        .map(|m| m.extensions)
+        .unwrap_or_default();
 
-    manifest
-        .extensions
-        .iter()
+    ids.into_iter()
         .map(|id| {
-            let path = dir.join(id);
-            match std::fs::read_to_string(&path) {
-                Ok(source) => {
-                    let header = source.splitn(2, "*/").next().unwrap_or("").to_string();
-                    let (tools, commands) = registered_names(&source);
+            let path = dir.join(&id);
+            let loaded = path.exists() && path.is_file();
+            let source = if loaded {
+                &path
+            } else {
+                &disabled.join(&id)
+            };
+            match std::fs::read_to_string(source) {
+                Ok(text) => {
+                    let header = text.splitn(2, "*/").next().unwrap_or("").to_string();
+                    let (tools, commands) = registered_names(&text);
                     let name = header_field(&header, "name")
                         .or_else(|| header_summary(&header))
                         .unwrap_or_else(|| {
@@ -256,7 +320,9 @@ pub fn list(app: &AppHandle) -> Vec<ExtensionInfo> {
                                     let mut chars = part.chars();
                                     chars
                                         .next()
-                                        .map(|c| c.to_uppercase().collect::<String>() + chars.as_str())
+                                        .map(|c| {
+                                            c.to_uppercase().collect::<String>() + chars.as_str()
+                                        })
                                         .unwrap_or_default()
                                 })
                                 .collect::<Vec<String>>()
@@ -274,15 +340,12 @@ pub fn list(app: &AppHandle) -> Vec<ExtensionInfo> {
                         id: id.clone(),
                         name,
                         description,
-                        kind: if tools.is_empty() {
-                            "command"
-                        } else {
-                            "tool"
-                        }
-                        .to_string(),
-                        path: path.to_string_lossy().into_owned(),
+                        kind: if tools.is_empty() { "command" } else { "tool" }.to_string(),
+                        path: source.to_string_lossy().into_owned(),
                         tools: bound,
-                        enabled: is_enabled(&tools, &active),
+                        enabled: loaded && is_enabled(&tools, &active),
+                        loaded,
+                        removable: !declared.contains(&id),
                     }
                 }
                 Err(_) => ExtensionInfo {
@@ -290,9 +353,11 @@ pub fn list(app: &AppHandle) -> Vec<ExtensionInfo> {
                     name: id.clone(),
                     description: "未提供（扩展文件不可读）".into(),
                     kind: "unknown".into(),
-                    path: path.to_string_lossy().into_owned(),
+                    path: source.to_string_lossy().into_owned(),
                     tools: Vec::new(),
                     enabled: false,
+                    loaded,
+                    removable: !declared.contains(&id),
                 },
             }
         })
@@ -329,6 +394,63 @@ pub async fn extensions_install_from_url(
         .ok_or_else(|| "扩展已落盘但读取失败，请检查文件是否完整".to_string())
 }
 
+/// 加载开关：把 `.ts` 文件在 `extensions/` 与 `extensions-disabled/` 之间搬运。
+///
+/// 不写 settings.json 的负项（pi 0.87.1 不认这一版语法），也不留副账——文件位置本身就是状态。
+/// 内核下次启动才看到变更，返回最新清单让 UI 立即收敛。
+#[tauri::command(async)]
+pub fn extensions_set_enabled(
+    app: AppHandle,
+    id: String,
+    enabled: bool,
+) -> Result<Vec<ExtensionInfo>, String> {
+    if !id.ends_with(".ts") || id.contains('/') || id.contains('\\') || id.len() > NAME_MAX + 3 {
+        return Err("扩展 id 非法".into());
+    }
+    let on = extensions_dir(&app)?;
+    let off = disabled_dir(&app)?;
+    let (from, to) = if enabled { (&off, &on) } else { (&on, &off) };
+    let src = from.join(&id);
+    if !src.is_file() {
+        // 目标态已成立（重复点击/外部已改动）→ 幂等返回，不报错。
+        if to.join(&id).is_file() {
+            return Ok(list(&app));
+        }
+        return Err(format!("扩展文件不存在: {id}"));
+    }
+    fs::rename(&src, to.join(&id)).map_err(|e| format!("切换扩展状态失败: {e}"))?;
+    Ok(list(&app))
+}
+
+/// 卸载：删除已安装扩展的文件。manifest 声明的默认扩展只读（只能停用），防止
+/// seed_defaults 下次启动又复制回来造成「删了又出现」的假象。
+#[tauri::command(async)]
+pub fn extensions_remove(app: AppHandle, id: String) -> Result<Vec<ExtensionInfo>, String> {
+    if !id.ends_with(".ts") || id.contains('/') || id.contains('\\') || id.len() > NAME_MAX + 3 {
+        return Err("扩展 id 非法".into());
+    }
+    let declared = CapabilityManifest::discover()
+        .map(|m| m.extensions)
+        .unwrap_or_default();
+    if declared.contains(&id) {
+        return Err("内置扩展不能删除，只能停用".into());
+    }
+    let on = extensions_dir(&app)?;
+    let off = disabled_dir(&app)?;
+    let mut removed = false;
+    for dir in [&on, &off] {
+        let path = dir.join(&id);
+        if path.is_file() {
+            fs::remove_file(&path).map_err(|e| format!("删除扩展失败: {e}"))?;
+            removed = true;
+        }
+    }
+    if !removed {
+        return Err(format!("扩展不存在: {id}"));
+    }
+    Ok(list(&app))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -341,6 +463,45 @@ registerTool("search_symbols", "列出符号", { async handler() {} });
 registerTool("search_text", "全文检索", { async handler() {} });
 registerCommand("search", "find", {});
 "#;
+
+    #[test]
+    fn collect_ids_unions_declared_and_disk_files() {
+        let tmp = std::env::temp_dir().join(format!("pw-ext-ids-{}", std::process::id()));
+        let on = tmp.join("on");
+        let off = tmp.join("off");
+        fs::create_dir_all(&on).unwrap();
+        fs::create_dir_all(&off).unwrap();
+        fs::write(on.join("from-url.ts"), "// x").unwrap();
+        fs::write(off.join("disabled.ts"), "// x").unwrap();
+        fs::write(on.join("notes.txt"), "// not an extension").unwrap();
+
+        let declared = vec!["builtin.ts".to_string(), "from-url.ts".to_string()];
+        let ids = collect_ids(&declared, &[on.clone(), off.clone()]);
+        assert_eq!(
+            ids,
+            vec![
+                "builtin.ts".to_string(),
+                "disabled.ts".to_string(),
+                "from-url.ts".to_string(),
+            ],
+            "声明项 ∪ 两目录 .ts 文件，去重排序，非 .ts 不进清单"
+        );
+        fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn extension_id_validates_path_traversal() {
+        let valid = |id: &str| {
+            id.ends_with(".ts")
+                && !id.contains('/')
+                && !id.contains('\\')
+                && id.len() <= NAME_MAX + 3
+        };
+        assert!(valid("my-ext.ts"));
+        assert!(!valid("../../evil.ts"));
+        assert!(!valid("sub/ext.ts"));
+        assert!(!valid("notes.txt"));
+    }
 
     #[test]
     fn reads_tool_and_command_names() {
