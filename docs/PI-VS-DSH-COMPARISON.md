@@ -115,18 +115,18 @@ Pi agent runtime 执行（调用 extension 注册的 tool / 内部能力）
 | 4 | **项目管理** | 集中管理任务/计划/资产/活动 ✅ | projects.rs + useProject ✅ | 对等 |
 | 5 | **本地资料库** | 导入/浏览/搜索/预览，引用修订 ✅ | LibraryPanel + library.rs（树/发布/回滚/检索/记忆 tab）✅ | 已对等 |
 | 6 | **技能 Skills** | 安装可复用技能，发布专家配置 ✅ | agent-skill-pool（SKILL.md 池）+ skills 管理 ✅ | 基本对等 |
-| 7 | **专家 Experts** | 固定能力修订的专家配置 ✅ | RoleSwitcher/role-inject 扩展 🟡 | 轻量，未做成市场级 |
+| 7 | **专家 Experts** | 固定能力修订的专家配置 ✅ | 能力中心专家 tab（左列表+右编辑+导入+头像+发布态+市场池）✅ | 已对等（§5.14 勘误：原记 RoleSwitcher 时代） |
 | 8 | **连接器 / MCP** | 配置 MCP 服务，明确选择能力 ✅ | ConnectorPanel（列表/启停/按会话选择/注入内核白名单 + 孤儿 MCP 工具）✅ | 已对等 |
 | 9 | **会话树 / 多轮编排** | 多步拆解、中间结果、中断恢复 ✅ | Pi 会话树 `get_tree`/`fork` ✅ | 对等 |
 | 10 | **多智能体 / 团队** | 专家团（名称展示，未必多成员真跑） | agent-teams（成员+策略+调度日志）✅ | pi 有真实 team 定义 |
-| 11 | **长期记忆** | graph-memory（知识图谱+PageRank，token↓75%） | agent-memory（ts/text/tags 追加流）🟡 | pi 为简单 jsonl，缺图谱召回 |
+| 11 | **长期记忆** | graph-memory（知识图谱+PageRank，token↓75%） | agent-memory（ts/text/tags 追加流）+ LanceDB 语义向量检索（B5）✅ | 词面+语义双通道；图谱形态不同，不缺召回 |
 | 12 | **视觉 / 多模态** | ModLens（结构化 JSON 证据，6 provider failover） | 输出侧有（browser_screenshot / ArtifactPreview image / useOfficePreview）🟡；**输入侧已接**：ChatView 附件入口 + `attachment_add` 落盘 + 路径引用块喂 Pi（真·视觉理解待内核支持 content block） | 🟡 输入已接 / 真视觉待内核 |
 | 13 | **浏览器自动化** | dsh-browser（接管已登录 Chrome，序列化 DOM） | agent-browser-session（开真实浏览器+状态）🟡 | pi 偏外部跳转，缺 DOM 注入 |
 | 14 | **代码库索引** | 未见于公开 dsh 生态（属第三方可写） | **agent-codebase**（codebase-memory-mcp 索引+检索）✅ | **pi 独有，已实测 3130 节点/8836 边** |
 | 15 | **文档/Office 产出** | Office/PDF 工作副本预览编辑 ✅ | useOfficePreview（docx-preview / SheetJS 真实库，docx+xlsx 预览）✅；pptx/pdf 仅外开 | 已对等 |
 | 16 | **活动/过程可见性** | 官方 0.2.0 改进对话状态展示 | ComposerStatus 常驻状态行 + 过程抽屉 ✅ | pi 更强调「有没有在跑」 |
 | 17 | **会话导入/迁移** | dsh-chat-import（16+ 工具全导入） | ✅ `conversation_export/import` + 版本化 JSON + 严格校验 + UI | 已对等 |
-| 18 | **插件市场/发现** | dsh-market（1550+ 插件可视化市场）+ dsh-find-plugins | PluginsView（发现/标签/搜索/启禁/直链安装/诊断）✅；社区服务端暂无 🟡 | 已对等（缺中心化服务端） |
+| 18 | **插件市场/发现** | dsh-market（1550+ 插件可视化市场）+ dsh-find-plugins | PluginsView（发现/标签/搜索/启禁/直链安装/诊断）+ Pi 托管包透传（`pi install/list/update/remove`，V18）+ 生态四卡一键装 ✅ | 已对等（服务端仍无，客户端透传 pi 官方源） |
 | 19 | **桌宠娱乐层** | Awesome DSH Pet | ❌ 无 | 非核心，缺口可接受 |
 | 20 | **自更新/打包** | 应用内自更新，Win/macOS/deb/rpm/Flatpak | Tauri 打包（前几轮验证过构建）🟡 | 自更新未接入 |
 | 21 | **模型后端** | DeepSeek 系默认，可接公司模型 | 可配 provider/model/api_key（models.rs）✅ | 对等，pi 不绑死厂商 |
@@ -227,12 +227,14 @@ Pi agent runtime 执行（调用 extension 注册的 tool / 内部能力）
 
 ### 5.3 未对齐 / 留待后续
 
-| 项 | 原因 |
-|---|---|
-| dsh 统计行的 `LLM {duration}` / `首 token 平均 {duration}` / `{throughput} tok/s` | 内核 `Usage` 只有 token/cost 字段，**没有逐轮时间戳**；拿不到就不编。要做得补 `turn_start/end` 计时或前端自计时间 |
-| 回复末尾反馈行（赞/踩、复制全文） | 复制已在 §5.6 落地；赞/踩经实证 dsh 也无此图标，且本仓无反馈落库 → 不做 |
-| Session log 导出为可读文本 | 现有 `conversation_export` 是迁移用 JSON，非 dsh 那种逐轮日志 |
-| todo 投影卡（计划卡之外的待办清单） | 现只有 G5 计划卡，内核 todo 事件未接 |
+> **状态勘误（2026-11-23，§5.14 核对）**：本表撰写于 10-31，四项中三项的状态已变化，按当前代码修正如下；表保留原文语义，标注以 §5.14 为准。
+
+| 项 | 原因 | 当前状态 |
+|---|---|---|
+| dsh 统计行的 `LLM {duration}` / `首 token 平均 {duration}` / `{throughput} tok/s` | 内核 `Usage` 只有 token/cost 字段，**没有逐轮时间戳**；拿不到就不编。要做得补 `turn_start/end` 计时或前端自计时间 | **部分已落地**：桥侧 `pi_run` 已给每条事件打 `pi_ts` + run/span 信封，RunGraph 逐节点画环节耗时（model 段 = LLM 耗时），头部画全程耗时——撰写时「没有时间戳」的前提已失效。**仍缺**：首 token 到达时刻与逐轮 token 速率内核不给事件，无数据源，继续不编 |
+| 回复末尾反馈行（赞/踩、复制全文） | 复制已在 §5.6 落地；赞/踩经实证 dsh 也无此图标，且本仓无反馈落库 → 不做 | 不变 |
+| Session log 导出为可读文本 | 现有 `conversation_export` 是迁移用 JSON，非 dsh 那种逐轮日志 | **已收口（§5.14）**：顶栏「转写」键 → `formatConversationLog` 纯函数 + `exportConversationLog`，落 `.txt` 走同一个 `conversation_export` |
+| todo 投影卡（计划卡之外的待办清单） | 现只有 G5 计划卡，内核 todo 事件未接 | **已落地**：`todoList.ts` 从 assistant 回复的 markdown 复选框解析任务，`WorkflowPanel` 接进轨迹抽屉「工作流」页签——设计上不依赖内核 todo 事件（内核没有这种事件），直接读模型已写出来的清单 |
 
 ### 5.4 本轮显示细化（2026-10-31 第二轮，取值来自 `/tmp/dsh-ui` 编译 CSS）
 
@@ -442,6 +444,32 @@ Pi agent runtime 执行（调用 extension 注册的 tool / 内部能力）
 - **页面壳定律（同批，用户「一个页面一个页面的样式也要修正」）**：宽屏逐页审查发现内容页壳封顶宽三种口径并存——ui-kit `.page-inner` 用 `--page-max` 1280、agent-ops 家族硬编码 1100、能力中心/收件箱/插件/资料库/项目工作台**完全不封顶**铺满窗口。统一为：所有内容页壳 `max-width: var(--page-max); margin: 0 auto`（`.wd-market` / `.inbox-view` / `.wd-community` / `.wd-library` / `.pw` / `.agent-ops`），`.wd-p-center` 与 `.page-inner` 本就合规。agent-ops 的嵌入式豁免（`max-width: none`，宿主已封顶）不变。新增 1800 宽视口断言两条：七页统一封顶 + 边线同线（实测全部 390→1670，误差 0px）。
 - **资料库 master-detail 空态**（同批发现）：未选中文件时 `.lib-body` 只剩 280px 目录树，右侧整片裸底——补 `v-else` 占位节（`.lib-preview.lib-preview-empty`，与骨架态同构复用 `.preview-binary` 形态），宽屏实测右栏 920px 填满。
 - **闸门**：visual-check 330/330 · vitest 555 · verify:pages 84 张无缺陷 · typecheck 0 错 · build ✓。
+
+### 5.14 第十二轮：本文档未尽项逐条核对与收口（2026-11-23，#98）
+
+用户问「之前的 md 里面的改造是否全面完成」。本轮把 §2/§3/§5.3/§5.4/§5.10/§5.11 的全部「未尽 / 未对齐 / 留待后续」标记逐条对到当前代码，结论分三类：
+
+**一、已落地但文档未回写（勘误，零代码改动）**
+
+| 标记 | 核实结果 |
+|---|---|
+| §5.3 todo 投影卡 | `todoList.ts` + `WorkflowPanel` 已接轨迹抽屉「工作流」页签（解析 markdown 复选框，不依赖内核 todo 事件） |
+| §5.3 LLM 耗时 | 桥侧 `pi_run` 已给每条事件打 `pi_ts` + run/span 信封；RunGraph 逐节点画环节耗时、头部画全程耗时——「没有逐轮时间戳」的前提已失效。首 token / tok/s 内核仍无数据源，继续不编 |
+| §5.10 右列 header 两行 | 批 4 P1-6 已 `nowrap` 收单行，并有「pill ≤36 / 控制组 ≤36 / header ≤64 + 中心线重合」几何断言锁定 |
+| §5.10 Sidebar 裸字号 | `layout/Sidebar.css` grep `15px/13.5px/12.5px` 0 命中 |
+| §2 #7 专家 / #11 记忆 / #18 插件 | 能力中心专家市场（列表+编辑+导入+头像+发布+市场池）、LanceDB 语义检索（B5）、Pi 托管包透传（V18）均已落地——表格三行已勘误 |
+
+**二、本轮收口的真缺口**
+
+1. **Session log 可读导出（§5.3）**：顶栏 io 组新增「转写」键（`doc` 图标），`src/utils/conversationLog.ts` 纯函数 `formatConversationLog`（头行元信息 + 逐条「角色 · 时刻 + 缩进正文 + 工具/附件行」，缺 `at` 不画时间——与 `.ta-clock` 同口径的数据诚实），`useConversationIO.exportConversationLog` 走 `plugin-dialog save(.txt)` → 同一个 `conversation_export` 落盘（后端透传不猜格式，零新命令）。浏览器模式回落剪贴板，与 JSON 导出对称。顺带修 `toConv` 漏映射 `ts → at`（§5.12 起消息带本地时刻，JSON/转写都该有）+ 导入回填 `ts`（导出/导入往返对称）。
+2. **`splitExitCode` 漏内核实证写法（§5.11 升级路径收口）**：内核 0.87.x 失败输出实为 `\n\nCommand exited with code ${exitCode}`（`chunk-OJP47DM6.js` 实证），旧正则的 `\s*` 吃不掉行首 `Command ` 前缀——唯一实证写法反而接不住。正则补 `(?:command\s+)?exited with code` 与 `command failed with exit code` 两候选；结构化 `exitCode` 只进 journal 的 bashExecution 记录、不进 RPC 事件流，文本锚定就是唯一口径（注释已写明）。stub 同步改用内核真实文案（带正文 + 空行 + 退出码），让桩走实证路径。
+
+**三、确认边界不动的项**
+
+- §3 #6 自更新 / 桌宠：低优先级维持后置；#13 浏览器 DOM 注入属 pi 生态包（`pi-web-access` 已可一键装），不在本仓重建（V18 透传铁律）；#12 真·视觉理解等内核 content block，属内核侧。
+- §5.4 工具摘要语义化 / §5.6-§5.12 各轮：全部已在代码与断言里，无回退。
+
+**闸门**：typecheck 0 错 · vitest **617/617**（+8：转写 7 + 退出码对拍 1）· visual-check **416/416**（+2：转写键就位 + 点击落 `.txt` 内容断言）· cargo **315/315**（本轮未触 Rust）· flow **99/99**（stub 改动波及，复跑通过）· i18n strict 过（新词条 8 条；发现并绕开门禁坑——抽取器只认含 `[\u4e00-\u9fff]` 的 key，纯符号模板串 `↳ {0}：{1}` 不算 CJK 会漏网，词条改为含汉字的 `  ↳ 附件 {0}：{1}（{2}）`）· build ✓。
 
 ---
 

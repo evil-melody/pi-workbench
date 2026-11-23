@@ -423,33 +423,18 @@ pre {
   font-family: var(--mono);
 }
 
+/*
+ * 滚动条：只给标准属性，不给 `::-webkit-scrollbar` 全局定制。
+ * WebKit 一旦检测到自定义滚动条样式，就从原生 overlay（滚动时才浮现、自动淡出）
+ * 切换成经典常显灰条——旧写法 `*::-webkit-scrollbar { width: 10px }` 正是
+ * 「原生的那种滚动条」的直接来源，已删。
+ * - WKWebView（macOS 应用本体）：不支持标准属性 → 走原生 overlay；
+ * - Chrome / Firefox（预览与巡检）：thin 细条 + 主题色 thumb，常显但克制。
+ * 局部隐藏（页签条等横向溢出容器）仍用各自的 scrollbar-width: none。
+ */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
-}
-
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-*::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
-  border: 3px solid transparent;
-  background-clip: content-box;
-  border-radius: var(--r-full);
-}
-
-@media (hover: hover) {
-
-  *::-webkit-scrollbar-thumb:hover {
-    background: var(--text-faint);
-    background-clip: content-box;
-}
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
 }
 
 /* 三态之加载态统一走 ui-kit.css 的 .sk-list / .sk-card 骨架，不再保留一行文字占位。 */

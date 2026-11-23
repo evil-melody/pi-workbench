@@ -421,6 +421,237 @@
   line-height: 1.7;
 }
 
+/* ── #96 顶栏管理带：N 可更新 / 刷新 / + 添加插件 ─────────────── */
+/* 与排查动作同一排，但语义分组独立：一块贴边的管理簇，不和筛选器抢视线。 */
+.market-admin {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: var(--sp-2);
+}
+
+.update-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  height: var(--row-h);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-full);
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+
+/* 检测中：图标自转，按钮同时禁用防重复点击。spinning 类由模板落在 AppIcon 上。 */
+.admin-refresh .app-icon.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.admin-add {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  height: var(--row-h);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-radius: var(--r);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .admin-add:hover {
+    filter: brightness(1.08);
+  }
+}
+
+/* ── #101 生态推荐四卡 ───────────────────────────────────────── */
+.eco-section {
+  margin-bottom: var(--sp-4);
+}
+
+.eco-title {
+  margin: 0 0 2px;
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+
+.eco-hint {
+  margin: 0 0 var(--sp-3);
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+}
+
+.eco-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--sp-3);
+}
+
+.eco-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: var(--stroke);
+  border-radius: var(--r-lg);
+  background: var(--bg-elev);
+}
+
+.eco-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.eco-head strong {
+  font-family: var(--mono);
+  font-size: var(--fs-ui);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.eco-ver {
+  flex: none;
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+}
+
+.eco-desc {
+  margin: 0;
+  flex: 1;
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+  line-height: 1.6;
+}
+
+.eco-install {
+  align-self: flex-start;
+  min-width: 88px;
+  justify-content: center;
+}
+
+.eco-install:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ── Pi 托管包行 ─────────────────────────────────────────────── */
+/* 与本地扩展行同一容器语法；源名是包标识，用等宽字体与截断对齐 row-title 规则。 */
+.pkg-list {
+  margin-top: var(--sp-3);
+}
+
+.row-source {
+  font-family: var(--mono);
+  font-size: var(--fs-ui);
+}
+
+/* ── #96 添加插件弹窗内部 ────────────────────────────────────── */
+.add-row {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: stretch;
+}
+
+.add-row .add-source {
+  flex: 1;
+  min-width: 0;
+}
+
+.guide-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .guide-toggle:hover {
+    color: var(--text);
+  }
+}
+
+.guide-toggle .app-icon {
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.guide-toggle .app-icon.rotated {
+  transform: rotate(90deg);
+}
+
+.guide-body {
+  margin-top: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: var(--stroke);
+  border-radius: var(--r);
+  background: var(--bg-panel);
+}
+
+.guide-body p {
+  margin: 0 0 var(--sp-1);
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+  line-height: 1.7;
+}
+
+.guide-body p:last-child {
+  margin-bottom: 0;
+}
+
+.guide-body code {
+  padding: 2px var(--sp-1);
+  border-radius: var(--r-sm);
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+}
+
+/* 来源可信警告条：DSH 同款——黄边黄底，放在安装钮之前，点安装前必读。
+   颜色走 base.css 的 warn 令牌对（主题切换自带可读值），不硬编码。 */
+.trust-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  margin: var(--sp-3) 0 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--warn);
+  border-radius: var(--r);
+  background: var(--warn-soft);
+  color: var(--warn-ink);
+  font-size: var(--fs-meta);
+  line-height: 1.6;
+}
+
+.trust-bar .app-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--warn);
+}
+
+.add-submit {
+  min-width: 120px;
+  justify-content: center;
+}
+
 /* D-19：390 下描述曾被右侧按钮挤到 73px。窄屏改两段式：
    首行正文占满，操作区整体落到第二行右对齐。 */
 @media (max-width: 640px) {

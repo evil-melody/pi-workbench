@@ -62,6 +62,18 @@
             <i v-if="trackCalls" class="trace-badge">{{ trackCalls }}</i>
           </AppButton>
 
+          <!-- #100 会话树直达入口：Pi 的会话是一棵树，每次提问是一个节点，
+               可从任意用户消息分叉/回退。能力原本藏在抽屉页签里，顶栏给一条直达。 -->
+          <AppButton
+            variant="secondary"
+            class="tree-toggle"
+            :title="t('会话树：从任意用户消息分叉 / 回退')"
+            @click="openDrawerTab('tree')"
+          >
+            <AppIcon name="branch" :size="14" />
+            <span>{{ t('会话树') }}</span>
+          </AppButton>
+
           <!-- 工作区（并行 agent 的 worktree）：属于当前会话的执行环境，
                因此挂在对话页抽屉里做页签，不占一级菜单。 -->
           <AppButton
@@ -110,6 +122,11 @@
             <AppButton variant="text" class="io-btn" :title="t('导出当前会话为 JSON 文件')" @click="onExport">
               <AppIcon name="download" :size="13" />
               <span>{{ t('导出') }}</span>
+            </AppButton>
+            <!-- §5.3 收口：dsh 的 session log 口径——给人读的逐轮纯文本转写，与 JSON 迁移导出并列。 -->
+            <AppButton variant="text" class="io-btn" :title="t('导出会话转写为可读文本')" @click="onExportLog">
+              <AppIcon name="doc" :size="13" />
+              <span>{{ t('转写') }}</span>
             </AppButton>
             <AppButton variant="text" class="io-btn" :title="t('从 JSON 文件导入会话')" @click="onImport">
               <AppIcon name="upload" :size="13" />
@@ -413,6 +430,7 @@ import {
 } from '@/composables/useProject'
 import {
   exportConversation,
+  exportConversationLog,
   importConversation,
   type ConvMessage,
 } from '@/composables/useConversationIO'
@@ -437,15 +455,21 @@ const route = useRoute()
 const router = useRouter()
 /** 过程抽屉（会话树 / 轨迹 / 工作流 / 连接器）是否展开。会话级态，切页保留、新会话清。 */
 // traceOpen / drawerTab / expertQueue 从 useChatSession 导入（见上方 import 区）。
-async function openWorktreePanel() {
-  // 抽屉/页签是模块级会话态，深链进来时可能已停在 worktree 且 open=true——
-  // 同值赋值不触发 watch，抽屉会留在上一次的轨迹页签。制造一次边沿强制落位。
-  const wasOpen = traceOpen.value
-  if (wasOpen) traceOpen.value = false
+/**
+ * 打开抽屉并强制落到指定页签（#100 抽离：顶栏「会话树」与「并行工作区」共用）。
+ *
+ * 抽屉/页签是模块级会话态，深链进来时可能已停在同一页签且 open=true——
+ * 同值赋值不触发 watch，抽屉会留在上一次的轨迹页签。制造一次边沿强制落位。
+ */
+async function openDrawerTab(target: string) {
+  if (traceOpen.value) traceOpen.value = false
   drawerTab.value = undefined
   await nextTick()
-  drawerTab.value = 'worktree'
+  drawerTab.value = target
   traceOpen.value = true
+}
+function openWorktreePanel() {
+  void openDrawerTab('worktree')
 }
 
 /**
@@ -484,6 +508,8 @@ function toConv(
     role: any
     text: string
     tool?: string
+    /** §5.12 起消息带本地时刻；导出映射成 `at`，转写与 JSON 都能画出时钟。 */
+    ts?: number
     attachments?: { id: string; name: string; kind: 'image' | 'file'; path: string }[]
   }[],
 ): ConvMessage[] {
@@ -492,6 +518,7 @@ function toConv(
     role: m.role,
     text: m.text,
     tool: m.tool,
+    ...(typeof m.ts === 'number' ? { at: m.ts } : {}),
     ...(m.attachments?.length ? { attachments: m.attachments } : {}),
   }))
 }
@@ -499,6 +526,18 @@ function toConv(
 async function onExport() {
   try {
     const res = await exportConversation(toConv(messages.value), 'pi-workbench-conversation')
+    if (res === 'clipboard') flashIoNote(t('已复制到剪贴板（浏览器模式）'))
+    else if (res === 'cancelled') return
+    else flashIoNote(t('已导出到 {0}', [res]))
+  } catch (e: any) {
+    flashIoNote(t('导出失败：{0}', [e?.message ?? e]))
+  }
+}
+
+/** §5.3 收口：可读文本转写（dsh session log 口径），落盘走同一个 conversation_export。 */
+async function onExportLog() {
+  try {
+    const res = await exportConversationLog(toConv(messages.value), 'pi-workbench-conversation')
     if (res === 'clipboard') flashIoNote(t('已复制到剪贴板（浏览器模式）'))
     else if (res === 'cancelled') return
     else flashIoNote(t('已导出到 {0}', [res]))
@@ -515,6 +554,8 @@ async function onImport() {
       role: m.role,
       text: m.text,
       tool: m.tool,
+      // 导出带了 `at` 就回填 `ts`，界面时钟（§5.12）不丢。
+      ...(typeof m.at === 'number' ? { ts: m.at } : {}),
       ...(m.attachments?.length ? { attachments: m.attachments } : {}),
     }))
     flashIoNote(t('已导入 {0} 条消息', [imported.length]))

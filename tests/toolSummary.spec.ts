@@ -276,6 +276,14 @@ describe('splitExitCode · 退出码摘出', () => {
     expect(splitExitCode('exited with code 2')).toEqual({ body: '', exit: 'exited with code 2' })
   })
 
+  it('内核 0.87.x 实证写法：空行后的 Command exited with code N', () => {
+    // chunk-OJP47DM6.js：非零退出时 `text += \n\nCommand exited with code ${exitCode}`
+    expect(splitExitCode('FAIL tests/x.spec.ts\n\nCommand exited with code 1')).toEqual({
+      body: 'FAIL tests/x.spec.ts',
+      exit: 'Command exited with code 1',
+    })
+  })
+
   it('正文中间出现的 code 不误摘；空串安全', () => {
     expect(splitExitCode('exit code 1 was mentioned in the log')).toEqual({
       body: 'exit code 1 was mentioned in the log',
