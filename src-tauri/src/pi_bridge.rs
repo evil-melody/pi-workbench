@@ -176,7 +176,8 @@ fn probe_pi() -> Option<PathBuf> {
 ///
 /// pi 多数是 `#!/usr/bin/env node` 的 JS 包装，只把 pi 找到还不够——
 /// shebang 里的 `env node` 用的是子进程的 PATH，桌面进程那份同样缺 Node 目录。
-fn pi_path_env(bin_dir: &Path) -> String {
+/// `pub(crate)`：`pi_pkg` 透传子进程共用同一份合并逻辑。
+pub(crate) fn pi_path_env(bin_dir: &Path) -> String {
     let mut parts: Vec<String> = vec![bin_dir.display().to_string()];
     for d in candidate_dirs() {
         if d.is_dir() {

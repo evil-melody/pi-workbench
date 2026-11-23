@@ -1,6 +1,7 @@
 import { t } from '@/i18n'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
+import { formatConversationLog } from '@/utils/conversationLog'
 
 /**
  * 会话导入 / 导出（迁移）。
@@ -125,6 +126,33 @@ export async function exportConversation(
   const path = await save({
     defaultPath: `${fallbackName}.json`,
     filters: [{ name: t('会话'), extensions: ['json'] }],
+  })
+  if (typeof path !== 'string') return 'cancelled'
+  await invoke('conversation_export', { path, content: data })
+  return path
+}
+
+/**
+ * 导出为可读文本（dsh 的 session log 口径）：转写 → 保存对话框 → 后端落盘。
+ * 与 JSON 导出共用 `conversation_export`（后端只做透传落盘，不猜格式）。
+ */
+export async function exportConversationLog(
+  messages: ConvMessage[],
+  fallbackName = 'conversation',
+): Promise<'clipboard' | 'cancelled' | string> {
+  const data = formatConversationLog(messages)
+  const inTauri = '__TAURI_INTERNALS__' in window
+  if (!inTauri) {
+    try {
+      await navigator.clipboard.writeText(data)
+      return 'clipboard'
+    } catch {
+      return 'cancelled'
+    }
+  }
+  const path = await save({
+    defaultPath: `${fallbackName}.txt`,
+    filters: [{ name: t('会话转写'), extensions: ['txt'] }],
   })
   if (typeof path !== 'string') return 'cancelled'
   await invoke('conversation_export', { path, content: data })

@@ -24,6 +24,7 @@ mod memory_vec;
 mod models;
 mod net;
 mod pi_bridge;
+mod pi_pkg;
 mod pi_events;
 mod pi_run;
 mod proactive;
@@ -320,6 +321,12 @@ pub fn run() {
             extensions::extensions_install_from_url,
             extensions::extensions_set_enabled,
             extensions::extensions_remove,
+            pi_pkg::pi_pkg_list,
+            pi_pkg::pi_pkg_install,
+            pi_pkg::pi_pkg_remove,
+            pi_pkg::pi_pkg_update_all,
+            pi_pkg::pi_pkg_update_one,
+            pi_pkg::pi_pkg_check_updates,
             tools::tools_activate,
             models::settings_load,
             models::settings_save,

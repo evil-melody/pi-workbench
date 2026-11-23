@@ -13,6 +13,11 @@ export const PI_STUB_SCRIPT = `
     { id: 'agent-memory.ts', name: '长期记忆', description: '把对话要点追加进 .pi/memory', kind: 'tool', path: '/cfg/extensions/agent-memory.ts', tools: ['memory_store'], enabled: true, loaded: true, removable: false },
     { id: 'agent-browser-session.ts', name: '浏览器会话', description: '开真实浏览器并维护会话状态', kind: 'tool', path: '/cfg/extensions/agent-browser-session.ts', tools: ['browser_open'], enabled: false, loaded: true, removable: false },
     { id: 'from-url.ts', name: '链接安装的扩展', description: '从直链安装的第三方扩展', kind: 'tool', path: '/cfg/extensions/from-url.ts', tools: ['custom_tool'], enabled: true, loaded: true, removable: true },
+  ], pkgs: [
+    { source: 'npm:pi-web-access', installed_path: '/cfg/npm/node_modules/pi-web-access', scope: 'user' },
+    { source: 'github.com/nicobailon/pi-subagents', installed_path: '/cfg/git/github.com/nicobailon/pi-subagents', scope: 'user' },
+  ], pkgUpdatesAvailable: [
+    { source: 'npm:pi-web-access', kind: 'npm', current: '0.47.0', latest: '0.48.0' },
   ] }
   // 字段完整性自检（AUDIT-001 回归）：漏字段立刻抛明确错误，
   // 而不是等 emitPi 用到时才静默崩在半路（Cannot read properties of undefined）。
@@ -100,8 +105,9 @@ export const PI_STUB_SCRIPT = `
       setTimeout(() => {
         emitPi({ type: 'tool_execution_start', toolCallId: 'c-' + n, toolName: 'bash', args: { command: 'pnpm test -- --runInBand' }, runId, agentId: 'main', spanId: 'tool-' + n, parentSpanId: modelId, spanKind: 'tool', spanStartedAt: t0 + 150, pi_ts: t0 + 150 })
       }, 150)
+      // 内核 0.87.x 实证形状：失败输出 = 正文 + 空行 + Command exited with code N
       setTimeout(() => {
-        emitPi({ type: 'tool_execution_end', toolCallId: 'c-' + n, toolName: 'bash', isError: true, result: { content: [{ type: 'text', text: 'Command failed with exit code 1' }] }, runId, agentId: 'main', spanId: 'tool-' + n, parentSpanId: modelId, spanKind: 'tool', spanStartedAt: t0 + 150, spanEndedAt: t0 + 210, pi_ts: t0 + 210 })
+        emitPi({ type: 'tool_execution_end', toolCallId: 'c-' + n, toolName: 'bash', isError: true, result: { content: [{ type: 'text', text: 'FAIL tests/x.spec.ts\\n\\nCommand exited with code 1' }] }, runId, agentId: 'main', spanId: 'tool-' + n, parentSpanId: modelId, spanKind: 'tool', spanStartedAt: t0 + 150, spanEndedAt: t0 + 210, pi_ts: t0 + 210 })
       }, 210)
     }
     setTimeout(() => {
@@ -384,6 +390,34 @@ export const PI_STUB_SCRIPT = `
           emitPi({ type: 'queue_update', steering: [], followUp: [] })
           return r(cleared)
         }
+        // #100 会话树：get_tree 返回一棵带分叉的小树；fork 记录落点并回 null。
+        // 树形对齐内核 SessionTreeNode：e1(user) 下挂 e2(assistant) 与 e3(user) 两个
+        // 同层分支，e3 再挂 e4(assistant) 作 leaf——用来断言 user-only 分叉约束。
+        if (type === 'get_tree') {
+          const msg = (id, role, text, ts) => ({ id, type: 'message', parentId: null, timestamp: ts, message: { role, content: text } })
+          const tree = [
+            {
+              entry: msg('e1', 'user', '第一个问题', '2026-11-23T10:00:00.000Z'),
+              children: [
+                { entry: msg('e2', 'assistant', '回答甲', '2026-11-23T10:00:05.000Z'), children: [] },
+                {
+                  entry: msg('e3', 'user', '分叉出来的第二个问题', '2026-11-23T10:01:00.000Z'),
+                  children: [{ entry: msg('e4', 'assistant', '回答乙', '2026-11-23T10:01:06.000Z'), children: [] }],
+                },
+              ],
+            },
+          ]
+          return r({ tree, leafId: 'e4' })
+        }
+        if (type === 'fork') {
+          // entryId 在请求体里（req 是 try 块局部，这里重新解析）
+          let entryId = null
+          try {
+            entryId = JSON.parse(args.json).entryId ?? null
+          } catch {}
+          ;(window.__PI_STUB__.forkCalls ??= []).push(entryId)
+          return r(null)
+        }
       }
       if (cmd === 'checkpoint_rewind') {
         window.__PI_STUB__.rewound = args
@@ -445,6 +479,32 @@ export const PI_STUB_SCRIPT = `
         window.__PI_STUB__.exts = window.__PI_STUB__.exts.filter((e) => e.id !== args.id)
         ;(window.__PI_STUB__.extRemoved ??= []).push(args.id)
         return r(window.__PI_STUB__.exts.map((e) => ({ ...e })))
+      }
+      // #96 Pi 托管包透传：桩维护一份内存清单，语义与 pi list/install/remove/update 对齐。
+      if (cmd === 'pi_pkg_list') return r((window.__PI_STUB__.pkgs ?? []).map((p) => ({ ...p })))
+      if (cmd === 'pi_pkg_install') {
+        ;(window.__PI_STUB__.pkgInstalls ??= []).push(args.source)
+        if (!window.__PI_STUB__.pkgs) window.__PI_STUB__.pkgs = []
+        if (!window.__PI_STUB__.pkgs.some((p) => p.source === args.source)) {
+          window.__PI_STUB__.pkgs.push({ source: args.source, installed_path: '/stub/agent/' + args.source, scope: 'user' })
+        }
+        return r('Installed ' + args.source)
+      }
+      if (cmd === 'pi_pkg_remove') {
+        ;(window.__PI_STUB__.pkgRemoves ??= []).push(args.source)
+        window.__PI_STUB__.pkgs = (window.__PI_STUB__.pkgs ?? []).filter((p) => p.source !== args.source)
+        return r('Removed ' + args.source)
+      }
+      if (cmd === 'pi_pkg_update_one') {
+        ;(window.__PI_STUB__.pkgUpdates ??= []).push(args.source)
+        return r('Updated ' + args.source)
+      }
+      if (cmd === 'pi_pkg_update_all') {
+        ;(window.__PI_STUB__.pkgUpdates ??= []).push('*')
+        return r('Updated packages')
+      }
+      if (cmd === 'pi_pkg_check_updates') {
+        return r((window.__PI_STUB__.pkgUpdatesAvailable ?? []).map((u) => ({ ...u })))
       }
       if (cmd === 'library_list') return r([
         { id: 'a1', name: '会议纪要.md', rel_path: '/docs/会议纪要.md', kind: 'markdown', dir: '/docs', origin: { kind: 'local' }, enabled: true, searchable: true, draft: false, revision: 2, size: 2048, updated_at: Date.now() },

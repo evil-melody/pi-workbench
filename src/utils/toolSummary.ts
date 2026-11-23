@@ -269,13 +269,17 @@ export interface ExitSplit {
 /**
  * 把退出码从输出末尾摘出来。
  *
- * `ponytail:` 前端源码里没有退出码文案的实证样本（内核与 CLI 写法会变），
- * 因此只匹配常见的三种收尾写法且锚定行尾；匹配不上就整段当正文，宁可少格式。
- * 升级路径：内核若在 payload 里给 `exitCode` 数字字段，直接读它。
+ * 首写法是内核 0.87.x 的实证原文（`chunk-OJP47DM6.js`：非零退出时追加
+ * `\n\nCommand exited with code ${exitCode}`，取消时是 `(command cancelled)`），
+ * 其余写法兜住 CLI / 旧版本的常见收尾；匹配不上就整段当正文，宁可少格式。
+ * 结构化 `exitCode` 只进 journal 的 bashExecution 记录，不进 RPC 事件流
+ * （tool_execution_end 的 result 只有 content/details），文本锚定就是唯一口径。
  */
 export function splitExitCode(text: string): ExitSplit {
   if (!text) return { body: '', exit: '' }
-  const m = text.match(/(?:^|\n)\s*(exited with code\s*-?\d+|exit\s+code\s*:?\s*-?\d+|status:\s*exit\s*\d+)\s*$/i)
+  const m = text.match(
+    /(?:^|\n)\s*((?:command\s+)?exited with code\s*-?\d+|command\s+failed\s+with\s+exit\s+code\s*-?\d+|exit\s+code\s*:?\s*-?\d+|status:\s*exit\s*\d+)\s*$/i,
+  )
   if (!m) return { body: text, exit: '' }
   return { body: text.slice(0, m.index).replace(/\n+$/, ''), exit: m[1].trim() }
 }

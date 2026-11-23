@@ -731,12 +731,29 @@ const PI_STUB_SCRIPT = STUB_SCRIPT
     `label="${chatHeaderLabel}"`,
   )
   const ioBtns = await page2.locator('.io-group .io-btn').count()
-  assert('会话迁移：压缩/导出/导入按钮就位', ioBtns === 3, `btns=${ioBtns}`)
+  assert('会话迁移：压缩/导出/转写/导入按钮就位', ioBtns === 4, `btns=${ioBtns}`)
   assert(
     '会话迁移：导出与导入按钮存在',
     (await page2.getByTitle('导出当前会话为 JSON 文件').count()) === 1 &&
       (await page2.getByTitle('从 JSON 文件导入会话').count()) === 1,
     `export=${await page2.getByTitle('导出当前会话为 JSON 文件').count()} import=${await page2.getByTitle('从 JSON 文件导入会话').count()}`,
+  )
+  assert(
+    '会话迁移：可读文本转写按钮就位（§5.3 收口）',
+    (await page2.getByTitle('导出会话转写为可读文本').count()) === 1,
+  )
+  // 点转写 → dialog|save 给 .txt 去向 → conversation_export 落可读文本（非 JSON）。
+  await page2.getByTitle('导出会话转写为可读文本').click()
+  await page2.waitForTimeout(300)
+  const logSaves = (await page2.evaluate(() =>
+    (window.__PI_STUB__.argCalls || []).filter((c) => c.cmd === 'conversation_export'),
+  )).filter((c) => String(c.args?.path || '').endsWith('.txt'))
+  assert(
+    '会话转写：落盘走 .txt 且内容是可读文本',
+    logSaves.length === 1 &&
+      String(logSaves[0].args.content).startsWith('会话转写') &&
+      !String(logSaves[0].args.content).startsWith('{'),
+    `saves=${logSaves.length}`,
   )
 
   // 发出去了就得看得见「在跑」：回答首字到达前必须有 live 步，
@@ -1398,6 +1415,93 @@ const PI_STUB_SCRIPT = STUB_SCRIPT
   )
   await page2.screenshot({ path: path.join(OUT, '39b-plugins-switches.png') })
 
+  // #96 DSH 融入：顶栏「N 可更新 / 刷新 / + 添加插件」+ 任意源透传弹窗 + Pi 托管包行。
+  await page2.goto(`http://localhost:${PORT}/#/plugins`, { waitUntil: 'load' })
+  await page2.waitForTimeout(600)
+  const updChip = page2.locator('.market-admin .update-chip')
+  assert(
+    '#96：顶栏显示可更新数量（桩 1 项）',
+    (await updChip.count()) === 1 && (await updChip.innerText()).includes('1 个插件可更新'),
+    await updChip.innerText().catch(() => '-'),
+  )
+  assert(
+    '#96：托管包行渲染（桩 2 项，源+落盘路径来自 pi list 形状）',
+    (await page2.locator('.pkg-list .pkg-row').count()) === 2 &&
+      (await page2.locator('.pkg-row').filter({ hasText: 'npm:pi-web-access' }).count()) === 1,
+    `rows=${await page2.locator('.pkg-row').count()}`,
+  )
+  assert(
+    '#96：可更新行带「更新」按钮与版本对比',
+    (await page2.locator('.pkg-row').filter({ hasText: 'npm:pi-web-access' }).locator('.row-load').count()) === 1 &&
+      (await page2.locator('.pkg-row').filter({ hasText: '0.47.0 → 最新 0.48.0' }).count()) === 1,
+    'update button + current→latest line',
+  )
+  // 添加插件弹窗：任意源输入 + 安装模式 + 引导折叠 + 可信警告条。
+  await page2.locator('.market-admin .admin-add').click()
+  await page2.waitForTimeout(300)
+  assert(
+    '#96：弹窗含源输入/模式选择/警告条',
+    (await page2.locator('.modal-panel .add-source').count()) === 1 &&
+      (await page2.locator('.modal-panel .add-mode').count()) === 1 &&
+      (await page2.locator('.modal-panel .trust-bar').count()) === 1,
+    'input/mode/trust present',
+  )
+  await page2.locator('.modal-panel .guide-toggle').click()
+  await page2.waitForTimeout(150)
+  assert(
+    '#96：「插件安装引导和示例」折叠展开出三种源示例',
+    (await page2.locator('.modal-panel .guide-body p').count()) === 3,
+    `lines=${await page2.locator('.modal-panel .guide-body p').count()}`,
+  )
+  await page2.locator('.modal-panel .add-source').fill('some-community-ext')
+  await page2.locator('.modal-panel .add-submit').click()
+  await page2.waitForTimeout(400)
+  const pkgInstalls = await page2.evaluate(() => window.__PI_STUB__.pkgInstalls ?? [])
+  assert(
+    '#96：安装透传 pi_pkg_install 且新包行进清单',
+    pkgInstalls.includes('some-community-ext') &&
+      (await page2.locator('.pkg-row').filter({ hasText: 'some-community-ext' }).count()) === 1,
+    JSON.stringify(pkgInstalls),
+  )
+  // 单包更新透传：点 web-access 的更新键 → pi_pkg_update_one。
+  await page2.locator('.pkg-row').filter({ hasText: 'npm:pi-web-access' }).locator('.row-load').click()
+  await page2.waitForTimeout(400)
+  const pkgUpdates = await page2.evaluate(() => window.__PI_STUB__.pkgUpdates ?? [])
+  assert(
+    '#96：行内更新透传 pi_pkg_update_one <source>',
+    pkgUpdates.includes('npm:pi-web-access'),
+    JSON.stringify(pkgUpdates),
+  )
+  await page2.screenshot({ path: path.join(OUT, '39d-plugins-pkgflow.png') })
+
+  // #101 生态四卡：真实 npm 包，一键 `npm:<pkg>` 透传；已装的显示「已安装」。
+  await page2.goto(`http://localhost:${PORT}/#/plugins`, { waitUntil: 'load' })
+  await page2.waitForTimeout(600)
+  const ecoCards = page2.locator('.eco-card')
+  assert(
+    '#101：发现 tab 渲染四张生态卡',
+    (await ecoCards.count()) === 4 &&
+      (await ecoCards.filter({ hasText: 'pi-web-access' }).count()) === 1 &&
+      (await ecoCards.filter({ hasText: 'pi-mcp-adapter' }).count()) === 1,
+    `cards=${await ecoCards.count()}`,
+  )
+  assert(
+    '#101：已装生态包卡片按钮显示「已安装」且禁用',
+    (await ecoCards.filter({ hasText: 'pi-web-access' }).locator('.eco-install').innerText()).includes('已安装') &&
+      (await ecoCards.filter({ hasText: 'pi-web-access' }).locator('.eco-install').isDisabled()),
+    await ecoCards.filter({ hasText: 'pi-web-access' }).locator('.eco-install').innerText(),
+  )
+  await ecoCards.filter({ hasText: 'pi-plan-mode' }).locator('.eco-install').click()
+  await page2.waitForTimeout(400)
+  const ecoInstalls = await page2.evaluate(() => window.__PI_STUB__.pkgInstalls ?? [])
+  assert(
+    '#101：一键安装走 npm: 前缀透传',
+    ecoInstalls.includes('npm:pi-plan-mode') &&
+      (await page2.locator('.pkg-row').filter({ hasText: 'npm:pi-plan-mode' }).count()) === 1,
+    JSON.stringify(ecoInstalls.slice(-3)),
+  )
+  await page2.screenshot({ path: path.join(OUT, '39e-plugins-eco.png') })
+
   // #77 M5 推荐源：扩展在 agent_before_settle 写 custom entry，桥转 entry_appended，
   // 前端 composer 上方出三条 chip；填入不自动发、换一批轮转、关闭隐藏。
   await page2.goto(`http://localhost:${PORT}/#/chat`, { waitUntil: 'load' })
@@ -1457,6 +1561,49 @@ const PI_STUB_SCRIPT = STUB_SCRIPT
   await page2.waitForTimeout(500)
   assert('#79：切页再回来过程抽屉保持展开', (await page2.locator('.chat.aside-open').count()) === 1, `aside=${await page2.locator('.chat.aside-open').count()}`)
   // 恢复干净态：抽屉是模块级会话态，不关会挡住后续测试的 composer 点击。
+  await page2.locator('.trace-drawer .td-close').first().click().catch(() => {})
+  await page2.waitForTimeout(150)
+
+  // #100 会话树顶栏直达：Pi 的会话是一棵树，入口不能只藏在抽屉页签里。
+  // 顶栏只在会话态渲染（hero 落地页没有 chat-controls），先重发一条建立会话态。
+  await page2.locator('.hero-input-wrap .app-textarea').first().click()
+  await page2.keyboard.type('给会话树留个节点')
+  await page2.locator('.hero-send').click()
+  await page2.waitForTimeout(650)
+  const treeBtn = page2.locator('.chat-controls .tree-toggle')
+  assert(
+    '#100：顶栏「会话树」直达键存在',
+    (await treeBtn.count()) === 1 && (await treeBtn.innerText()).includes('会话树'),
+    `btn=${await treeBtn.count()}`,
+  )
+  await treeBtn.click()
+  await page2.waitForTimeout(500)
+  assert(
+    '#100：点直达键后抽屉展开且落在会话树页签',
+    (await page2.locator('.chat.aside-open').count()) === 1 &&
+      (await page2.locator('.td-tab.on').innerText()).includes('会话树'),
+    `tab=${await page2.locator('.td-tab.on').innerText().catch(() => '-')}`,
+  )
+  const stRows = page2.locator('.sess .row')
+  assert(
+    '#100：树渲染桩内 4 节点（带分叉小树）',
+    (await stRows.count()) === 4,
+    `rows=${await stRows.count()}`,
+  )
+  // 内核硬约束：fork 只接受 user message——assistant 行的分叉键必须禁用并写明原因。
+  const e2 = stRows.filter({ hasText: '回答甲' })
+  const e1 = stRows.filter({ hasText: '第一个问题' })
+  assert(
+    '#100：assistant 行分叉键禁用且提示 user-only 约束',
+    (await e2.locator('.fork').isDisabled()) &&
+      (await e2.locator('.fork').getAttribute('title')) === 'Pi 内核只允许从用户消息分叉',
+    `title=${await e2.locator('.fork').getAttribute('title').catch(() => '-')}`,
+  )
+  await e1.locator('.fork').click()
+  await page2.waitForTimeout(400)
+  const forkCalls = await page2.evaluate(() => window.__PI_STUB__.forkCalls ?? [])
+  assert('#100：user 行分叉下发 fork <entryId>', forkCalls.includes('e1'), JSON.stringify(forkCalls))
+  await page2.screenshot({ path: path.join(OUT, '39f-session-tree-entry.png') })
   await page2.locator('.trace-drawer .td-close').first().click().catch(() => {})
   await page2.waitForTimeout(150)
 
@@ -3314,6 +3461,23 @@ const PI_STUB_SCRIPT = STUB_SCRIPT
     'HMR 不写死独立端口（多实例并行时不会互抢 WS 导致整页 reload）',
     !/hmr\s*:\s*\{[^}]*\bport\s*:/.test(viteCfg),
     'vite.config.ts hmr.port',
+  )
+
+  // #97 滚动条闸门：自定义 ::-webkit-scrollbar 会迫使 WKWebView 放弃原生 overlay
+  // 滚动条、切换成常显经典灰条（用户报「不要原生的那种滚动条」的直接来源）。
+  // 全局只允许标准属性 scrollbar-width/scrollbar-color；任何人再加 webkit 伪元素即红。
+  const baseCssRaw = fs.readFileSync(path.join(ROOT, 'src/styles/base.css'), 'utf8')
+  // 注释里提到伪元素名是解释性文本，检查前先剥掉 /* … */。
+  const baseCss = baseCssRaw.replace(/\/\*[\s\S]*?\*\//g, '')
+  assert(
+    '#97：base.css 无 ::-webkit-scrollbar 自定义（WKWebView 保持原生 overlay 条）',
+    !baseCss.includes('::-webkit-scrollbar'),
+    'styles/base.css ::-webkit-scrollbar',
+  )
+  assert(
+    '#97：标准滚动条属性在位（Chromium/Firefox 走 scrollbar-width/color）',
+    /scrollbar-width:\s*thin/.test(baseCss) && /scrollbar-color:/.test(baseCss),
+    'styles/base.css scrollbar-width/color',
   )
 
   const flash = await browser.newPage({ viewport: { width: 1280, height: 800 } })
