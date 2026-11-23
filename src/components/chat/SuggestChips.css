@@ -1,0 +1,49 @@
+/* M5 推荐 chip：覆盖在输入框上方的浮层（对齐 WorkBuddy），不占文档流高度。
+   锚点是 .composer（position:relative），左右与输入区共用 --chat-pad。 */
+.suggest-chips {
+  position: absolute;
+  left: var(--chat-pad);
+  right: var(--chat-pad);
+  bottom: calc(100% - var(--sp-1));
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-elev);
+  box-shadow: var(--sh-2);
+}
+
+.suggest-label {
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+
+.suggest-chip {
+  flex: 0 0 auto;
+  max-width: 220px;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.suggest-chip:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+.suggest-act {
+  flex-shrink: 0;
+}

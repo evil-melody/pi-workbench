@@ -5661,6 +5661,7 @@ version = "0.1.0"
 dependencies = [
  "arrow-array",
  "arrow-schema",
+ "base64 0.22.1",
  "futures",
  "lancedb",
  "reqwest 0.13.5",

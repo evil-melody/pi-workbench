@@ -118,6 +118,15 @@
   color: var(--text-faint);
 }
 
+/* 空态里的直达动作：一句话旁边就给出口，而不是让用户自己去 toolbar 找按钮。
+   原先只在能力中心 scoped 里有一份，四个运行层视图各抄一份就是重复。 */
+.empty-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-1);
+}
+
 /* 面板内空态：与页面级 .empty-state 同一套元素，只把排布收成一行。
    用于面板、侧栏这类高度有限的位置，避免每页自写一份 .xx-empty。 */
 .empty-state.is-compact {

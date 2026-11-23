@@ -38,21 +38,26 @@ export function useApproval() {
   async function ensure() {
     if (!IN_TAURI || started) return
     started = true
-    un = await listen<any>('pi://event', (e) => {
-      const rec = e.payload
-      if (rec?.type !== 'extension_ui_request' || !rec?.id) return
-      // 只交互 confirm：notify/setStatus/setWidget/setTitle 是纯通知，无需回应。
-      if (rec?.method && rec.method !== 'confirm') return
-      if (requests.value.some((r) => r.id === rec.id)) return
-      requests.value.push({
-        id: rec.id,
-        method: rec.method ?? 'confirm',
-        ...(rec.title ? { title: rec.title } : {}),
-        ...(rec.message ? { message: rec.message } : {}),
-        receivedAt: Date.now(),
+    try {
+      un = await listen<any>('pi://event', (e) => {
+        const rec = e.payload
+        if (rec?.type !== 'extension_ui_request' || !rec?.id) return
+        // 只交互 confirm：notify/setStatus/setWidget/setTitle 是纯通知，无需回应。
+        if (rec?.method && rec.method !== 'confirm') return
+        if (requests.value.some((r) => r.id === rec.id)) return
+        requests.value.push({
+          id: rec.id,
+          method: rec.method ?? 'confirm',
+          ...(rec.title ? { title: rec.title } : {}),
+          ...(rec.message ? { message: rec.message } : {}),
+          receivedAt: Date.now(),
+        })
+        if (requests.value.length > MAX_PENDING) requests.value.splice(0, 1)
       })
-      if (requests.value.length > MAX_PENDING) requests.value.splice(0, 1)
-    })
+    } catch {
+      un = null
+      started = false
+    }
   }
 
   /** 回应用户决定：批准 confirmed=true / 拒绝 confirmed=false。失败静默（扩展会超时兜底）。 */
@@ -70,4 +75,11 @@ export function useApproval() {
   }
 
   return { requests, ensure, respond, dismiss }
+}
+
+/** 应用卸载时由根组件调用；避免单例监听在热重载 / 重建时越挂越多。 */
+export function stopApproval() {
+  void un?.()
+  un = null
+  started = false
 }

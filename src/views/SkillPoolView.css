@@ -1,10 +1,4 @@
-/* 技能市场池视图专属样式（共享容器样式见 agent-ops.css）。 */
-
-.agent-ops.skills.embedded {
-  height: auto;
-  padding: 0;
-  max-width: none;
-}
+/* 技能市场池视图专属样式（共享容器样式见 agent-ops.css；embedded 收拢在那边）。 */
 
 .skill-list {
   list-style: none;

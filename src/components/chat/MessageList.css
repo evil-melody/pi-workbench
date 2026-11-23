@@ -82,6 +82,28 @@
 }
 
 /*
+ * 折叠头里的失败标：过程收起后，「有几步跑砸了」必须一眼可见——
+ * 红字 + 红点把它顶在摘要行尾，点开折叠才看具体错误。
+ */
+.proc-fail-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: var(--sp-2);
+  color: var(--danger);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+}
+
+.proc-fail-tag::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+/*
  * F7：用户行保留右对齐，但改为「整行右贴 + 气泡内文字左对齐」。
  * row-reverse 和 text-align:right 一起删——头像不再每条挂（右侧只剩气泡和操作行，
  * 右贴靠 align-self 就够了，不需要反向 flex）。
@@ -159,9 +181,9 @@
  * 系统行 = notice（P0-2）。
  *
  * 原来是「π 头像 + pi 标签 + 一段裸灰字」：一条限流报错和一句普通提示长得完全一样，
- * 用户只能逐字读。现在走 turn 的同一栅格——col1 状态图标落在 rail 上（与工具行的
- * 图标同一列位置），col2 是 tinted 容器（border + 语义底色 + --r 圆角），语义由
+ * 用户只能逐字读。现在走整行 tinted 容器（border + 语义底色 + --r 圆角），语义由
  * MessageList 的 sysNotice 判档：error 用 danger，warn 用 warn，进行中/中性用 elev。
+ * 图标落在容器内部首列（不占外层栅格），提示条左缘与页面横幅严格齐平；
  * 三档底色在明暗两个主题都是「同族加深」，不靠纯色块，正文一律提到 --text。
  */
 .msg-row.system {
@@ -169,29 +191,23 @@
 }
 
 .sys-body {
-  display: grid;
-  grid-template-columns: var(--turn-grid-2);
-  column-gap: var(--sp-2);
-  align-items: start;
+  display: block;
   width: 100%;
   min-width: 0;
 }
 
 .sys-ic {
-  grid-column: 1;
+  flex: none;
   display: flex;
-  justify-content: center;
-  /* 与首行文字中心对齐：8px 内距 + 19.8/2 - 图标半径 7 ≈ 10。
-     原先 6px 让图标在单行卡片里比卡片中心高约 5px（截图实测）。 */
-  padding-top: 10px;
+  /* 图标进 note 内部：不再占独立栅格列，提示条左缘与上方横幅严格对齐。 */
+  padding-top: 1px;
   color: var(--text-faint);
 }
 
 .sys-note {
-  grid-column: 2;
   min-width: 0;
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-3);
   border: 1px solid var(--border-soft);
@@ -387,10 +403,10 @@
 /*
  * 用户气泡（F7 修形，形态保留）：底色抬到 --bg-elev 与 turn 正文拉开一档，
  * 描边收到 hairline + --sh-1 的一档投影，让它是「浮在页面上的一层」而不是一块灰。
- * 上限 72ch：超过这个长度人的眼睛回不了行，80% 由 .msg-row.user 兜住窄窗。
+ * 上限跟随 --chat-col 放宽（96ch ≈ 宽列下也不失控），80% 由 .msg-row.user 兜住窄窗。
  */
 .txt {
-  max-width: min(72ch, 100%);
+  max-width: min(96ch, 100%);
   text-align: left;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -401,6 +417,38 @@
   background: var(--bg-elev);
   border: 1px solid var(--border);
   color: var(--text);
+}
+
+/*
+ * #67 M1 就地编辑区：原位替换气泡，宽度语义与 .txt 同档（96ch/80% 由行壳兜住），
+ * 底色用 --bg-field 与 composer 同源——它是「还能改的输入」，不是「已定稿的展示」。
+ */
+.edit-box {
+  width: min(96ch, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+/* 双类特异度（0,3,0）压过 AppTextarea 自带的 min-height:88px（scoped 后是 0,2,0，
+   单类覆盖靠注入顺序不可靠）。 */
+.edit-box .edit-area {
+  min-height: 44px;
+}
+
+.edit-hint {
+  margin: 0;
+  text-align: right;
+  color: var(--text-faint);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-tight);
+}
+
+.edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--sp-2);
 }
 
 .md {
@@ -1103,3 +1151,52 @@
   color: var(--text-dim);
 }
 
+
+/*
+ * 选区引用浮层（Teleport 到 body）：fixed 定位，坐标由 selPopStyle 只给 top/left，
+ * 宽度与其余几何全在这里。形态对齐 ctx-menu 一族：elev 底 + 强边框 + 投影。
+ */
+.sel-pop {
+  position: fixed;
+  z-index: 60;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  /* 浮层：--sh-2 内含 hairline，不再叠 border（与 ws-menu 一族同规）。 */
+  border: 0;
+  border-radius: var(--r-lg);
+  background: var(--bg-panel);
+  box-shadow: var(--sh-2);
+}
+
+.sel-pop-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  min-width: 0;
+}
+
+.sel-pop-src {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sel-pop-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+/* 已发送引用卡容器：user 行右对齐，卡片贴右缘；与正文/附件留一行距。 */
+.sent-quotes {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--sp-1);
+  margin-top: var(--sp-1);
+}

@@ -237,7 +237,10 @@ function mmss(secs?: number | null): string {
 }
 
 function tagLabel(tag: string): string {
-  return t(tag === 'light' ? '轻量' : tag === 'code' ? '代码' : '对话')
+  // 逐分支 t()：三元塞进 t() 会让覆盖率脚本看不见 key。
+  if (tag === 'light') return t('轻量')
+  if (tag === 'code') return t('代码')
+  return t('对话')
 }
 
 function isInstalled(model: CatalogModel): boolean {

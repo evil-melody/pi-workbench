@@ -13,11 +13,9 @@ import RunHistory from '@/components/chat/RunHistory.vue'
 // 活动项目是共享状态：这里切了，对话页的 watcher 会跟着换工作目录。
 import { activateProject, activeProjectId, loadActiveProject } from '@/composables/useProject'
 import { startNewSession } from '@/composables/useChatSession'
-import { pendingReplayIndex } from '@/composables/useReplay'
+import { listRunHistory, pendingReplayIndex } from '@/composables/useReplay'
 import { openPalette } from '@/composables/useGlobalSearch'
 import { refreshUnread, unreadCount, useProactive } from '@/composables/useProactive'
-// F19：项目行时间戳与运行记录同一套格式（无空格的「N分钟前」），不再各写一份相对时间。
-import { timeAgo } from '@/utils/timeAgo'
 import { focusFirstMenuItem, onMenuKeydown } from '@/composables/useMenuKeys'
 // 菜单定位与贴底翻转与运行记录菜单同源，避免两处各写一版。
 import { menuStyleFor, settleMenu } from '@/composables/useCtxMenu'
@@ -36,9 +34,10 @@ interface Project {
 const router = useRouter()
 const route = useRoute()
 
-const collapsed = ref(false)
 const projects = ref<Project[]>([])
 const sortMode = ref<'updated' | 'name'>('updated')
+/** 项目行会话计数：参考图的项目名旁徽标（22/2）。一次取全量 journal 按 cwd 分组。 */
+const runCounts = ref<Record<string, number>>({})
 
 const sortedProjects = computed(() => {
   if (sortMode.value === 'name') {
@@ -51,7 +50,8 @@ const mainNav = computed(() => [
   { name: 'chat', path: '/chat', title: t('对话'), icon: 'chat' },
   { name: 'inbox', path: '/inbox', title: t('收件箱'), icon: 'inbox' },
   { name: 'plugins', path: '/plugins', title: t('插件'), icon: 'puzzle' },
-  { name: 'projects', path: '/projects', title: t('项目'), icon: 'share-network' },
+  // 「项目」不再占导航位：项目就在下方工作区列表里，入口重复反而多一层跳转。
+  // 路由 /projects 保留——工作台返回按钮与深链仍落到它。
   { name: 'local-models', path: '/local-models', title: t('本地模型'), icon: 'cpu' },
   { name: 'capabilities', path: '/capabilities', title: t('专家 · 技能 · 连接器'), icon: 'grid' },
   { name: 'library', path: '/library', title: t('资料库'), icon: 'book' },
@@ -75,6 +75,14 @@ async function onWindowFocus() {
 async function refreshProjects() {
   projects.value = await listOf(invoke<Project[]>('projects_list'))
   await loadActiveProject()
+  // 计数是辅助信息：取不到就隐藏徽标，不拦项目列表。
+  const runs = await listRunHistory()
+  const counts: Record<string, number> = {}
+  for (const p of projects.value) {
+    if (!p.path) continue
+    counts[p.id] = runs.filter((r) => r.cwd === p.path).length
+  }
+  runCounts.value = counts
 }
 
 /** 切项目后回对话页：`/chat` 已挂载时不会重新挂载，靠共享 ref 让对话页跟着换目录。 */
@@ -90,11 +98,9 @@ async function setActiveProject(id: string) {
 const expanded = ref(new Set<string>())
 
 /**
- * 移动断点（≤900px）：侧栏自动收成图标轨道，项目快捷列表让位给「项目」页入口。
- * 不用半隐藏方案——窄屏下每个入口仍可达，只是换成图标 + 页面入口。
+ * 移动断点（≤900px）：侧栏面板让位，只留图标轨道——入口仍全部可达。
  */
 const narrow = ref(false)
-const collapsedView = computed(() => collapsed.value || narrow.value)
 let narrowQuery: MediaQueryList | null = null
 
 function syncNarrow(e: MediaQueryList | MediaQueryListEvent) {
@@ -228,14 +234,7 @@ async function submitRemove() {
   await refreshProjects()
 }
 
-function toggleCollapse() {
-  collapsed.value = !collapsed.value
-  localStorage.setItem('pi-workbench:sidebar-collapsed', collapsed.value ? '1' : '0')
-}
-
 onMounted(() => {
-  const saved = localStorage.getItem('pi-workbench:sidebar-collapsed')
-  if (saved === '1') collapsed.value = true
   narrowQuery = window.matchMedia('(max-width: 900px)')
   syncNarrow(narrowQuery)
   narrowQuery.addEventListener('change', syncNarrow)
@@ -259,125 +258,111 @@ defineExpose({ refreshProjects })
 </script>
 
 <template>
-  <aside class="sidebar" :class="{ collapsed: collapsedView }">
-    <div class="brand">
-      <div class="mark">
+  <aside class="sidebar" :class="{ narrow }">
+    <nav class="rail" :aria-label="t('导航')">
+      <!-- Overlay 标题栏下红绿灯浮在轨道顶部；整块轨道顶部即拖拽区。 -->
+      <div class="rail-brand" data-tauri-drag-region :title="t('Pi Workbench')">
         <img :src="mascotUrl" alt="" />
       </div>
-      <div v-if="!collapsedView" class="btext">
-        <div class="bname">Pi Workbench</div>
-      </div>
-      <AppButton v-if="!narrow" variant="icon" class="collapse" :title="collapsedView ? t('展开') : t('收起')" @click="toggleCollapse">
-        <AppIcon :name="collapsedView ? 'chevron-right' : 'layout-sidebar'" :size="15" />
+      <AppButton variant="icon" class="rail-new" :title="t('新会话')" @click="newChat">
+        <AppIcon name="plus" :size="18" />
       </AppButton>
-    </div>
-
-    <AppButton variant="secondary" class="new-chat" @click="newChat">
-      <AppIcon name="plus" :size="15" />
-      <span v-if="!collapsedView">{{ t('新会话') }}</span>
-    </AppButton>
-
-    <nav class="main-nav">
       <router-link
         v-for="n in mainNav"
         :key="n.name"
         :to="n.path"
-        class="nav-item"
+        class="rail-item"
         :class="{ active: isActive(n.path) }"
+        :title="n.title"
       >
-        <AppIcon :name="n.icon" :size="17" />
-        <span v-if="!collapsedView" class="lbl">{{ n.title }}</span>
-        <span
-          v-if="n.name === 'inbox' && unreadCount"
-          class="nav-badge"
-          :class="{ dot: collapsedView }"
-          :title="t('{0} 条未读', [unreadCount])"
-        >{{ collapsedView ? '' : unreadCount > 99 ? '99+' : unreadCount }}</span>
+        <AppIcon :name="n.icon" :size="18" />
+        <span v-if="n.name === 'inbox' && unreadCount" class="rail-badge" :title="t('{0} 条未读', [unreadCount])">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
       </router-link>
-    </nav>
-
-    <div v-if="!collapsedView" class="workspace">
-      <div class="ws-head">
-        <span class="ws-title">{{ t('工作区') }}</span>
-        <div class="ws-actions">
-          <AppButton variant="icon" :title="t('全局搜索 (⌘K)')" @click="openPalette()">
-            <AppIcon name="search" :size="13" />
-          </AppButton>
-          <AppButton
-            variant="icon"
-            :title="sortMode === 'updated' ? t('按名称排序') : t('按最近更新排序')"
-            @click="sortMode = sortMode === 'updated' ? 'name' : 'updated'"
-          >
-            <AppIcon name="sort" :size="13" />
-          </AppButton>
-          <AppButton variant="icon" :title="t('新建项目')" @click="router.push('/projects')">
-            <AppIcon name="folder-plus" :size="13" />
-          </AppButton>
-        </div>
-      </div>
-      <ul class="ws-list">
-        <template v-for="p in sortedProjects" :key="p.id">
-          <li :class="{ active: p.id === activeProjectId }" @click="setActiveProject(p.id)">
-            <!-- 展开箭头：有目录的项目才有运行记录可展开。 -->
-            <AppButton
-              v-if="p.path"
-              variant="icon"
-              class="ws-caret"
-              :class="{ open: expanded.has(p.id) }"
-              :title="expanded.has(p.id) ? t('收起运行记录') : t('展开运行记录')"
-              @click.stop="toggleExpand(p.id)"
-            >
-              <AppIcon name="chevron-right" :size="12" />
-            </AppButton>
-            <AppIcon v-else class="ws-caret-spacer" name="folder" :size="14" />
-            <span class="ws-name" :title="p.name">{{ p.name }}</span>
-            <AppButton
-              variant="icon"
-              class="ws-more"
-              :title="t('更多操作')"
-              aria-haspopup="menu"
-              :aria-expanded="projectMenu?.project.id === p.id"
-              @click.stop="openProjectMenu(p, $event)"
-            >
-              <AppIcon name="more-horizontal" :size="14" />
-            </AppButton>
-            <AppButton
-              variant="icon"
-              class="ws-open"
-              :title="t('打开项目工作台（配置 / 文件 / 终端 / 浏览器）')"
-              @click.stop="openWorkspace(p.id)"
-            >
-              <AppIcon name="external" :size="12" />
-            </AppButton>
-            <span class="ws-time">{{ timeAgo(p.updated_at) }}</span>
-          </li>
-          <!-- 该项目的历史运行记录：一次会话一条（内核重启合并），默认 5 条 + 加载更多。 -->
-          <li v-if="p.path && expanded.has(p.id)" class="ws-runs">
-            <RunHistory :cwd="p.path" @open="openRecord(p, $event)" />
-          </li>
-        </template>
-        <li v-if="!projects.length" class="ws-empty">{{ t('暂无项目') }}</li>
-      </ul>
-    </div>
-
-    <div v-else class="main-nav compact">
-      <AppButton variant="icon" :title="t('工作区')" @click="router.push('/projects')">
-        <AppIcon name="folder" :size="17" />
-      </AppButton>
-    </div>
-
-    <div class="foot">
-      <UsageCard v-if="!collapsedView" />
-      <div class="foot-actions">
-        <ThemeToggle :collapsed="collapsedView" />
-        <AppButton variant="text" class="settings" :class="{ collapsed: collapsedView }" :title="t('设置')" @click="router.push('/settings')">
-          <AppIcon name="settings" :size="15" />
-          <span v-if="!collapsedView">{{ t('设置') }}</span>
+      <div class="rail-foot">
+        <ThemeToggle :collapsed="true" />
+        <AppButton variant="icon" :title="t('设置')" @click="router.push('/settings')">
+          <AppIcon name="settings" :size="17" />
         </AppButton>
       </div>
-    </div>
+    </nav>
 
-    </aside>
+    <div class="side-panel">
+      <div class="panel-head" data-tauri-drag-region>
+        <span class="panel-title">Pi Workbench</span>
+        <span class="panel-sub">{{ t('工作区') }}</span>
+      </div>
+
+      <div class="workspace">
+        <div class="ws-head">
+          <AppButton variant="secondary" class="ws-new" @click="newChat">
+            <AppIcon name="plus" :size="15" />
+            <span>{{ t('新会话') }}</span>
+          </AppButton>
+          <div class="ws-actions">
+            <AppButton variant="icon" :title="t('全局搜索 (⌘K)')" @click="openPalette()">
+              <AppIcon name="search" :size="14" />
+            </AppButton>
+            <AppButton
+              variant="icon"
+              :title="sortMode === 'updated' ? t('按名称排序') : t('按最近更新排序')"
+              @click="sortMode = sortMode === 'updated' ? 'name' : 'updated'"
+            >
+              <AppIcon name="sort" :size="14" />
+            </AppButton>
+            <AppButton variant="icon" :title="t('新建项目')" @click="router.push('/projects')">
+              <AppIcon name="folder-plus" :size="14" />
+            </AppButton>
+          </div>
+        </div>
+        <ul class="ws-list">
+          <template v-for="p in sortedProjects" :key="p.id">
+            <li class="ws-group" :class="{ active: p.id === activeProjectId }" @click="setActiveProject(p.id)">
+              <AppIcon class="ws-folder" name="folder" :size="14" />
+              <span class="ws-name" :title="p.name">{{ p.name }}</span>
+              <AppButton
+                v-if="p.path"
+                variant="icon"
+                class="ws-caret"
+                :class="{ open: expanded.has(p.id) }"
+                :title="expanded.has(p.id) ? t('收起运行记录') : t('展开运行记录')"
+                :aria-expanded="expanded.has(p.id)"
+                @click.stop="toggleExpand(p.id)"
+              >
+                <AppIcon name="chevron-right" :size="12" />
+              </AppButton>
+              <span v-if="runCounts[p.id]" class="ws-count" :title="t('{0} 条会话记录', [runCounts[p.id]])">{{ runCounts[p.id] }}</span>
+              <AppButton
+                variant="icon"
+                class="ws-more"
+                :title="t('更多操作')"
+                aria-haspopup="menu"
+                :aria-expanded="projectMenu?.project.id === p.id"
+                @click.stop="openProjectMenu(p, $event)"
+              >
+                <AppIcon name="more-horizontal" :size="14" />
+              </AppButton>
+              <AppButton
+                variant="icon"
+                class="ws-open"
+                :title="t('打开项目工作台（配置 / 文件 / 终端 / 浏览器）')"
+                @click.stop="openWorkspace(p.id)"
+              >
+                <AppIcon name="external" :size="12" />
+              </AppButton>
+            </li>
+            <li v-if="p.path && expanded.has(p.id)" class="ws-runs">
+              <RunHistory :cwd="p.path" @open="openRecord(p, $event)" />
+            </li>
+          </template>
+          <li v-if="!projects.length" class="ws-empty">{{ t('暂无项目') }}</li>
+        </ul>
+      </div>
+
+      <div class="foot">
+        <UsageCard />
+      </div>
+    </div>
+  </aside>
 
     <!-- 项目行「···」菜单：Teleport 到 body，公共 ctx-menu 样式 -->
     <Teleport to="body">

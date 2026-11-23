@@ -14,7 +14,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 sha2 = "0.10"
-tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
+tauri = { version = "2", features = ["protocol-asset", "tray-icon", "macos-private-api"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 # 主动任务完成后向系统通知中心推送结果（阶段 1 的「结果回推」出口）。
@@ -25,6 +25,8 @@ tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# 粘贴字节通道（attachment_add_bytes）：剪贴板图片没有路径，前端以 base64 下发。
+base64 = "0.22"
 tokio = { version = "1", features = ["time"] }
 # 远端能力安装 / 模型连通性探测等出网请求。
 #

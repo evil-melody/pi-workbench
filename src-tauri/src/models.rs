@@ -88,6 +88,11 @@ pub struct AppSettings {
     /// 本地模型下载源（endpoint）。None/空 = 用默认镜像，兼容旧配置。
     #[serde(default)]
     pub download_source: Option<String>,
+    /// 完全访问权限：开启后交互路径上的风险命令跳过逐条审批。
+    /// 灾难黑名单与受保护路径**不受影响仍拦**（fail-closed 底线，见 agent-tool-gate）。
+    /// None = 未设置，按关闭处理。
+    #[serde(default)]
+    pub full_access: Option<bool>,
 }
 
 impl AppSettings {
@@ -167,6 +172,7 @@ pub fn settings_load(app: AppHandle) -> AppSettings {
             pi_bin: None,
             auto_archive_artifacts: None,
             download_source: None,
+            full_access: None,
         };
     }
 

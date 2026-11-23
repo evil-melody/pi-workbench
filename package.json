@@ -28,6 +28,7 @@
     "check:undefined": "node scripts/check-undefined.mjs",
     "verify:ui": "node scripts/visual-check.mjs",
     "verify:pages": "node scripts/visual-patrol.mjs",
+    "verify:flow": "node --experimental-strip-types scripts/test-harness-p1.ts && node --experimental-strip-types scripts/test-harness-p2.ts && node --experimental-strip-types scripts/test-harness-p3.ts && node --experimental-strip-types scripts/test-harness-p4.ts && node --experimental-strip-types scripts/test-harness-checkpoint.ts && node --experimental-strip-types scripts/test-harness-suggest.ts && node scripts/test-e2e-regression.mjs && node scripts/simulate-run-chain.mjs",
     "tauri": "tauri",
     "check:skills": "node scripts/check-skills.mjs",
     "check:extensions": "node scripts/check-extensions.mjs",

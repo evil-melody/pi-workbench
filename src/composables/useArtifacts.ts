@@ -1,5 +1,6 @@
 import { t } from '@/i18n'
 import { invoke } from '@tauri-apps/api/core'
+import { save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { ref, watch, type Ref } from 'vue'
 import { IN_TAURI, type PiMsg } from './usePi'
 
@@ -120,6 +121,20 @@ export function isOfficeKind(kind: ArtifactKind): boolean {
 export async function openExternal(path: string): Promise<void> {
   if (!IN_TAURI) throw new Error(t('当前是浏览器模式，无法调用系统应用'))
   await invoke('artifacts_open', { path })
+}
+
+/**
+ * #66 M9「保存到本地」：系统保存对话框选去向 → 后端拷字节落盘。
+ *
+ * 与 attachment_add（用户文件 → 托管目录）方向相反：这是项目产物 → 用户指定位置。
+ * 返回去向路径；用户取消对话框返回 null，不抛错——取消不是失败。
+ */
+export async function saveArtifactAs(artifact: Artifact): Promise<string | null> {
+  if (!IN_TAURI) throw new Error(t('当前是浏览器模式，无法保存到本地'))
+  const dest = await saveDialog({ defaultPath: artifact.name })
+  if (typeof dest !== 'string') return null
+  await invoke('artifact_save_as', { src: artifact.path, dest })
+  return dest
 }
 
 /** 卡片上的体积展示：小于 1KB 用 B，避免「0 KB」这种看不出量的表述。 */

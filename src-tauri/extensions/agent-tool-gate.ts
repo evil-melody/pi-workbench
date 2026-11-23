@@ -87,6 +87,29 @@ export function backupEditTarget(absPath: string): boolean {
   }
 }
 
+/**
+ * #76 M3：write **新建**文件的哨兵标记——`<dir>/turn-<seq>/.created/<镜像路径>`（空文件）。
+ *
+ * 备份只覆盖「改前存在」的文件，新建文件在回退侧本来不可见——既不能还原、也无从删除。
+ * 哨兵补上「将被删除」这一类的唯一来源：Rust 侧 rewind 据此删文件、preview 据此列清单。
+ * 与备份同纪律：任何失败静默跳过，绝不拦工具执行。
+ */
+export function markCreatedTarget(absPath: string): boolean {
+  try {
+    const dir = checkpointDir()
+    if (!dir || !existsSync(dir)) return false
+    const seq = currentTurnSeq(dir)
+    if (seq === null) return false
+    const dest = path.join(dir, `turn-${seq}`, '.created', absPath.replace(/^\/+/, ''))
+    if (existsSync(dest)) return false
+    mkdirSync(path.dirname(dest), { recursive: true })
+    writeFileSync(dest, '')
+    return true
+  } catch {
+    return false
+  }
+}
+
 const PROTECTED_DIRS = [
   '/etc',
   '/usr',
@@ -155,6 +178,29 @@ export type ActiveJob = {
 
 const agentDir = () => (process.env.PI_CODING_AGENT_DIR ?? '').trim()
 
+/**
+ * 完全访问权限（对齐 WorkBuddy「权限 → 完全访问权限」）：读宿主设置文件
+ * `<agentDir>/app-settings.json` 的 `full_access` 位。开启后**交互路径**上的
+ * 风险命令（confirm 级）跳过逐条审批直接放行。
+ *
+ * 底线不因开关改变（fail-closed）：
+ * - 灾难命令 / 受保护路径：classifyToolCall 仍返回 block，不进审批分支；
+ * - 专家白名单与迭代额度：先于一切判定，完全访问不越过专家边界；
+ * - 无人值守预授权：active job 分支在其前面短路，开关不影响夜间任务边界。
+ * 每次工具调用读一次小文件，与 readActiveJob 同成本量级，不做进程内缓存
+ * （设置改完立刻要生效，缓存会让「关掉完全访问」滞后一轮）。
+ */
+export function fullAccessEnabled(): boolean {
+  const dir = agentDir()
+  if (!dir) return false
+  try {
+    const raw = JSON.parse(readFileSync(path.join(dir, 'app-settings.json'), 'utf8'))
+    return raw?.full_access === true
+  } catch {
+    return false
+  }
+}
+
 /** 读当前无人值守任务；过期或结构不合法返回 null。 */
 export function readActiveJob(): ActiveJob | null {
   const dir = agentDir()
@@ -198,6 +244,8 @@ export interface ExpertPolicy {
   allowedTools?: string[]
   deniedPatterns?: string[]
   maxIterations?: number
+  /** 该角色可用的 MCP 服务名（mcp__<server>__<tool> 的 <server>）。空 = 不限制。 */
+  mcpServers?: string[]
 }
 
 /** 团队子进程注入的专家：按 PI_EXPERT_ID 从专家定义派生策略，避免并发成员争抢同一份策略文件。 */
@@ -219,6 +267,7 @@ function envExpertPolicy(): ExpertPolicy | null {
         name: typeof def.name === 'string' ? def.name : undefined,
         allowedTools: pick(def.allowed_tools),
         deniedPatterns: pick(def.denied_patterns),
+        mcpServers: pick(def.mcp_servers),
         maxIterations: typeof def.max_iterations === 'number' ? def.max_iterations : undefined,
       }
     } catch {
@@ -245,11 +294,15 @@ export function readExpertPolicy(cwd: string): ExpertPolicy | null {
     const deniedPatterns = Array.isArray(raw.deniedPatterns)
       ? raw.deniedPatterns.filter((v: unknown) => typeof v === 'string' && v.trim())
       : []
+    const mcpServers = Array.isArray(raw.mcpServers)
+      ? raw.mcpServers.filter((v: unknown) => typeof v === 'string' && v.trim())
+      : []
     return {
       expertId: raw.expertId,
       name: typeof raw.name === 'string' ? raw.name : undefined,
       allowedTools,
       deniedPatterns,
+      mcpServers,
       maxIterations: typeof raw.maxIterations === 'number' ? raw.maxIterations : undefined,
     }
   } catch {
@@ -268,10 +321,24 @@ export function expertGateDecision(
   if (toolName === 'gate_status') return null
   const label = policy.name || policy.expertId
   const allowed = policy.allowedTools ?? []
-  if (allowed.length && !allowed.includes(toolName)) {
+  const servers = policy.mcpServers ?? []
+  // 声明了 MCP 名单 = 隐含授权统一入口 mcp_call（真正的 server 白名单在下面判）。
+  // 否则 allowed_tools 非空但没写 mcp_call 的角色会连 MCP 门都摸不到。
+  if (allowed.length && !allowed.includes(toolName) && !(toolName === 'mcp_call' && servers.length)) {
     return {
       block: true,
       reason: `专家「${label}」未授权工具 ${toolName}（允许：${allowed.join('、')}）`,
+    }
+  }
+  // MCP 走统一 mcp_call 入口：角色声明了 MCP 名单时，只放行名单内的 server。
+  // 名单为空 = 不限制（与 allowedTools 的「空 = 不限制」同一语义）。
+  if (toolName === 'mcp_call' && servers.length) {
+    const server = String((input as { server?: unknown } | null)?.server ?? '')
+    if (server && !servers.includes(server)) {
+      return {
+        block: true,
+        reason: `专家「${label}」未授权 MCP 服务 ${server}（允许：${servers.join('、')}）`,
+      }
     }
   }
   const patterns = policy.deniedPatterns ?? []
@@ -284,6 +351,33 @@ export function expertGateDecision(
     }
   }
   return null
+}
+
+// ── 专家迭代上限（maxIterations 的真消费者）──
+//
+// 语义：一次运行内工具调用的硬额度。策略写了却不消费等于撒了个谎——
+// 界面上显示「上限 12 次」，实际跑多少次都不拦，是最难排查的那种静默失效。
+// 计数在扩展进程内：before_agent_start 归零（一次运行 = 一段连续工具调用），
+// 每次 tool_call 消耗 1；额度耗尽后所有工具（含 gate_status）一律 block，
+// 模型除了停下没有别的路可走。fail-open：没设上限 = 不限。
+
+let expertToolCalls = 0
+
+/** 开新一轮运行：工具调用额度归零。 */
+export function resetExpertIterationBudget(): void {
+  expertToolCalls = 0
+}
+
+/** 纯判定：下一次调用是否超出该专家的迭代上限。可单测。 */
+export function expertIterationDenial(
+  policy: ExpertPolicy | null,
+  used: number,
+): { block: true; reason: string } | null {
+  const cap = policy?.maxIterations
+  if (!policy || typeof cap !== 'number' || cap <= 0) return null
+  if (used < cap) return null
+  const label = policy.name || policy.expertId
+  return { block: true, reason: `专家「${label}」已达迭代上限（${cap} 次工具调用），本轮到此为止` }
 }
 
 /** 越界审计：按项目追加一行，供事后核对「谁在什么时候被拦了什么」。 */
@@ -446,6 +540,13 @@ async function requestApproval(
 }
 
 export default function (pi: any) {
+  // 一次运行 = 一段连续工具调用：开轮先把专家迭代额度归零，
+  // 否则上一轮用完的额度会把这一轮第一次调用直接掐死。
+  pi.on('before_agent_start', () => {
+    resetExpertIterationBudget()
+    return {}
+  })
+
   pi.on('tool_call', async (event: any, ctx: any) => {
     const toolName: string = event?.toolName ?? ''
     // 专家白名单先于一切判定：越界直接拦，不给审批弹窗兜底的机会。
@@ -459,6 +560,16 @@ export default function (pi: any) {
         String(event?.input?.command ?? event?.input?.path ?? ''),
       )
       return { block: true, reason: expertVerdict.reason, terminate: false }
+    }
+    // 迭代上限在白名单之后判定：越界工具不消耗额度（它根本没跑）。
+    // 耗尽后连 gate_status 也拦——模型只剩「停下」一条路。
+    if (expert) {
+      const overBudget = expertIterationDenial(expert, expertToolCalls)
+      if (overBudget) {
+        auditExpertDenial(process.cwd(), expert, toolName, `iteration budget exhausted (${expertToolCalls})`)
+        return { block: true, reason: overBudget.reason, terminate: false }
+      }
+      expertToolCalls += 1
     }
     const verdict = classifyToolCall(toolName, event?.input)
     // 只在有无人值守任务时启用预授权判定；否则保留原有的交互审批路径。
@@ -475,11 +586,14 @@ export default function (pi: any) {
       }
       // G3 checkpoint：edit/write 放行前备份目标文件（相对路径按 cwd 解析）。
       // 失败不拦——备份链断了最多少一次回滚，误拦是直接干不了活。
+      // #76 M3：write 且目标不存在 = 新建，落 `.created` 哨兵（回退时可删）。
       if (toolName === 'edit' || toolName === 'write') {
         const target = String(event?.input?.path ?? '')
         if (target) {
           const abs = path.isAbsolute(target) ? target : path.resolve(process.cwd(), target)
-          backupEditTarget(abs)
+          if (!backupEditTarget(abs) && toolName === 'write' && !existsSync(abs)) {
+            markCreatedTarget(abs)
+          }
         }
       }
       return
@@ -525,6 +639,11 @@ export default function (pi: any) {
         terminate: false,
       }
     }
+
+    // 完全访问权限：交互路径的风险命令免逐条审批直接放行。
+    // 走到这里意味着灾难/受保护路径已被 block、专家白名单已通过、
+    // 无人值守分支已短路——开关只摘掉「确认弹窗」，不动任何硬边界。
+    if (fullAccessEnabled()) return
 
     // confirm：风险命令需用户批准
     const approved = await requestApproval(

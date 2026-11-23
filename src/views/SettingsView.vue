@@ -14,10 +14,139 @@ import { describeIpcError } from '@/composables/useRuntime'
 import { useBackground, type CloseAction } from '@/composables/useBackground'
 import { onTablistKeydown } from '@/composables/useTablist'
 import { setLocalePreference } from '@/i18n'
+import {
+  currentFontScale,
+  currentTheme,
+  setFontScale,
+  setTheme,
+  watchSystemTheme,
+  type FontScale,
+  type Theme,
+} from '@/theme'
 import { APP_NAME, APP_VERSION, PI_VERSION } from '@/version'
 
-type Tab = 'general' | 'model' | 'tools' | 'background' | 'about'
+/**
+ * 分区严格对齐 WorkBuddy 设置页三组侧栏；截图里的 15 项全量补齐，
+ * 我方原有「桌面与启动 / 工具激活 / 关于」并入对应分组，不丢功能。
+ * 无账户体系的两项（个人主页 / 套餐与积分）给本机说明，不伪造云端功能。
+ */
+type Tab =
+  | 'general'
+  | 'profile'
+  | 'billing'
+  | 'appearance'
+  | 'shortcuts'
+  | 'about'
+  | 'personalize'
+  | 'memory'
+  | 'agent'
+  | 'model'
+  | 'assistant'
+  | 'device'
+  | 'flow'
+  | 'desktop'
+  | 'tools'
+  | 'dataImport'
+  | 'dataManage'
+  | 'permissions'
+
+interface SettingsNavItem {
+  id: Tab
+  label: string
+  icon: string
+}
+
+interface SettingsNavGroup {
+  label: string
+  items: SettingsNavItem[]
+}
+
+const navGroups = computed<SettingsNavGroup[]>(() => [
+  {
+    label: t('设置'),
+    items: [
+      { id: 'general', label: t('通用'), icon: 'settings' },
+      { id: 'profile', label: t('个人主页'), icon: 'user' },
+      { id: 'billing', label: t('套餐与积分'), icon: 'chart' },
+      { id: 'appearance', label: t('外观'), icon: 'sun' },
+      { id: 'shortcuts', label: t('快捷键'), icon: 'list' },
+      { id: 'about', label: t('关于'), icon: 'info' },
+    ],
+  },
+  {
+    label: t('功能'),
+    items: [
+      { id: 'personalize', label: t('个性化'), icon: 'sparkles' },
+      { id: 'memory', label: t('记忆与进化'), icon: 'book' },
+      { id: 'agent', label: t('智能体'), icon: 'users' },
+      { id: 'model', label: t('模型'), icon: 'cpu' },
+      { id: 'assistant', label: t('助理'), icon: 'chat' },
+      { id: 'device', label: t('设备连接'), icon: 'plug' },
+      { id: 'flow', label: t('对话流'), icon: 'branch' },
+      { id: 'desktop', label: t('桌面与启动'), icon: 'monitor' },
+      { id: 'tools', label: t('工具激活'), icon: 'tool' },
+    ],
+  },
+  {
+    label: t('数据与安全'),
+    items: [
+      { id: 'dataImport', label: t('数据导入'), icon: 'upload' },
+      { id: 'dataManage', label: t('数据管理'), icon: 'folder' },
+      { id: 'permissions', label: t('高级权限'), icon: 'lock' },
+    ],
+  },
+])
+
+const allNavItems = computed(() => navGroups.value.flatMap((g) => g.items))
+const currentTitle = computed(() => allNavItems.value.find((i) => i.id === tab.value)?.label ?? '')
+
+/** 顶部搜索：命中标题或说明的分区收进侧栏；无命中给空态。空组不渲染标题。 */
+const searchQuery = ref('')
+const filteredGroups = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return navGroups.value
+  return navGroups.value
+    .map((g) => ({
+      ...g,
+      items: g.items.filter(
+        (item) =>
+          item.label.toLowerCase().includes(q) ||
+          (navDescriptions[item.id] ?? '').toLowerCase().includes(q) ||
+          g.label.toLowerCase().includes(q),
+      ),
+    }))
+    .filter((g) => g.items.length)
+})
+const filteredNav = computed(() => filteredGroups.value.flatMap((g) => g.items))
+// 当前分区被搜索滤掉时跳到首个命中项，右侧内容永远对得上侧栏选中态。
+watch(filteredNav, (list) => {
+  if (list.length && !list.some((item) => item.id === tab.value)) tab.value = list[0].id
+})
+
+/* 搜索关键词是检索数据，非 UI 文案：中英双份词元参与匹配。 */
+const navDescriptions: Partial<Record<Tab, string>> = {
+  general: '界面语言 归档 下载源 language archive download', // i18n-ignore
+  profile: '个人 主页 本机 账户 profile account', // i18n-ignore
+  billing: '套餐 积分 计费 配额 billing plan quota', // i18n-ignore
+  appearance: '主题 字号 浅色 深色 theme font size appearance', // i18n-ignore
+  shortcuts: '键盘 命令面板 ⌘K keyboard', // i18n-ignore
+  about: '版本 内核 桌面壳 version', // i18n-ignore
+  personalize: '个性化 偏好 主题 字号 personal preference', // i18n-ignore
+  memory: '记忆 进化 归档 云端 本地 memory evolution archive', // i18n-ignore
+  agent: '智能体 团队 专家 agent team expert', // i18n-ignore
+  model: 'API 密钥 服务商 base url 内核 pi model', // i18n-ignore
+  assistant: '助理 角色 召唤 role assistant', // i18n-ignore
+  device: '设备 连接 连接器 关窗 登录项 device connector login', // i18n-ignore
+  flow: '对话流 工具 白名单 tool allowlist flow', // i18n-ignore
+  desktop: '关窗 后台 驻留 登录项 启动 close window launch at login', // i18n-ignore
+  tools: '白名单 工具 tool allowlist', // i18n-ignore
+  dataImport: '数据 导入 专家 技能 连接器 import', // i18n-ignore
+  dataManage: '数据 管理 资料库 归档 下载源 library archive', // i18n-ignore
+  permissions: '完全访问 风险 审批 full access risky approval', // i18n-ignore
+}
+
 type LanguageChoice = 'system' | 'zh-CN' | 'en-US'
+type ThemeChoice = 'system' | Theme
 
 interface ModelConfig {
   id: string
@@ -42,6 +171,8 @@ interface AppSettings {
   auto_archive_artifacts?: boolean | null
   /** 本地模型下载源；null/缺省 = 默认镜像。 */
   download_source?: string | null
+  /** 完全访问权限：true = 风险命令免审批；缺省按 false。 */
+  full_access?: boolean
 }
 
 interface DownloadSourceInfo {
@@ -55,6 +186,74 @@ interface DownloadSourceInfo {
 
 const tab = ref<Tab>('general')
 const router = useRouter()
+
+/** macOS 显示 ⌘，其它平台显示 Ctrl（与 App.vue 的平台判定同一口径）。 */
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/i.test(navigator.platform)
+
+/** 快捷键只列真实存在的消费点（CommandPalette / composer 回车 / Esc），不臆造。 */
+const shortcutRows = computed<{ keys: string; label: string }[]>(() => [
+  { keys: IS_MAC ? '⌘K' : 'Ctrl+K', label: t('打开命令面板') },
+  { keys: t('Enter'), label: t('发送消息（输入框）') },
+  { keys: t('Shift+Enter'), label: t('换行') },
+  { keys: t('Esc'), label: t('关闭菜单、弹窗与命令面板') },
+])
+
+/** 无真实设置项的入口一律说明现状 + 指向已有能力，不造空开关。 */
+interface SettingsJumpAction {
+  label: string
+  icon: string
+  to?: string
+  tab?: Tab
+}
+
+interface SettingsJumpInfo {
+  desc: string
+  actions: SettingsJumpAction[]
+}
+
+const jumpInfo: Partial<Record<Tab, SettingsJumpInfo>> = {
+  profile: {
+    desc: t('当前桌面版不接账户体系；本机工作区就是个人主页，数据只保存在这台设备上。'),
+    actions: [{ label: t('打开资料库'), icon: 'book', to: '/library' }],
+  },
+  billing: {
+    desc: t('当前版本没有套餐与积分：所有能力在本地运行，不设云端配额，也不会因用量受限。'),
+    actions: [],
+  },
+  agent: {
+    desc: t('智能体团队由专家、技能与连接器装配而成；运行前先在能力中心完成配置。'),
+    actions: [
+      { label: t('打开智能体团队'), icon: 'users', to: '/capabilities?tab=team' },
+      { label: t('专家市场'), icon: 'sparkles', to: '/capabilities?tab=expert' },
+    ],
+  },
+  assistant: {
+    desc: t('助理就是对话中的召唤形态：用输入框「+」选择角色、专家与运行模式，选择只保留一份状态。'),
+    actions: [{ label: t('开始对话'), icon: 'chat', to: '/chat' }],
+  },
+  dataImport: {
+    desc: t('从 WorkBuddy 插件目录或本机文件导入外部能力；导入前可逐个预览并决定工具映射。'),
+    actions: [
+      { label: t('导入专家'), icon: 'sparkles', to: '/capabilities?tab=expert' },
+      { label: t('安装技能'), icon: 'puzzle', to: '/capabilities?tab=skill' },
+      { label: t('导入连接器'), icon: 'plug', to: '/capabilities?tab=connector' },
+    ],
+  },
+  dataManage: {
+    desc: t('会话产物按设置自动归档进资料库；模型下载源与归档开关在「通用」分区。'),
+    actions: [
+      { label: t('打开资料库'), icon: 'book', to: '/library' },
+      { label: t('前往通用设置'), icon: 'settings', tab: 'general' },
+    ],
+  },
+}
+
+function runJump(action: SettingsJumpAction) {
+  if (action.tab) tab.value = action.tab
+  else if (action.to) router.push(action.to)
+}
+
+const activeJump = computed(() => jumpInfo[tab.value])
 
 /** 设置改为弹窗后，关闭即回到进入前的页面；直接打开该路由时退回会话页。 */
 function closeSettings() {
@@ -73,6 +272,72 @@ const language = ref<LanguageChoice>('system')
 /** 会话产物自动归档：默认开启，关闭后后端也不再接收归档任务。 */
 const autoArchive = ref(true)
 const rawSettings = ref<AppSettings | null>(null)
+
+/* ── 外观（1:1 WorkBuddy 设置「外观」：浅色/深色/跟随系统）────────── */
+/** theme.ts 的 localStorage 选择是生效源；'system' = 清掉显式选择跟系统走。 */
+const themeChoice = ref<ThemeChoice>('system')
+
+const themeOptions = computed<SelectOption[]>(() => [
+  { value: 'system', label: t('跟随系统'), hint: t('按系统深浅色自动切换') },
+  { value: 'light', label: t('浅色') },
+  { value: 'dark', label: t('深色') },
+])
+
+function readThemeChoice(): ThemeChoice {
+  const saved = localStorage.getItem('pi-workbench:theme')
+  return saved === 'light' || saved === 'dark' ? saved : 'system'
+}
+
+function applyThemeChoice(value: string) {
+  const choice = value === 'light' || value === 'dark' ? value : 'system'
+  themeChoice.value = choice
+  if (choice === 'system') {
+    localStorage.removeItem('pi-workbench:theme')
+    const sys = currentTheme()
+    document.documentElement.dataset.theme = sys
+    // 窗口底色也要同步：theme.ts 的 syncWindowTheme 是私有函数，这里直接补一次 IPC。
+    invoke('window_set_theme', { theme: sys }).catch(() => undefined)
+  } else {
+    setTheme(choice)
+  }
+}
+
+/* ── 字号（1:1 WorkBuddy 设置「字号」：全站走同一阶梯，改因子等比缩放）── */
+const fontScale = ref<FontScale>('md')
+
+const fontScaleOptions = computed<SelectOption[]>(() => [
+  { value: 'sm', label: t('小'), hint: t('约 90% 缩放') },
+  { value: 'md', label: t('标准'), hint: t('默认大小') },
+  { value: 'lg', label: t('大'), hint: t('约 110% 缩放') },
+  { value: 'xl', label: t('特大'), hint: t('约 120% 缩放') },
+])
+
+function applyFontScaleChoice(value: string) {
+  const choice: FontScale = value === 'sm' || value === 'lg' || value === 'xl' ? value : 'md'
+  fontScale.value = choice
+  setFontScale(choice)
+}
+
+/* ── 权限（1:1 WorkBuddy 设置「权限」：默认 / 完全访问）────────────── */
+/** 消费点在 agent-tool-gate：开启后交互路径的风险命令免审批；灾难黑名单与受保护路径仍拦。 */
+const fullAccess = ref(false)
+const fullAccessSaving = ref(false)
+
+async function changeFullAccess(value: boolean) {
+  fullAccessSaving.value = true
+  const prev = fullAccess.value
+  fullAccess.value = value
+  try {
+    const settings = { ...fullSettings(), full_access: value }
+    await invoke('settings_save', { settings })
+    rawSettings.value = settings
+  } catch (e) {
+    fullAccess.value = prev
+    error.value = describeIpcError(e, t('保存权限设置'))
+  } finally {
+    fullAccessSaving.value = false
+  }
+}
 
 /* ── 本地模型下载源 ──────────────────────────────────────── */
 const downloadMode = ref<'mirror' | 'official' | 'custom'>('mirror')
@@ -166,6 +431,7 @@ function fullSettings(): AppSettings {
     pi_bin: piBin.value.trim() || null,
     language: language.value === 'system' ? null : language.value,
     auto_archive_artifacts: autoArchive.value,
+    full_access: fullAccess.value,
   }
 }
 
@@ -347,6 +613,9 @@ async function load() {
     defaultModelId.value = s.default_model_id ?? models.value[0]?.id ?? ''
     piBin.value = s.pi_bin ?? ''
     autoArchive.value = s.auto_archive_artifacts !== false
+    fullAccess.value = s.full_access === true
+    themeChoice.value = readThemeChoice()
+    fontScale.value = currentFontScale()
     expandedIds.value = new Set([defaultModelId.value])
     inputMap.value = {}
     for (const m of models.value) syncInputMap(m.id, m)
@@ -505,32 +774,41 @@ onMounted(() => {
 <template>
   <AppModal :open="true" :title="t('设置')" size="page" @close="closeSettings">
     <div class="settings-body">
-      <aside class="settings-tabs" role="tablist" :aria-label="t('设置分区')" @keydown="onTablistKeydown">
-        <AppButton variant="tab" role="tab" :aria-selected="tab === 'general'" :tabindex="tab === 'general' ? 0 : -1" :class="{ active: tab === 'general' }" @click="tab = 'general'">
-          <AppIcon name="settings" :size="16" />
-          <span>{{ t('通用') }}</span>
-        </AppButton>
-        <AppButton variant="tab" role="tab" :aria-selected="tab === 'model'" :tabindex="tab === 'model' ? 0 : -1" :class="{ active: tab === 'model' }" @click="tab = 'model'">
-          <AppIcon name="cpu" :size="16" />
-          <span>{{ t('模型配置') }}</span>
-        </AppButton>
-        <AppButton variant="tab" role="tab" :aria-selected="tab === 'tools'" :tabindex="tab === 'tools' ? 0 : -1" :class="{ active: tab === 'tools' }" @click="tab = 'tools'">
-          <AppIcon name="tool" :size="16" />
-          <span>{{ t('工具激活') }}</span>
-        </AppButton>
-        <AppButton variant="tab" role="tab" :aria-selected="tab === 'background'" :tabindex="tab === 'background' ? 0 : -1" :class="{ active: tab === 'background' }" @click="tab = 'background'">
-          <AppIcon name="clock" :size="16" />
-          <span>{{ t('后台与启动') }}</span>
-        </AppButton>
-        <AppButton variant="tab" role="tab" :aria-selected="tab === 'about'" :tabindex="tab === 'about' ? 0 : -1" :class="{ active: tab === 'about' }" @click="tab = 'about'">
-          <AppIcon name="info" :size="16" />
-          <span>{{ t('关于') }}</span>
-        </AppButton>
+      <aside class="settings-tabs">
+        <!-- 1:1 WorkBuddy 设置页：侧栏顶部搜索框，按分区标题/说明过滤 -->
+        <div class="settings-search">
+          <AppIcon name="search" :size="14" />
+          <input
+            v-model="searchQuery"
+            type="search"
+            :placeholder="t('搜索设置')"
+            :aria-label="t('搜索设置')"
+          />
+        </div>
+        <div class="settings-nav" role="tablist" :aria-label="t('设置分区')" @keydown="onTablistKeydown">
+          <template v-for="group in filteredGroups" :key="group.label">
+            <p class="settings-nav-group">{{ group.label }}</p>
+            <AppButton
+              v-for="item in group.items"
+              :key="item.id"
+              variant="tab"
+              role="tab"
+              :aria-selected="tab === item.id"
+              :tabindex="tab === item.id ? 0 : -1"
+              :class="{ active: tab === item.id }"
+              @click="tab = item.id"
+            >
+              <AppIcon :name="item.icon" :size="16" />
+              <span>{{ item.label }}</span>
+            </AppButton>
+          </template>
+          <p v-if="!filteredNav.length" class="settings-nav-empty">{{ t('没有匹配的分区') }}</p>
+        </div>
       </aside>
 
       <main class="settings-main">
         <section v-if="tab === 'general'" class="settings-section">
-          <h2>{{ t('通用') }}</h2>
+          <h2>{{ currentTitle }}</h2>
           <p class="section-desc">{{ t('界面语言只影响 Pi Workbench 的界面与系统提示，不改变模型输出。切换语言不会重启内核。') }}</p>
           <label class="field full inline">
             <span>{{ t('界面语言') }}</span>
@@ -573,8 +851,49 @@ onMounted(() => {
           <p v-if="error" class="form-message err">{{ error }}</p>
         </section>
 
+        <section v-else-if="tab === 'appearance' || tab === 'personalize'" class="settings-section">
+          <h2>{{ currentTitle }}</h2>
+          <p class="section-desc">{{ t('界面配色与字号立即生效并持久保存；「跟随系统」会随系统深浅色自动切换。') }}</p>
+          <label class="field full inline">
+            <span>{{ t('主题') }}</span>
+            <AppSelect
+              :model-value="themeChoice"
+              :options="themeOptions"
+              width="220px"
+              @update:model-value="applyThemeChoice"
+            />
+          </label>
+          <label class="field full inline">
+            <span>{{ t('字号') }}</span>
+            <AppSelect
+              :model-value="fontScale"
+              :options="fontScaleOptions"
+              width="220px"
+              @update:model-value="applyFontScaleChoice"
+            />
+          </label>
+        </section>
+
+        <section v-else-if="tab === 'permissions'" class="settings-section">
+          <h2>{{ currentTitle }}</h2>
+          <p class="section-desc">{{ t('Agent 执行风险操作（删除文件、提权、写项目外路径等）时的确认方式。') }}</p>
+          <label class="field full inline">
+            <AppCheckbox
+              :model-value="fullAccess"
+              :disabled="fullAccessSaving"
+              :label="t('完全访问权限：风险操作不再逐条询问')"
+              @update:model-value="changeFullAccess"
+            />
+          </label>
+          <p class="bg-hint">
+            {{ fullAccess
+              ? t('已开启：风险命令直接执行。灾难命令（rm -rf / 强推远端 / curl 管道执行 / 写块设备）与受保护路径（/etc、~/.ssh、.env 等）仍然强制拦截。')
+              : t('默认模式：风险命令需要逐条审批（90 秒无响应自动拒绝）。灾难命令与受保护路径始终拦截。') }}
+          </p>
+        </section>
+
         <section v-else-if="tab === 'model'" class="settings-section">
-          <h2>{{ t('模型配置') }}</h2>
+          <h2>{{ currentTitle }}</h2>
           <p class="section-desc">{{ t('支持配置多个模型，可切换默认模型。API Key 仅保存在本地配置文件中，不会回显到日志。') }}</p>
 
           <!-- 内核排在最前：找不到 pi 时点发送毫无反应，模型配得再对也跑不起来。 -->
@@ -753,8 +1072,8 @@ onMounted(() => {
           <p v-if="error" class="form-message err">{{ error }}</p>
         </section>
 
-        <section v-else-if="tab === 'tools'" class="settings-section">
-          <h2>{{ t('工具激活') }}</h2>
+        <section v-else-if="tab === 'tools' || tab === 'flow'" class="settings-section">
+          <h2>{{ currentTitle }}</h2>
           <p class="section-desc">{{ t('以下工具会写入 Pi 内核的 defaultTools 白名单。改动保存后需重启内核生效。') }}</p>
           <p v-if="toolError" class="form-message err">{{ toolError }}</p>
           <div class="tools-list">
@@ -765,8 +1084,8 @@ onMounted(() => {
           </div>
         </section>
 
-        <section v-else-if="tab === 'background'" class="settings-section">
-          <h2>{{ t('后台与启动') }}</h2>
+        <section v-else-if="tab === 'desktop' || tab === 'device'" class="settings-section">
+          <h2>{{ currentTitle }}</h2>
           <p class="section-desc">{{ t('关闭主窗口后如何处理，以及是否随系统登录自动启动。驻留后台时调度器保持运行， 托盘菜单可随时打开主窗口、暂停主动任务或彻底退出。') }}</p>
 
           <div class="bg-card">
@@ -803,8 +1122,53 @@ onMounted(() => {
           </div>
         </section>
 
+        <section v-else-if="tab === 'shortcuts'" class="settings-section">
+          <h2>{{ currentTitle }}</h2>
+          <p class="section-desc">{{ t('当前可用的键盘快捷键。') }}</p>
+          <div class="tools-list">
+            <div v-for="s in shortcutRows" :key="s.keys" class="tool-row">
+              <code class="sc-keys">{{ s.keys }}</code>
+              <span class="tool-desc">{{ s.label }}</span>
+            </div>
+          </div>
+        </section>
+
+        <section v-else-if="tab === 'memory'" class="settings-section">
+          <h2>{{ currentTitle }}</h2>
+          <p class="section-desc">{{ t('记忆把对话里有长期价值的信息沉淀下来，后续会话会自动召回。') }}</p>
+          <div class="bg-card">
+            <label class="field full inline">
+              <AppCheckbox
+                :model-value="autoArchive"
+                :label="t('会话结束后自动把产物归档进资料库')"
+                @update:model-value="changeAutoArchive"
+              />
+            </label>
+            <p class="bg-hint">{{ t('云端记忆依赖账户体系，当前版本不提供；本地记忆保存在资料库。') }}</p>
+            <div class="settings-jump-actions">
+              <AppButton variant="secondary" @click="router.push('/library?view=memory')">
+                <AppIcon name="book" :size="14" />
+                <span>{{ t('打开本地记忆') }}</span>
+              </AppButton>
+            </div>
+          </div>
+        </section>
+
+        <section v-else-if="activeJump" class="settings-section">
+          <h2>{{ currentTitle }}</h2>
+          <p class="section-desc">{{ activeJump.desc }}</p>
+          <div class="settings-jump-card">
+            <div v-for="action in activeJump.actions" :key="action.label" class="settings-jump-row">
+              <AppIcon :name="action.icon" :size="16" />
+              <span>{{ action.label }}</span>
+              <AppButton variant="secondary" size="sm" @click="runJump(action)">{{ t('前往') }}</AppButton>
+            </div>
+            <p v-if="!activeJump.actions.length" class="bg-hint">{{ t('此分区无需额外设置。') }}</p>
+          </div>
+        </section>
+
         <section v-else-if="tab === 'about'" class="settings-section">
-          <h2>{{ t('关于') }}</h2>
+          <h2>{{ currentTitle }}</h2>
           <div class="about-cards">
             <div class="about-card">
               <span class="about-label">{{ t('应用') }}</span>

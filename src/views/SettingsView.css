@@ -47,15 +47,102 @@
   line-height: var(--lh-body);
 }
 
+/* 侧栏对齐 WorkBuddy：顶部搜索 + 下方分区导航（导航可滚，搜索常驻）。 */
 .settings-tabs {
-  width: 184px;
+  width: 200px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--sp-1);
+  gap: var(--sp-3);
   padding: var(--sp-3);
   border-right: var(--stroke);
   background: var(--bg-panel);
+}
+
+.settings-search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: var(--row-h);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-elev);
+  color: var(--text-faint);
+}
+
+.settings-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-ui);
+  outline: none;
+}
+
+.settings-search input::placeholder {
+  color: var(--text-faint);
+}
+
+.settings-search input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
+
+.settings-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+/* 分组标题：WorkBuddy 设置侧栏按「设置 / 功能 / 数据与安全」分段。 */
+.settings-nav-group {
+  margin: var(--sp-3) 0 var(--sp-1);
+  padding: 0 var(--sp-3);
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.settings-nav-group:first-child {
+  margin-top: 0;
+}
+
+.settings-nav-empty {
+  margin: var(--sp-2) 0 0;
+  padding: 0 var(--sp-3);
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+}
+
+/* 无真实开关的入口（个人主页/套餐/导入等）：说明 + 指向已有能力，不放假开关。 */
+.settings-jump-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  max-width: 640px;
+  padding: var(--pad-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg-panel);
+}
+
+.settings-jump-row {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--row-h);
+}
+
+.settings-jump-actions {
+  display: flex;
+  gap: var(--sp-2);
 }
 
 .settings-tabs button {
@@ -87,6 +174,7 @@
 .settings-tabs button.active {
   background: var(--bg-active);
   color: var(--text);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .settings-main {
@@ -176,18 +264,28 @@
   margin-top: var(--sp-4);
 }
 
-/* 单字段分区（通用 → 界面语言）：标签与控件同一行，不再竖向撑高一行只放一个下拉。 */
+/* 内联字段统一两列网格：标签列定宽，控件列同一起点。
+   旧版 space-between 让控件左缘随标签字数漂移（界面语言 vs 模型下载源差 19px）——
+   用户「没对齐」的直接真因。复选框行只有控件没标签，显式落进第二列。 */
 .field.inline {
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-4);
+  gap: var(--sp-3);
+  width: 100%;
   max-width: 640px;
 }
 
-/* 标签列不参与收缩：「界面语言」在 496px 行里被挤成两行（36px 高），控件仍是 36px。 */
 .field.inline > span:first-child {
   white-space: nowrap;
+  font-size: var(--fs-md);
+  /* 88px 定宽标签列：超长标签否则溢出压到控件（实测 811px）。 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.field.inline > .app-check {
+  grid-column: 2;
 }
 
 .password-row {
@@ -432,6 +530,20 @@
   color: var(--text-dim);
 }
 
+/* 快捷键行：键位用等宽徽标，说明文字沿用 tool-desc */
+.sc-keys {
+  flex: none;
+  min-width: 88px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-elev);
+  font-family: var(--mono);
+  font-size: var(--fs-meta);
+  color: var(--text);
+  text-align: center;
+}
+
 /* About: 四项版本信息收进一个容器，行间 hairline */
 .about-cards {
   display: flex;
@@ -469,18 +581,23 @@
 }
 
 @media (max-width: 640px) {
+  /* 窄屏：搜索常驻顶部，导航横排滚动（结构不变，只换滚动方向）。 */
   .settings-tabs {
     width: auto;
-    flex-direction: row;
     border-right: 0;
     border-bottom: 1px solid var(--border);
+  }
+
+  .settings-nav {
+    flex-direction: row;
     overflow-x: auto;
+    overflow-y: hidden;
     scrollbar-width: none;
     /* 右侧渐隐提示还有后续分区，避免在 390 下被硬裁成半截。 */
     mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
   }
 
-  .settings-tabs::-webkit-scrollbar {
+  .settings-nav::-webkit-scrollbar {
     display: none;
   }
 

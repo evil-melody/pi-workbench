@@ -1,5 +1,5 @@
 import { t } from '@/i18n'
-import type { PiAttachment, PiMsg } from './usePi'
+import type { PiAttachment, PiMsg, PiQuote } from './usePi'
 import { splitPromptBody } from './usePi'
 import { extractFileChange, type PiFileChange } from '@/utils/fileChanges'
 import { parsePlanSteps } from '@/utils/planMode'
@@ -99,12 +99,34 @@ export interface EventCtx {
    */
   planPending?: { task: string } | null
   /**
+   * M5：本轮落定后扩展经 appendEntry 产出的延续问题（三条）。
+   * 用 getter/setter 桥接 usePi 的 ref（同 planPending）；新推荐到达整体覆盖。
+   */
+  suggestions?: string[] | null
+  /**
    * 工具名回填映射（callId → chip 消息 id）。`toolcall_start` 的 payload
    * 普遍不带 `toolCall.name`（实测 0.87.x），chip 先以 TOOL_PENDING 占座；
    * `toolcall_end` / `tool_execution_start` 带真实工具名到达时按 id 回填。
    * 可选：测试工厂不传时 applyEvent 会惰性创建，行为不变。
    */
   toolStartMap?: Map<string, string>
+}
+
+/** M5：扩展 agent-suggest 写入 journal 的 customType，两端同源。 */
+export const SUGGEST_CUSTOM_TYPE = 'pi_suggest'
+
+/** M5：从 entry_appended 事件里挑出推荐条目；不是推荐形状返回 null。 */
+export function readSuggestions(rec: unknown): string[] | null {
+  if (!rec || typeof rec !== 'object') return null
+  const e = (rec as { entry?: unknown }).entry
+  if (!e || typeof e !== 'object') return null
+  const entry = e as { type?: unknown; customType?: unknown; data?: unknown }
+  if (entry.type !== 'custom' || entry.customType !== SUGGEST_CUSTOM_TYPE) return null
+  const data = entry.data as { suggestions?: unknown } | undefined
+  const items = data?.suggestions
+  if (!Array.isArray(items)) return null
+  const out = items.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+  return out.length ? out : null
 }
 
 /**
@@ -500,19 +522,23 @@ export function applyEvent(ctx: EventCtx, rec: unknown): void {
     // `user_prompt`）：切会话、刷新、进程中断都能凭它还原气泡。只有回放需要它：
     // 实时气泡已由 pushUser 乐观落过，再落会重复。
     if (!ctx.replay) return
-    const info = rec as { text?: unknown; mode?: unknown; attachments?: unknown }
+    const info = rec as { text?: unknown; mode?: unknown; attachments?: unknown; quotes?: unknown }
     const raw = info.text
     if (typeof raw !== 'string' || !raw.trim()) return
-    const { text, attachments: fromBody } = splitPromptBody(raw)
+    const { text, attachments: fromBody, quotes: quotesFromBody } = splitPromptBody(raw)
     // 合成事件带完整元数据（name/size），优先用它；旧 journal 回退到路径块解析。
     const rich = Array.isArray(info.attachments) ? (info.attachments as PiAttachment[]) : []
     const attachments = rich.length ? rich : fromBody
-    if (!text.trim() && !attachments.length) return
+    // 引用同理会带富字段（noteUser/pi_send 都写），空数组回落块解析结果。
+    const richQuotes = Array.isArray(info.quotes) ? (info.quotes as PiQuote[]) : []
+    const quotes = richQuotes.length ? richQuotes : quotesFromBody
+    if (!text.trim() && !attachments.length && !quotes.length) return
     // 落盘顺序不保证：内核极快回显时 message_end 可能先于这条合成事件进 journal。
     // 已有同文本的正式 user 气泡就并进去，不再叠一条（附件元数据以合成事件为准）。
     const echoed = messages.find((m2) => m2.role === 'user' && !m2.synth && m2.text === text)
     if (echoed) {
       if (!echoed.attachments?.length && attachments.length) echoed.attachments = attachments
+      if (!echoed.quotes?.length && quotes.length) echoed.quotes = quotes
       return
     }
     messages.push({
@@ -523,6 +549,7 @@ export function applyEvent(ctx: EventCtx, rec: unknown): void {
       ...(info.mode === 'prompt' ? {} : { queued: true }),
       synth: true,
       ...(attachments.length ? { attachments } : {}),
+      ...(quotes.length ? { quotes } : {}),
     })
   } else if (eventType === 'message_start') {
     // 新 assistant 消息开始：文件组到此关闭，后续改动归入下一组。
@@ -541,8 +568,8 @@ export function applyEvent(ctx: EventCtx, rec: unknown): void {
       if (!ctx.replay) return
       const raw = extractText(msg)
       if (!raw.trim()) return
-      const { text, attachments } = splitPromptBody(raw)
-      if (!text.trim() && !attachments.length) return
+      const { text, attachments, quotes } = splitPromptBody(raw)
+      if (!text.trim() && !attachments.length && !quotes.length) return
       // 发送时已落一条 `user_prompt`（prompt / follow_up / steer 都有）：
       // 内核现在才回显，消标记即可，不能清掉下一条排队消息。
       const pending = messages.find((m2) => m2.role === 'user' && m2.synth && m2.text === text)
@@ -551,6 +578,7 @@ export function applyEvent(ctx: EventCtx, rec: unknown): void {
         delete pending.synth
         // 合成事件带更全的附件元数据；内核回显只有路径块，别反向覆盖。
         if (!pending.attachments?.length && attachments.length) pending.attachments = attachments
+        if (!pending.quotes?.length && quotes.length) pending.quotes = quotes
         return
       }
       messages.push({
@@ -558,6 +586,7 @@ export function applyEvent(ctx: EventCtx, rec: unknown): void {
         role: 'user',
         text,
         ...(attachments.length ? { attachments } : {}),
+        ...(quotes.length ? { quotes } : {}),
       })
       return
     }
@@ -623,6 +652,11 @@ export function applyEvent(ctx: EventCtx, rec: unknown): void {
     if (typeof r.finalError === 'string' && r.finalError.trim()) {
       reportError(messages, t('模型请求最终失败：'), r.finalError, ctx.nextId)
     }
+  } else if (eventType === 'entry_appended') {
+    // M5：扩展在 agent_before_settle 写的延续问题。只读 customType 匹配的条目，
+    // 其余 entry_appended（消息/usage 回显）继续走 lifecycle，不落推荐。
+    const items = readSuggestions(rec)
+    if (items) ctx.suggestions = items
   } else if (eventType === 'agent_settled') {
     // 只有 agent_settled 表示「这一轮落定」；process_exit 只翻 usePi 的 streaming 开关，
     // 与内核侧保持一致的语义，不在这里顺手改消息状态。
@@ -655,6 +689,82 @@ export interface QueueState {
 
 export function emptyQueueState(): QueueState {
   return { steering: [], followUp: [] }
+}
+
+/**
+ * #69 M7：队列条目 = 内核快照的一个 (段, 序号) 坐标 + 下发全文。
+ * 正文带 buildPrompt 的引用/附件块（内核队列里存的就是下发全文），展示前
+ * 要经 splitPromptBody 剥回用户原文——但**重发必须用原文**：clear+重发是
+ * M7 的编排底座，二次 buildPrompt 会把标记块越裹越多。
+ */
+export interface QueueEntry {
+  seg: 'steer' | 'followup'
+  /** 段内序号（快照口径，随 queue_update 回推失效——操作必须以最近一次快照为底）。 */
+  index: number
+  /** 下发全文（内核队列里的原始文本）。 */
+  body: string
+}
+
+/** 快照 → 扁平条目：插话段在前（消费顺序 steer→followUp，列表呈现同序不反转直觉）。 */
+export function queueEntries(q: QueueState): QueueEntry[] {
+  return [
+    ...q.steering.map((body, index) => ({ seg: 'steer' as const, index, body })),
+    ...q.followUp.map((body, index) => ({ seg: 'followup' as const, index, body })),
+  ]
+}
+
+/** #69 M7：队列变更指令（move/remove/edit）——快照纯函数的入参形状。 */
+export type QueueMutation =
+  | { kind: 'move'; from: number; to: number }
+  | { kind: 'remove'; at: number }
+  | { kind: 'edit'; at: number; body: string }
+
+/**
+ * 在快照副本上做一次变更，返回新快照（原对象不动——queue ref 是权威态，
+ * 就地改会让「操作失败回滚」变成二次编排事故）。越界/空文本返回 null，
+ * 调用方据此判无效操作不发命令。
+ *
+ * 段语义：跨段移动 = 类型转换（排队项拖进插话段就变成下次 LLM 前注入）。
+ * 移动落点决定新段——落在哪条前面就跟哪条同段；落在整个列表末尾保持原段。
+ * 重排后按各条段的归属重新切分快照（steer 数组保持相对序，followUp 同理），
+ * 内核消费顺序 steer→followUp 不变。
+ */
+export function mutateQueueSnapshot(
+  q: QueueState,
+  op:
+    | { kind: 'move'; from: number; to: number }
+    | { kind: 'remove'; at: number }
+    | { kind: 'edit'; at: number; body: string },
+): QueueState | null {
+  const entries = queueEntries(q)
+  switch (op.kind) {
+    case 'move': {
+      if (op.from === op.to || op.from < 0 || op.to < 0 || op.from >= entries.length || op.to >= entries.length) return null
+      const [moved] = entries.splice(op.from, 1)
+      entries.splice(op.to, 0, moved)
+      // 段归属跟随落点邻居（优先后邻，其次前邻）——把排队项拖进插话段就是
+      // 把它转成「下次 LLM 调用前注入」，反之亦然；列表里只有一条时保持原段。
+      const neighbour = entries[op.to + 1] ?? (op.to > 0 ? entries[op.to - 1] : undefined)
+      if (neighbour) moved.seg = neighbour.seg
+      break
+    }
+    case 'remove': {
+      if (op.at < 0 || op.at >= entries.length) return null
+      entries.splice(op.at, 1)
+      break
+    }
+    case 'edit': {
+      if (op.at < 0 || op.at >= entries.length || !op.body.trim()) return null
+      entries[op.at].body = op.body
+      break
+    }
+  }
+  const out = emptyQueueState()
+  for (const e of entries) {
+    if (e.seg === 'steer') out.steering.push(e.body)
+    else out.followUp.push(e.body)
+  }
+  return out
 }
 
 /**

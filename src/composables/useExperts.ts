@@ -10,6 +10,7 @@ import { t } from '@/i18n'
  * 中间任何一步内容变了，后面的 proof 立即作废，绝不因为模型自称已确认就放行。
  */
 import { invoke } from '@tauri-apps/api/core'
+import { ref } from 'vue'
 import { listOf } from '@/utils/ipc'
 
 export interface ExpertExample {
@@ -43,6 +44,29 @@ export interface ExpertDefinition {
   max_iterations?: number | null
   /** 导入时对未映射工具的决策记录（追溯用）。 */
   tool_mapping?: ToolMappingEntry[]
+  /** 执行器：真正跑这个角色的 agent CLI（pi / claude / codex / 命令名）。 */
+  executor?: string | null
+  /** 该角色专用模型标识。 */
+  model?: string | null
+  /** 硬规则：以约束形式追加到 persona 尾部。 */
+  rules?: string
+  /** 该角色可用的 MCP 服务名。空 = 不限制。 */
+  mcp_servers?: string[]
+}
+
+/** 专家详情预览：编译后 persona + 执行配置（专家中心只读展示）。 */
+export interface ExpertPersonaPreview {
+  prefix: string
+  suffix: string
+  full: string
+  executor?: string | null
+  model?: string | null
+  mcp_servers: string[]
+  skill_names: string[]
+  allowed_tools: string[]
+  denied_patterns: string[]
+  max_iterations?: number | null
+  terse_enforced: boolean
 }
 
 export interface ToolMappingEntry {
@@ -89,6 +113,8 @@ export interface ExpertSummary {
   last_run: ExpertLastRun | null
   /** local = 本应用创建；imported = 外部导入。 */
   source: 'local' | 'imported'
+  /** 是否带真头像；false 时前端直接首字，省一次 IPC。 */
+  has_avatar?: boolean
 }
 
 export interface ImportUnmappedField {
@@ -108,6 +134,8 @@ export interface ImportExpertPreview {
   role: string
   definition: ExpertDefinition
   source_path: string
+  /** 成员清单头像源文件（绝对路径）；无图 / 超限时缺省。 */
+  avatar_from?: string
   conflict: boolean
   unmapped_tools: ImportToolIssue[]
   unmapped_fields: ImportUnmappedField[]
@@ -126,6 +154,8 @@ export interface ImportApplyItem {
   definition: ExpertDefinition
   conflict: 'skip' | 'overwrite' | 'rename'
   source_path: string
+  /** 头像源文件（预览的 avatar_from 原样带回）；后端复制进 avatars/。 */
+  avatar_from?: string
 }
 
 export interface ImportApplyResult {
@@ -174,6 +204,10 @@ export function emptyDefinition(): ExpertDefinition {
     stop_condition: '',
     max_iterations: null,
     tool_mapping: [],
+    executor: null,
+    model: null,
+    rules: '',
+    mcp_servers: [],
   }
 }
 
@@ -196,6 +230,64 @@ export async function expertImportPreview(
 /** 落盘导入结果。后端整体校验 + 快照回滚，不会出现导入一半。 */
 export async function expertImportApply(items: ImportApplyItem[]): Promise<ImportApplyResult[]> {
   return invoke<ImportApplyResult[]>('expert_import_apply', { items })
+}
+
+/**
+ * 专家头像：模块级缓存，市场卡片与选择器共用同一份（同一 id 只发一次 IPC）。
+ *
+ * 走 IPC 读字节而不是 convertFileSrc：asset protocol 的 scope 只放开了
+ * `$APPCONFIG/attachments/**`，头像目录不在范围内。
+ * 失败与「无图」同样返回 null —— 头像缺失只该退回首字，不该冒错误。
+ */
+const avatarCache = ref<Record<string, string | null>>({})
+const avatarInFlight = new Map<string, Promise<string | null>>()
+
+export function expertAvatars() {
+  return avatarCache
+}
+
+export async function loadExpertAvatar(id: string): Promise<string | null> {
+  if (id in avatarCache.value) return avatarCache.value[id] ?? null
+  const pending = avatarInFlight.get(id)
+  if (pending) return pending
+  const task = (async () => {
+    try {
+      const data = await invoke<string | null>('expert_avatar', { id })
+      avatarCache.value[id] = data ?? null
+      return data ?? null
+    } catch {
+      avatarCache.value[id] = null
+      return null
+    } finally {
+      avatarInFlight.delete(id)
+    }
+  })()
+  avatarInFlight.set(id, task)
+  return task
+}
+
+/** WorkBuddy 缓存里的一个专家包，含团队拓扑。 */
+export interface ScanPackage {
+  slug: string
+  name: string
+  version: string
+  path: string
+  is_team: boolean
+  lead: string | null
+  member_ids: string[]
+  experts: ImportExpertPreview[]
+  conflict: boolean
+  error: string | null
+}
+
+export interface ScanResult {
+  root: string
+  packages: ScanPackage[]
+}
+
+/** 一键扫描 WorkBuddy 专家缓存，无需手填路径。 */
+export async function expertImportScan(availableTools: string[]): Promise<ScanResult> {
+  return invoke<ScanResult>('expert_import_scan', { available_tools: availableTools })
 }
 
 /**
@@ -250,6 +342,13 @@ export async function expertDraftSave(
 
 export async function expertValidate(definition: ExpertDefinition): Promise<DomainIssue[]> {
   return invoke<DomainIssue[]>('expert_validate', { definition })
+}
+
+/** 专家详情：编译后 persona + 执行配置，供只读展示。 */
+export async function expertPersonaPreview(
+  definition: ExpertDefinition,
+): Promise<ExpertPersonaPreview> {
+  return invoke<ExpertPersonaPreview>('expert_persona_preview', { definition })
 }
 
 export async function expertRequestConfirmation(

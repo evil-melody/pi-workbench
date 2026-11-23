@@ -429,6 +429,20 @@ Pi agent runtime 执行（调用 extension 注册的 tool / 内部能力）
 - **新增测试**：`tests/messageListDisplay.spec.ts`（jsdom 真实挂载，9 条）——`fmtClock` 三档 + 补零 + 无 `ts` 返回空串；Think 落定显首行 / 流式末尾显最新行；`.msg-stopped` 只落在末尾 turn、未中断不渲染；`.ta-clock` 有 `ts` 才显、回放整体隐藏；`.u-clock` 仅在有时刻的气泡上出现。
 - **闸门**：typecheck 0 错 · **430 passed / 36 files** · build ✓（239 modules）· visual-check **99/99 通过**（截图里时钟已渲染）· `graphify update`（3380 nodes / 6823 edges / 174 communities，`fmtClock` / `turnClock` / `thinkSummary` 新节点的 imports/calls 边均可查）。
 
+### 5.13 第十一轮：对话列宽口径改判——消息流与输入框等宽（2026-11-22）
+
+用户原话「对话宽度应该跟输入框宽度一样宽才对」。此前口径经历三段漂移：5.7 定 `--chat-col:760px` 且「输入列与消息列共用，永不错位」→ 5.8 收窄为 720px → 后来用户反馈「输入框太宽」，消息列被放到 `100%` 铺满、composer 单独抽 `--composer-col: clamp(480px,56vw,760px)` 收窄居中——两条对齐线正式分家。本轮把口径拉回 5.7 的原始原则：**一条列宽令牌，消息流 / 步骤行 / notice / composer 全部等宽**。
+
+- **Token 层**（`base.css`）：删 `--composer-col`；`--chat-col` 从 `100%` 改回 `clamp(480px, 56vw, 760px)`——宽窗封顶 760 居中（56vw 让中屏平滑过渡，480 兜窄屏下限），窄窗自然铺满。`--chat-pad` 公式不变，`--chat-col` 封顶后内衬自动变厚，四条对齐线天然重合。
+- **接线**（`ChatView.css`）：`.composer` 内衬从「就地重抄的 `--composer-col` 公式」改回 `var(--chat-pad)`——这正是 5.8 反对过的「各抄一份公式」反模式的重演，`--composer-col` 引入时用「独立于消息列」的理由绕过了统一 token，本轮废除。
+- **`--hero-col` 保留**：落地页 hero 不是消息流，WorkBuddy 式居中窄卡形态独立成立，不与 composer 对齐（既有断言「hero ≤760px」不受影响）。
+- **header 维持整栏内衬**（D-09 口径不变）：顶栏横跨 `.center` 全宽，工作区名要有呼吸位；对齐线只约束「内容层」（msgs / step-strip / notice / nokernel / io-note / composer）。
+- **行长兜底不动**：`.txt` 的 `max-width: min(96ch, 100%)` 继续兜住超宽列；`--chat-col` 封顶 760 后 96ch 基本不触发，属双保险。
+- **断言反转**（`visual-check.mjs`）：旧两条「消息列全宽（≥92% 中栏）」与「composer 比消息列窄（<0.9×）」废弃，换成「输入框与消息列等宽（内容边线 ≤2px）」+「步骤行与消息列同对齐线」。测量取内容边线（msgs 的 padding 内侧 vs shell 外缘），并扣掉滚动容器 clientRect 含滚动条的宽度差——1440 视口实测三线全部 470→1230，误差 0px。
+- **页面壳定律（同批，用户「一个页面一个页面的样式也要修正」）**：宽屏逐页审查发现内容页壳封顶宽三种口径并存——ui-kit `.page-inner` 用 `--page-max` 1280、agent-ops 家族硬编码 1100、能力中心/收件箱/插件/资料库/项目工作台**完全不封顶**铺满窗口。统一为：所有内容页壳 `max-width: var(--page-max); margin: 0 auto`（`.wd-market` / `.inbox-view` / `.wd-community` / `.wd-library` / `.pw` / `.agent-ops`），`.wd-p-center` 与 `.page-inner` 本就合规。agent-ops 的嵌入式豁免（`max-width: none`，宿主已封顶）不变。新增 1800 宽视口断言两条：七页统一封顶 + 边线同线（实测全部 390→1670，误差 0px）。
+- **资料库 master-detail 空态**（同批发现）：未选中文件时 `.lib-body` 只剩 280px 目录树，右侧整片裸底——补 `v-else` 占位节（`.lib-preview.lib-preview-empty`，与骨架态同构复用 `.preview-binary` 形态），宽屏实测右栏 920px 填满。
+- **闸门**：visual-check 330/330 · vitest 555 · verify:pages 84 张无缺陷 · typecheck 0 错 · build ✓。
+
 ---
 
 > 注：DSH 生态的功能描述来自 2026-10 公开文章与 dsh.so 工件页，属社区公开资料；

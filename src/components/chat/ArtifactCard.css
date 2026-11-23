@@ -1,3 +1,54 @@
+/*
+ * 产物卡（#66 M9）：wrapper 承载 hover 快捷键「添加到对话」。
+ * 卡片本体是 button，操作键必须放在它外面（button 套 button 是非法 HTML）。
+ */
+.acard-wrap {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+}
+
+.acard-acts {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: none;
+}
+
+@media (hover: hover) {
+
+  .acard-wrap:hover .acard-acts {
+    display: flex;
+  }
+}
+
+/* 触屏/窄屏没有 hover 态：操作键常驻，否则入口等于不存在。 */
+@media (hover: none) {
+
+  .acard-acts {
+    display: flex;
+  }
+}
+
+.acard-act {
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+
+  .acard-act:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+}
+
 .acard {
   display: flex;
   align-items: center;

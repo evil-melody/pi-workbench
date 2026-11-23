@@ -1,0 +1,91 @@
+/* 外部连接器导入弹窗（与专家导入弹窗同一套视觉语言） */
+
+.ci-root {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-ui);
+  color: var(--text-dim);
+}
+
+.ci-root code {
+  padding: 1px var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-panel);
+  font-size: var(--fs-meta);
+}
+
+.ci-hint {
+  margin: 0 0 var(--sp-3);
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+}
+
+.ci-error {
+  margin: 0 0 var(--sp-3);
+  color: var(--danger);
+  font-size: var(--fs-sm);
+}
+
+.ci-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.ci-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-panel);
+}
+
+.ci-item.off {
+  opacity: 0.55;
+}
+
+.ci-title {
+  font-size: var(--fs-ui);
+  color: var(--text);
+}
+
+.ci-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
+}
+
+.ci-meta code {
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+
+.ci-src-off {
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+}
+
+.ci-skip {
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
+}
+
+.ci-fail {
+  font-size: var(--fs-meta);
+  color: var(--danger);
+}

@@ -1,0 +1,150 @@
+/* G6/#69 M7 队列 strip：composer 上方的插话/排队条目（样式随组件抽离） */
+.queue-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border-soft);
+  /* 与输入外壳同档圆角：两条上下相邻的容器半径不同时，边缘会错开一档。 */
+  border-radius: var(--r-2xl);
+  background: var(--bg-elev);
+  font-size: var(--fs-sm);
+}
+
+.queue-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.queue-seg + .queue-seg {
+  padding-left: 8px;
+  border-left: 1px solid var(--border-soft);
+}
+
+.queue-tag {
+  flex-shrink: 0;
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-full);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+
+.queue-seg.steer .queue-tag {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+.queue-seg.followup .queue-tag {
+  background: var(--bg-hover);
+  color: var(--text-dim);
+}
+
+.queue-hint {
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+}
+
+/* #69 M7：条目 = 正文 + hover 操作组；拖拽源半透明，放置目标强调描边 */
+.queue-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 260px;
+  min-width: 0;
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-full);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-soft);
+  color: var(--text);
+  cursor: grab;
+  transition: border-color var(--dur-fast) var(--ease), opacity var(--dur-fast) var(--ease);
+}
+
+.queue-item.dragging {
+  opacity: 0.45;
+}
+
+.queue-item.drop-target {
+  border-color: var(--accent);
+}
+
+.queue-item-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.queue-act {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+/* 触屏/键盘无 hover 能力时操作组常驻可见，不能只靠悬停唤出 */
+@media (hover: hover) {
+
+  .queue-item:hover .queue-act,
+  .queue-item:focus-within .queue-act {
+    opacity: 1;
+  }
+}
+
+@media (hover: none) {
+
+  .queue-act,
+  .queue-item:focus-within .queue-act {
+    opacity: 1;
+  }
+}
+
+.queue-act:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.queue-act.danger:hover:not(:disabled) {
+  color: var(--danger);
+}
+
+.queue-act:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+.queue-clear {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 2px var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  background: none;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  font-family: inherit;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+
+@media (hover: hover) {
+
+  .queue-clear:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+}

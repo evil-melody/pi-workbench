@@ -156,3 +156,133 @@
   padding-left: 0;
   list-style: none;
 }
+
+/* ── 扫描态 ── */
+
+.import-scan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.import-root {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.import-root-label {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+}
+
+.import-root code {
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.import-empty {
+  padding: var(--sp-5);
+  border: 1px dashed var(--border);
+  border-radius: var(--r);
+  color: var(--text-faint);
+  font-size: var(--fs-ui);
+  text-align: center;
+}
+
+.import-select-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.import-pack-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 45vh;
+  overflow: auto;
+}
+
+.import-pack {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-elev);
+  font-size: var(--fs-ui);
+}
+
+.import-pack.off {
+  opacity: 0.55;
+}
+
+.import-pack .app-check {
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.import-pack-meta {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+}
+
+.import-pack-count {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+  text-align: right;
+}
+
+.import-badge {
+  flex-shrink: 0;
+  padding: 0 var(--sp-2);
+  border-radius: var(--r-sm, var(--r));
+  background: var(--bg-hover);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+
+.import-badge.team {
+  background: var(--accent-soft, var(--bg-hover));
+  color: var(--accent, var(--text));
+}
+
+.import-pack-tag {
+  color: var(--text-faint);
+  font-size: var(--fs-sm);
+}
+
+.import-manual {
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-ui);
+}
+
+.import-manual summary {
+  cursor: pointer;
+  color: var(--text-dim);
+}
+
+.import-manual[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding-bottom: var(--sp-2);
+}

@@ -802,6 +802,16 @@ if (view.value === 'search' && keyword.value.trim()) runSearch()
           <span>{{ t('该格式不在正文通道内，点「原件」用系统应用打开。') }}</span>
         </div>
       </section>
+
+      <!-- 未选中文件时的详情占位：master-detail 缺右栏会让左树孤零零贴边、
+           右侧整片裸底（2026-11-22 宽屏逐页审查发现）。与骨架态同构，
+           数据回来只换内容不换版式。 -->
+      <section v-else class="lib-preview lib-preview-empty">
+        <div class="preview-empty-body">
+          <AppIcon name="file" :size="28" />
+          <p>{{ t('从左侧目录选择一个文件，这里会显示内容与修订。') }}</p>
+        </div>
+      </section>
     </div>
 
     <AppModal :open="dialog === 'create'" :title="t('新建草稿')" size="sm" @close="dialog = ''">

@@ -14,15 +14,14 @@ import { useRunActivity } from '@/composables/useRunActivity'
 import { useRunMeta, type RunMetaPatch } from '@/composables/useRunMeta'
 import { allSelected, selectAll, toggleSelected } from '@/utils/runSelection'
 import { buildRunShareText } from '@/utils/runShare'
-import { timeAgo } from '@/utils/timeAgo'
 
 /**
  * 运行记录（对齐 WorkDSH「之前的运行记录」）：journal 按 session_open
  * 分段的历史会话列表，**默认 5 条**，「加载更多」每次再看 5 条。
  * 空列表整体隐藏——首页不该出现一块永远空着的板子。
  *
- * 行 hover 露「···」菜单（置顶 / 重命名 / 分享 / 独立窗口 / 打开文件夹 /
- * 批量操作 / 归档 / 删除）；「批量操作」进入多选态，底部操作栏逐条
+ * 行尾「···」按钮（点击 / 右键都出菜单）：置顶 / 重命名 / 分享 / 独立窗口 / 打开文件夹 /
+ * 批量操作 / 归档 / 删除；运行中会话行改挂转菊，两者不同时出现。「批量操作」进入多选态，底部操作栏逐条
  * invoke run_meta_update。所有元数据写操作走 useRunMeta，
  * journal 段数据走 listRunHistory（后端已合并 pinned/archived/title）。
  */
@@ -130,16 +129,6 @@ async function toggleArchived() {
 /** 标题兜底：极少数段没有任何用户消息（只起了内核没说话）。 */
 function titleOf(r: RunRecord): string {
   return r.title || t('（该会话没有用户消息）')
-}
-
-/**
- * 行尾相对时间取「最后活动时间」（结束时间优先）。
- * 列表按同一口径倒序排（见 listRunHistory），若这里仍显示开始时间，
- * 一个「13 天前开、1 小时前收尾」的长会话会顶着「13天前」插在最新行里，
- * 看起来像排序坏了。
- */
-function timeOf(r: RunRecord): string {
-  return timeAgo(r.endedAtMs || r.startedAtMs)
 }
 
 /* ── 单条元数据操作 ─────────────────────────────────────────── */
@@ -337,6 +326,7 @@ function openMenu(r: RunRecord, el: Event) {
           :title="titleOf(r)"
           @click="onRowClick(r)"
           @keydown.enter="onRowClick(r)"
+          @contextmenu.prevent="!bulkMode && openMenu(r, $event)"
         >
           <AppCheckbox
             v-if="bulkMode"
@@ -359,18 +349,17 @@ function openMenu(r: RunRecord, el: Event) {
             >
               <AppIcon name="spinner" :size="12" />
             </span>
-            <span class="rh-time">{{ timeOf(r) }}</span>
+            <AppButton
+              v-if="!bulkMode"
+              variant="icon"
+              class="rh-more-btn"
+              :title="t('更多操作')"
+              aria-haspopup="menu"
+              @click.stop="openMenu(r, $event)"
+            >
+              <AppIcon name="more-horizontal" :size="14" />
+            </AppButton>
           </span>
-          <AppButton
-            v-if="!bulkMode"
-            variant="icon"
-            class="rh-more-btn"
-            :title="t('更多操作')"
-            aria-haspopup="menu"
-            @click.stop="openMenu(r, $event)"
-          >
-            <AppIcon name="more-horizontal" :size="14" />
-          </AppButton>
         </div>
       </li>
     </ol>

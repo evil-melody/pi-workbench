@@ -1,0 +1,67 @@
+/*
+ * 引用卡：从 assistant 正文摘出的一段话（可带批注）。
+ * 形态与附件 chip 同源（边框/圆角/底色/移除键照抄 att-chip），差别只在
+ * 内容是文本而非文件——引用是「摘出来的句子」，宽度给到 320 更容得下一句人话。
+ * 待发送托盘与已发送气泡共用本组件，样式只此一份。
+ */
+.quote-chip {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  max-width: 320px;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg-elev);
+}
+
+.quote-mark {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--text-dim);
+}
+
+.quote-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.quote-text {
+  font-size: var(--fs-sm);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quote-note {
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quote-x {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+
+  .quote-x:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+}

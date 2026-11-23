@@ -5,12 +5,15 @@ import AppIcon from '@/components/ui/AppIcon.vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
 import ComposerShell from '@/components/chat/ComposerShell.vue'
-import RoleSwitcher from '@/components/layout/RoleSwitcher.vue'
+import ComposerPlusMenu from '@/components/chat/ComposerPlusMenu.vue'
+import AttachmentTray, { type TrayAttachment } from '@/components/chat/AttachmentTray.vue'
 import ModeSwitcher from '@/components/chat/ModeSwitcher.vue'
 // 档位是全局偏好：落地页直接读同一份状态，不再维护本地影子值。
 import { thinkingLevel, setThinkingMode } from '@/composables/useThinkingMode'
 import ModelSwitcher from '@/components/chat/ModelSwitcher.vue'
 import WorkspacePicker from '@/components/chat/WorkspacePicker.vue'
+import type { WorkMode } from '@/utils/workMode'
+import { IN_TAURI } from '@/composables/usePi'
 // 走打包器而不是 public/：模板里的静态 `/xxx.png` 会被当项目根路径解析，
 // 仓库根一旦出现同名文件就会静默替换掉 public 里的那张。
 import mascotUrl from '@/assets/mascot.png'
@@ -28,6 +31,14 @@ const props = defineProps<{
   cwd: string
   /** 父级正在拉起目录选择器（例如「先选目录再发送」的自动流程）。 */
   busy?: boolean
+  /** 本轮选中的专家（0/1 项，与会话态 composer 共用同一份状态）。 */
+  expert?: string[]
+  /** 本轮绑定的专家团（0/1 项）：发送时父级转成 team_dispatch 工具指令。 */
+  team?: string[]
+  /** 工作模式（与会话态共用父级的 workMode）。 */
+  mode?: WorkMode
+  /** 待发送附件（父级持有：拖拽/选文件都落 ChatView 的托盘，#66 M10 落地页也可见）。 */
+  attachments?: TrayAttachment[]
 }>()
 
 const emit = defineEmits<{
@@ -38,6 +49,14 @@ const emit = defineEmits<{
   /** 给已有项目补绑工作目录（项目可能是模板建的、还没有目录）。 */
   'bind-directory': [payload: { id: string; dir: string }]
   'pick-mode': [mode: string]
+  'update:expert': [ids: string[]]
+  'update:team': [ids: string[]]
+  /** 「+」菜单的添加文件：附件能力在父级（落盘/缩略图都在 ChatView）。 */
+  attach: []
+  /** 托盘移除键：附件状态在父级，这里只发意图。 */
+  'remove-attachment': [id: string]
+  /** 「+」菜单的工作模式（默认/计划/问答）。 */
+  'update:mode': [mode: WorkMode]
 }>()
 
 type Category = 'office' | 'code' | 'design'
@@ -70,7 +89,7 @@ const skillMap = computed<Record<Category, { text: string; icon: string }[]>>(()
   office: [
     { text: t('文档处理'), icon: 'doc' },
     { text: t('会议纪要'), icon: 'chat' },
-    { text: t('邮件撰写'), icon: 'send' },
+    { text: t('邮件撰写'), icon: 'mail' },
     { text: t('数据分析'), icon: 'chart' },
     { text: t('PPT 生成'), icon: 'slide' },
     { text: t('表格处理'), icon: 'table' },
@@ -99,7 +118,8 @@ const skillMap = computed<Record<Category, { text: string; icon: string }[]>>(()
   ],
 }))
 
-const skills = computed(() => skillMap.value[category.value])
+/** 首屏只显示前 4 个 accelerator：8 个 chip 把落地页撑成两行，输入才是主角。 */
+const skills = computed(() => skillMap.value[category.value].slice(0, 4))
 
 /**
  * 发送。
@@ -107,10 +127,15 @@ const skills = computed(() => skillMap.value[category.value])
  * 没有工作目录时**不再把输入框锁死**（那等于逼用户先去别处点一圈才能打字）：
  * 文字原样交给父级，由父级先拉起目录选择器、登记项目，再把这句发出去 ——
  * 父级活得比本组件久，`cwd` 一变本组件就卸载，「先记下来再补发」只能由父级做。
+ * 专家选择与会话态 composer 共用父级的 expertQueue，发出去由父级消费清零。
+ *
+ * #66 M10：附件也在父级手里，「只拖图不写字」合法（分析这张截图）——
+ * 有附件时空草稿同样放行，父级 submitHero 负责把托盘一起下发。
  */
 function submit() {
   const text = draft.value.trim()
-  if (!text || busy.value) return
+  if (busy.value) return
+  if (!text && !props.attachments?.length) return
   emit('send', text)
   // 无目录时保留草稿：用户可能取消目录选择，那时这句话还在，不用重打。
   if (props.cwd) draft.value = ''
@@ -118,6 +143,11 @@ function submit() {
 
 function pickSkill(s: string) {
   draft.value = s + '：'
+}
+
+/** 「+」菜单技能行回插：斜杠命令进草稿（与会话态同一通道）。 */
+function onComposerInsert(text: string) {
+  draft.value = draft.value.trim() ? `${draft.value.trim()}\n${text}` : text
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -154,15 +184,15 @@ function onKeydown(e: KeyboardEvent) {
       -->
       <div class="hero-composer">
         <ComposerShell class="hero-input-wrap">
+          <!-- #66 M10：拖进来的附件在落地页也要看得见、删得掉（与会话态同一组件） -->
+          <template #tray>
+            <AttachmentTray :attachments="attachments ?? []" @remove="emit('remove-attachment', $event)" />
+          </template>
           <AppTextarea
             v-model="draft"
             class="hero-input"
-            :placeholder="
-              cwd
-                ? t('今天帮你做些什么？')
-                : t('描述你的任务，可附图片或文件')
-            "
-            :rows="2"
+            :placeholder="t('给 Pi 下达编码任务…（可附带图片或文件）')"
+            :rows="1"
             auto-grow
             :max-rows="8"
             @keydown="onKeydown"
@@ -182,9 +212,20 @@ function onKeydown(e: KeyboardEvent) {
             <!-- 模型：内核只在启动时读模型，所以切换会重启内核 -->
             <ModelSwitcher compact width="auto" />
 
-            <!-- 角色是项目级配置：选了项目才能切；没项目时说明白为什么点不动。 -->
-            <RoleSwitcher v-if="cwd" :root="cwd" width="auto" />
-            <span v-else class="bar-muted">{{ t('默认权限') }}</span>
+            <!-- 1:1 WorkBuddy 召唤形态：+ 号收 添加文件/模式/专家/技能/连接器/角色。
+                 之前的独立角色/专家触发器一并取消（状态双源是用户截图病灶）。 -->
+            <ComposerPlusMenu
+              :cwd="cwd"
+              :expert="expert ?? []"
+              :team="team ?? []"
+              :mode="mode ?? 'agent'"
+              :can-attach="IN_TAURI"
+              @attach="emit('attach')"
+              @insert="onComposerInsert"
+              @update:expert="emit('update:expert', $event)"
+              @update:team="emit('update:team', $event)"
+              @update:mode="emit('update:mode', $event)"
+            />
           </template>
 
           <template #right>
@@ -195,7 +236,7 @@ function onKeydown(e: KeyboardEvent) {
                 class="hero-send"
                 :title="t('发送')"
                 :aria-label="t('发送')"
-                :disabled="!draft.trim() || busy"
+                :disabled="(!draft.trim() && !attachments?.length) || busy"
                 @click="submit"
               >
                 <AppIcon name="send" :size="16" />

@@ -46,10 +46,18 @@ export function traceLog(step: string, detail: unknown = '') {
  * 接管 `console.warn/error`：Vue 会把渲染期异常吞进 console.error，
  * 只看 `pageerror` 或只看界面都会漏掉整类崩溃。浏览器模式下保持原样。
  */
+let installed = false
+let originalWarn: typeof console.warn | null = null
+let originalError: typeof console.error | null = null
+let onRejection: ((e: PromiseRejectionEvent) => void) | null = null
+
 export function installWebLogBridge() {
-  if (!IN_TAURI) return
-  const warn = console.warn.bind(console)
-  const error = console.error.bind(console)
+  if (!IN_TAURI || installed) return
+  installed = true
+  originalWarn = console.warn
+  originalError = console.error
+  const warn = originalWarn.bind(console)
+  const error = originalError.bind(console)
   console.warn = (...args: unknown[]) => {
     // 传输层告警不能再回灌：它由 invoke 失败触发，转成 IPC 会再触发自己，
     // 一次失败就被放大成无限刷屏（tauri 的 scripts/ipc-protocol.js 里
@@ -66,7 +74,20 @@ export function installWebLogBridge() {
     webLog('error', ...args)
     error(...args)
   }
-  window.addEventListener('unhandledrejection', (e) => {
+  onRejection = (e) => {
     webLog('error', 'unhandledrejection:', e.reason)
-  })
+  }
+  window.addEventListener('unhandledrejection', onRejection)
+}
+
+/** 卸载还原：全局 console 与 rejection 监听必须有逆向路径。 */
+export function uninstallWebLogBridge() {
+  if (!installed) return
+  if (originalWarn) console.warn = originalWarn
+  if (originalError) console.error = originalError
+  if (onRejection) window.removeEventListener('unhandledrejection', onRejection)
+  originalWarn = null
+  originalError = null
+  onRejection = null
+  installed = false
 }

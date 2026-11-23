@@ -8,6 +8,9 @@
   min-height: 0;
   overflow: auto;
   padding: var(--page-y) var(--page-x) var(--page-bottom);
+  /* 页面壳定律：内容列统一封顶 --page-max 居中。 */
+  max-width: var(--page-max);
+  margin: 0 auto;
   color: var(--text);
   background: var(--bg);
 }
@@ -104,7 +107,7 @@
 .ib-btn.danger {
   border-color: transparent;
   background: var(--danger);
-  color: #fff;
+  color: var(--accent-ink);
 }
 
 /* 错误态统一由 ui-kit.css 的 .state-error 提供（唯一实现）。 */

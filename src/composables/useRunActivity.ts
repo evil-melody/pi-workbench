@@ -58,3 +58,12 @@ export function useRunActivity() {
   void ensure()
   return { running }
 }
+
+/** 应用卸载时收口：全局单例由根组件释放，组件内无权关掉别人的监听。 */
+export function stopRunActivity() {
+  clearIdle()
+  void unlisten?.()
+  unlisten = null
+  starting = false
+  running.value = false
+}

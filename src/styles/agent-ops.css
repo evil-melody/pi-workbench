@@ -18,7 +18,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-5);
-  max-width: 1100px;
+  /* 页面壳定律：内容列统一封顶 --page-max（旧 1100 硬编码与其余页边线不齐）。
+     独立路由已全部 redirect 进宿主页，此封顶只在非嵌入式兜底生效。 */
+  max-width: var(--page-max);
   margin: 0 auto;
   width: 100%;
 }
@@ -26,16 +28,31 @@
 /**
  * 内嵌进「能力中心 / 资料库」时：外层已有页面 padding 与标题层级，
  * 这里只保留内容本身的节奏，避免双层留白与空态过度下沉。
+ *
+ * 四个视图 scoped 里原来各写一份同样的三行（padding/max-width/height），
+ * 收拢到共享层一处；flex:1 让内嵌视图撑满外壳剩余高度——全屏窗口下
+ * 内容不再堆在上半截、下半页裸空（外核 .wd-market / .lib-memory-shell 已是 flex 列）。
  */
-.agent-ops.embedded .empty-state {
-  margin-top: 0;
+.agent-ops.embedded {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  max-width: none;
 }
 
-/* 内嵌视图的标题降为区块级：外层页面已有 26px 一级标题。 */
+.agent-ops.embedded .empty-state {
+  margin-top: 0;
+  /* 空态占满外壳剩余高度：图标与文案在真空区居中，不是贴上半截挂大片空白。
+     外层 .wd-market 是 height:100% 的非 flex 容器，flex:1 无处分配——
+     这里直接用视口剩余高度撑开（页头/子 tab 约 220px），全屏同样成立。 */
+  min-height: calc(100vh - 220px);
+}
+
+/* 标题统一由外层能力中心 .market-title 渲染（六个 tab 都在标签栏上方）。
+   内嵌视图保留副标题段落，但不再重复打印同名 h1。 */
 .agent-ops.embedded .aops-title h1 {
-  font-size: var(--fs-section);
-  line-height: var(--lh-section);
-  font-weight: var(--fw-semibold);
+  display: none;
 }
 
 .aops-head {

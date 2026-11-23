@@ -13,6 +13,7 @@ import AppButton from '@/components/ui/AppButton.vue'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppCheckbox from '@/components/ui/AppCheckbox.vue'
 import ConnectorEditorDialog from './ConnectorEditorDialog.vue'
+import ConnectorImportDialog from './ConnectorImportDialog.vue'
 import { mcpList } from '@/composables/useMcp'
 import { toolsActivate, toolsList } from '@/composables/useTools'
 import { parseToolName, parseToolDescription } from '@/utils/mcpTools'
@@ -44,6 +45,7 @@ const loading = ref(false)
 const error = ref('')
 const editorOpen = ref(false)
 const editorId = ref<string | null>(null)
+const importOpen = ref(false)
 const pendingDelete = ref<string | null>(null)
 const deleting = ref(false)
 
@@ -152,6 +154,11 @@ function onSaved() {
   void reload()
 }
 
+/** 导入弹窗每成功一批就通知一次：列表要跟着刷新，弹窗自己决定何时关。 */
+function onImported() {
+  void reload()
+}
+
 async function toggleEnabled(c: ConnectorSummary) {
   try {
     const next = await connectorsSetEnabled(c.id, !c.enabled)
@@ -230,6 +237,7 @@ onMounted(reload)
       <div class="cp-toolbar-row">
         <span class="cp-stat">{{ t('共 {0} 个，启用 {1}', [list.length, list.filter((c) => c.enabled).length]) }}</span>
         <AppButton variant="secondary" :disabled="loading" @click="reload">{{ t('刷新') }}</AppButton>
+        <AppButton variant="secondary" @click="importOpen = true">{{ t('从 WorkBuddy 导入') }}</AppButton>
         <AppButton variant="primary" @click="openCreate">{{ t('+ 新建连接器') }}</AppButton>
       </div>
     </div>
@@ -290,7 +298,7 @@ onMounted(reload)
               v-else
               variant="icon"
               size="sm"
-              class="cp-mini danger"
+              class="cp-mini"
               :title="t('删除连接器')"
               :aria-label="t('删除连接器')"
               @click="pendingDelete = c.id"
@@ -396,6 +404,12 @@ onMounted(reload)
       :connector-id="editorId"
       @close="editorOpen = false"
       @saved="onSaved"
+    />
+
+    <ConnectorImportDialog
+      :open="importOpen"
+      @close="importOpen = false"
+      @saved="onImported"
     />
   </div>
 </template>

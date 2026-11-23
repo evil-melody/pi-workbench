@@ -136,7 +136,7 @@
 
 .al-run-id {
   color: var(--text-dim);
-  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-family: var(--mono);
 }
 
 .al-run-head .al-time {

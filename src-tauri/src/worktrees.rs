@@ -13,10 +13,12 @@
 //! 内派发，输出流式回传。
 
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
@@ -81,6 +83,75 @@ pub struct AgentLaunch {
     /// shell 安全转义后的 prompt；无占位符则原样执行。
     #[serde(default)]
     pub custom_cmd: String,
+}
+
+// ---------- 舰队（并行派发）持久化 ----------
+
+/// 一条 lane = 一个 worktree 上的一次 agent 执行。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FleetLane {
+    pub branch: String,
+    pub path: String,
+    /// 前端生成的流 id，用于配对 `wt://agent-output`。
+    pub id: String,
+    pub status: String,
+    pub exit_code: Option<i32>,
+    pub started_at: i64,
+    pub ended_at: Option<i64>,
+}
+
+/// 一次舰队派发 = 一个任务打到 N 个 worktree。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FleetRun {
+    pub id: String,
+    pub task: String,
+    pub agent: String,
+    pub lanes: Vec<FleetLane>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// 内存登记表：运行中的 lane 状态实时反映在这里。
+/// 磁盘账本（`<root>/.pi/fleets.jsonl`）由事件驱动追加，重启后可回放。
+static FLEETS: Mutex<Option<HashMap<String, FleetRun>>> = Mutex::new(None);
+
+fn fleets_locked() -> std::sync::MutexGuard<'static, Option<HashMap<String, FleetRun>>> {
+    let mut g = match FLEETS.lock() {
+        Ok(g) => g,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    if g.is_none() {
+        *g = Some(HashMap::new());
+    }
+    g
+}
+
+fn now_secs() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
+
+fn fleet_log_path(root: &Path) -> PathBuf {
+    root.join(".pi").join("fleets.jsonl")
+}
+
+/// 追加一条舰队事件到磁盘账本。失败不阻塞派发——账本丢了只是看板少一条历史。
+fn append_fleet_event(root: &Path, run: &FleetRun) {
+    let line = serde_json::to_string(run).unwrap_or_default();
+    if line.is_empty() {
+        return;
+    }
+    let path = fleet_log_path(root);
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        use std::io::Write;
+        let _ = f.write_all(line.as_bytes());
+        let _ = f.write_all(b"\n");
+    }
 }
 
 // ---------- 内部工具 ----------
@@ -453,9 +524,124 @@ pub fn wt_diff(root: String, branch: String) -> Result<DiffSummary, String> {
     Ok(DiffSummary { files, commits })
 }
 
-/// 在 worktree 内派发外部 agent（claude / codex / 自定义命令）。
-/// 输出按行经 `wt://agent-output` 流式回传，结束发 `wt://agent-done`。
-/// 返回 agentId 供前端配对流。
+/// 反废话纪律拼接：真源在 agent_style，所有执行器（claude/codex/pi/custom）
+/// 通吃，不依赖对方认不认某个环境变量。
+fn with_terse(prompt: String) -> String {
+    let directive = crate::agent_style::terse_directive();
+    if directive.is_empty() {
+        prompt
+    } else {
+        format!("{prompt}\n\n{directive}")
+    }
+}
+
+fn build_agent_cmd(launch: &AgentLaunch, prompt: &str) -> Result<String, String> {
+    let cmd = match launch.agent.as_str() {
+        "claude" => format!("claude -p {}", sh_quote(prompt)),
+        "codex" => format!("codex exec {}", sh_quote(prompt)),
+        // pi headless：-p 处理完退出，--no-session 不落会话文件（worktree 会话
+        // 由 worktree 本身的 journal/分支承载，不重复存档）。
+        "pi" => format!("pi -p --no-session {}", sh_quote(prompt)),
+        "custom" => {
+            let tpl = launch.custom_cmd.trim();
+            if tpl.is_empty() {
+                return Err("worktrees/自定义命令为空".to_string());
+            }
+            if tpl.contains("{prompt}") {
+                tpl.replace("{prompt}", &sh_quote(prompt))
+            } else {
+                tpl.to_string()
+            }
+        }
+        other => return Err(format!("worktrees/未知 agent: {other}")),
+    };
+    Ok(cmd)
+}
+
+/// 单条 lane 的 spawn + 流式回传；结束时回写舰队状态。
+/// `fleet_id` 为 None 时是独立派发（不进看板）。
+fn spawn_lane(
+    app: AppHandle,
+    root: PathBuf,
+    wt: WorktreeInfo,
+    stream_id: String,
+    cmd: String,
+    fleet_id: Option<String>,
+) {
+    std::thread::spawn(move || {
+        let emit_line = |app: &AppHandle, id: &str, line: String| {
+            let _ = app.emit(
+                "wt://agent-output",
+                serde_json::json!({ "id": id, "line": line }),
+            );
+        };
+        emit_line(&app, &stream_id, format!("$ {cmd}"));
+        let code = match Command::new("sh")
+            .arg("-c")
+            .arg(&cmd)
+            .current_dir(&wt.path)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+        {
+            Ok(mut child) => {
+                let stdout = child.stdout.take().unwrap();
+                let stderr = child.stderr.take().unwrap();
+                let app_o = app.clone();
+                let id_o = stream_id.clone();
+                let t_out = std::thread::spawn(move || {
+                    for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                        let _ = app_o.emit(
+                            "wt://agent-output",
+                            serde_json::json!({ "id": id_o, "line": line }),
+                        );
+                    }
+                });
+                let app_e = app.clone();
+                let id_e = stream_id.clone();
+                let t_err = std::thread::spawn(move || {
+                    for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                        let _ = app_e.emit(
+                            "wt://agent-output",
+                            serde_json::json!({ "id": id_e, "stream": "err", "line": line }),
+                        );
+                    }
+                });
+                let _ = t_out.join();
+                let _ = t_err.join();
+                child.wait().map(|s| s.code().unwrap_or(-1)).unwrap_or(-1)
+            }
+            Err(e) => {
+                emit_line(&app, &stream_id, format!("启动失败: {e}"));
+                -1
+            }
+        };
+        let _ = app.emit(
+            "wt://agent-done",
+            serde_json::json!({ "id": stream_id, "code": code }),
+        );
+        // 回写舰队 lane 状态（看板据此显示 运行中/成功/失败）。
+        if let Some(fid) = fleet_id {
+            {
+                let mut guard = fleets_locked();
+                let table = guard.as_mut().unwrap();
+                if let Some(run) = table.get_mut(&fid) {
+                    for lane in run.lanes.iter_mut() {
+                        if lane.id == stream_id {
+                            lane.status = if code == 0 { "done" } else { "failed" }.into();
+                            lane.exit_code = Some(code);
+                            lane.ended_at = Some(now_secs());
+                        }
+                    }
+                    run.updated_at = now_secs();
+                    append_fleet_event(&root, run);
+                }
+            }
+        }
+    });
+}
+
+/// 在单个 worktree 内派发外部 agent（单卡派发，不进舰队看板）。
 #[tauri::command]
 pub fn wt_agent(app: AppHandle, root: String, launch: AgentLaunch, id: String) -> Result<(), String> {
     let root = require_repo(&root)?;
@@ -467,76 +653,194 @@ pub fn wt_agent(app: AppHandle, root: String, launch: AgentLaunch, id: String) -
     if prompt.is_empty() {
         return Err("worktrees/任务 prompt 不能为空".to_string());
     }
-    let cmd = match launch.agent.as_str() {
-        "claude" => format!("claude -p {}", sh_quote(&prompt)),
-        "codex" => format!("codex exec {}", sh_quote(&prompt)),
-        // pi headless：-p 处理完退出，--no-session 不落会话文件（worktree 会话
-        // 由 worktree 本身的 journal/分支承载，不重复存档）。
-        "pi" => format!("pi -p --no-session {}", sh_quote(&prompt)),
-        "custom" => {
-            let tpl = launch.custom_cmd.trim();
-            if tpl.is_empty() {
-                return Err("worktrees/自定义命令为空".to_string());
-            }
-            if tpl.contains("{prompt}") {
-                tpl.replace("{prompt}", &sh_quote(&prompt))
-            } else {
-                tpl.to_string()
-            }
-        }
-        other => return Err(format!("worktrees/未知 agent: {other}")),
-    };
-
-    let dir = PathBuf::from(wt.path);
-    std::thread::spawn(move || {
-        let emit_line = |app: &AppHandle, id: &str, line: String| {
-            let _ = app.emit(
-                "wt://agent-output",
-                serde_json::json!({ "id": id, "line": line }),
-            );
-        };
-        emit_line(&app, &id, format!("$ {cmd}"));
-        match Command::new("sh")
-            .arg("-c")
-            .arg(&cmd)
-            .current_dir(&dir)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-        {
-            Ok(mut child) => {
-                let stdout = child.stdout.take().unwrap();
-                let stderr = child.stderr.take().unwrap();
-                let app_o = app.clone();
-                let id_o = id.clone();
-                let t_out = std::thread::spawn(move || {
-                    for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                        let _ = app_o.emit(
-                            "wt://agent-output",
-                            serde_json::json!({ "id": id_o, "line": line }),
-                        );
-                    }
-                });
-                let app_e = app.clone();
-                let id_e = id.clone();
-                let t_err = std::thread::spawn(move || {
-                    for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-                        let _ = app_e.emit(
-                            "wt://agent-output",
-                            serde_json::json!({ "id": id_e, "stream": "err", "line": line }),
-                        );
-                    }
-                });
-                let _ = t_out.join();
-                let _ = t_err.join();
-                let code = child.wait().map(|s| s.code().unwrap_or(-1)).unwrap_or(-1);
-                let _ = app.emit("wt://agent-done", serde_json::json!({ "id": id, "code": code }));
-            }
-            Err(e) => {
-                emit_line(&app, &id, format!("启动失败: {e}"));
-                let _ = app.emit("wt://agent-done", serde_json::json!({ "id": id, "code": -1 }));
-            }
-        }
-    });
+    let prompt = with_terse(prompt);
+    let cmd = build_agent_cmd(&launch, &prompt)?;
+    spawn_lane(app, root, wt, id, cmd, None);
     Ok(())
+}
+
+/// 舰队派发入参：一个任务打到 N 个分支。
+#[derive(Debug, Deserialize)]
+pub struct FleetLaunch {
+    pub task: String,
+    pub agent: String,
+    #[serde(default)]
+    pub custom_cmd: String,
+    /// 目标分支（worktree 必须已存在；新分支由前端先 wt_create 建好）。
+    pub branches: Vec<String>,
+}
+
+/// 一次派发 N 条 lane，返回 fleet；lane 状态经 `wt_fleet_list` 查询。
+/// 输出仍走 `wt://agent-output`（流 id = `<fleet>:<安全分支名>`）。
+#[tauri::command(rename_all = "snake_case")]
+pub fn wt_fleet_launch(
+    app: AppHandle,
+    root: String,
+    launch: FleetLaunch,
+    fleet_id: String,
+) -> Result<FleetRun, String> {
+    let root = require_repo(&root)?;
+    let task = launch.task.trim().to_string();
+    if task.is_empty() {
+        return Err("worktrees/任务不能为空".to_string());
+    }
+    if launch.branches.is_empty() {
+        return Err("worktrees/至少一个目标分支".to_string());
+    }
+    let list = collect_worktrees(&root)?;
+    let prompt = with_terse(task.clone());
+    let now = now_secs();
+    let mut lanes = Vec::new();
+    for branch in &launch.branches {
+        let wt = find_worktree(&list, branch)
+            .ok_or_else(|| format!("worktrees/分支 {branch} 没有 worktree"))?
+            .clone();
+        let agent_launch = AgentLaunch {
+            branch: branch.clone(),
+            agent: launch.agent.clone(),
+            prompt: prompt.clone(),
+            custom_cmd: launch.custom_cmd.clone(),
+        };
+        let cmd = build_agent_cmd(&agent_launch, &prompt)?;
+        let stream_id = format!("{fleet_id}:{}", sanitize_branch(branch));
+        lanes.push(FleetLane {
+            branch: branch.clone(),
+            path: wt.path.clone(),
+            id: stream_id.clone(),
+            status: "running".into(),
+            exit_code: None,
+            started_at: now,
+            ended_at: None,
+        });
+        spawn_lane(app.clone(), root.clone(), wt, stream_id, cmd, Some(fleet_id.clone()));
+    }
+    let run = FleetRun {
+        id: fleet_id.clone(),
+        task,
+        agent: launch.agent.clone(),
+        lanes,
+        created_at: now,
+        updated_at: now,
+    };
+    {
+        let mut guard = fleets_locked();
+        guard.as_mut().unwrap().insert(fleet_id, run.clone());
+    }
+    append_fleet_event(&root, &run);
+    Ok(run)
+}
+
+/// 舰队看板数据：内存表 + 磁盘账本合并（重启后仍能看历史）。
+#[tauri::command]
+pub fn wt_fleet_list(root: String) -> Result<Vec<FleetRun>, String> {
+    let root = require_repo(&root)?;
+    let mut merged: HashMap<String, FleetRun> = HashMap::new();
+    // 先回放磁盘账本（旧 → 新，后来的行覆盖前面的）。
+    if let Ok(text) = std::fs::read_to_string(fleet_log_path(&root)) {
+        for line in text.lines().filter(|l| !l.trim().is_empty()) {
+            if let Ok(run) = serde_json::from_str::<FleetRun>(line) {
+                merged.insert(run.id.clone(), run);
+            }
+        }
+    }
+    // 内存表覆盖：进程内状态永远是最新的。
+    let guard = fleets_locked();
+    if let Some(table) = guard.as_ref() {
+        for (id, run) in table {
+            merged.insert(id.clone(), run.clone());
+        }
+    }
+    let mut out: Vec<FleetRun> = merged.into_values().collect();
+    out.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    Ok(out)
+}
+
+// ---------- 合并冲突预测（Clash 思路） ----------
+
+/// 一对 worktree 之间的文件级重叠。
+#[derive(Debug, Serialize)]
+pub struct ConflictPair {
+    pub a: String,
+    pub b: String,
+    pub file: String,
+    /// 重叠的行区间（1-based 闭区间）；medium 时为空。
+    pub lines: Vec<[i64; 2]>,
+    /// high = 行区间相交（几乎必冲突）；medium = 同文件不相交（git 或可自动合）。
+    pub level: String,
+}
+
+/// 取 worktree 相对 base 的改动行区间：`git diff --unified=0 base...HEAD`
+/// 的 hunk 头 `@@ -a,b +c,d @@` 给出新侧行范围。
+fn changed_hunks(wt_path: &Path, base: &str) -> HashMap<String, Vec<[i64; 2]>> {
+    let mut out: HashMap<String, Vec<[i64; 2]>> = HashMap::new();
+    let Ok(diff) = git_in(wt_path, &["diff", "--unified=0", &format!("{base}...HEAD")]) else {
+        return out;
+    };
+    let mut current = String::new();
+    for line in diff.lines() {
+        if let Some(p) = line.strip_prefix("+++ b/") {
+            current = p.trim().to_string();
+        } else if line.starts_with("@@ ") {
+            if let Some(plus) = line.split_whitespace().find(|t| t.starts_with('+')) {
+                let body = plus.trim_start_matches('+');
+                let (start, count) = match body.split_once(',') {
+                    Some((s, c)) => (s.parse::<i64>().unwrap_or(0), c.parse::<i64>().unwrap_or(1)),
+                    None => (body.parse::<i64>().unwrap_or(0), 1),
+                };
+                if start > 0 && !current.is_empty() {
+                    out.entry(current.clone()).or_default().push([start, start + count - 1]);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// 冲突预测：所有非主 worktree 两两比较改动行区间。
+///
+/// 只回答「哪些文件/行会撞」——语义冲突（同函数不同改法）仍靠任务拆解与
+/// review 兜底，这是业界共识（Worktrunk / Claude Code 文档均如此）。
+#[tauri::command]
+pub fn wt_conflicts(root: String) -> Result<Vec<ConflictPair>, String> {
+    let root = require_repo(&root)?;
+    let list = collect_worktrees(&root)?;
+    let mut hunks: Vec<(String, HashMap<String, Vec<[i64; 2]>>)> = Vec::new();
+    for wt in &list {
+        if wt.is_main {
+            continue;
+        }
+        let h = changed_hunks(Path::new(&wt.path), &wt.base);
+        if !h.is_empty() {
+            hunks.push((wt.branch.clone(), h));
+        }
+    }
+    let mut pairs = Vec::new();
+    for i in 0..hunks.len() {
+        for j in (i + 1)..hunks.len() {
+            let (a, ha) = &hunks[i];
+            let (b, hb) = &hunks[j];
+            for (file, ranges_a) in ha {
+                let Some(ranges_b) = hb.get(file) else { continue };
+                let mut overlap: Vec<[i64; 2]> = Vec::new();
+                for [s1, e1] in ranges_a {
+                    for [s2, e2] in ranges_b {
+                        let (lo, hi) = ((*s1).max(*s2), (*e1).min(*e2));
+                        if lo <= hi {
+                            overlap.push([lo, hi]);
+                        }
+                    }
+                }
+                let level = if overlap.is_empty() { "medium" } else { "high" };
+                pairs.push(ConflictPair {
+                    a: a.clone(),
+                    b: b.clone(),
+                    file: file.clone(),
+                    lines: overlap,
+                    level: level.into(),
+                });
+            }
+        }
+    }
+    pairs.sort_by(|x, y| y.level.cmp(&x.level).then(x.file.cmp(&y.file)));
+    Ok(pairs)
 }

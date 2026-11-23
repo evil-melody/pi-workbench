@@ -6,7 +6,7 @@ import { activeReplayIndex } from '@/composables/useReplay'
 
 /**
  * 运行记录列表的真实挂载用例：
- * - 「···」菜单全量项与顺序（对齐 WorkBuddy）
+ * - 行尾「···」按钮点击菜单全量项与顺序（右键同样可开）
  * - 分享任务 → clipboard 写 markdown 摘要 / 失败降级弹窗
  * - 批量操作：多选态、全选、逐条 invoke run_meta_update
  * - 删除确认 / 重命名 / 打开文件夹 / 独立窗口 / 归档开关
@@ -106,7 +106,7 @@ const menuItems = () => [...document.querySelectorAll<HTMLButtonElement>('.ctx-m
 const menuItem = (text: string) =>
   menuItems().find((b) => b.textContent?.trim() === text)
 
-/** 打开某一行的「···」菜单。 */
+/** 打开某一行的菜单：点行尾「···」按钮（右键同样可开，见专项断言）。 */
 async function openRowMenu(host: HTMLElement, rowIndex: number) {
   rows(host)[rowIndex].querySelector<HTMLButtonElement>('.rh-more-btn')!.click()
   await flush()
@@ -200,6 +200,15 @@ describe('RunHistory', () => {
     expect(del.className).toContain('danger')
   })
 
+  it('行右键同样可开菜单；行尾不再有 A 徽标', async () => {
+    const { host } = mountRunHistory()
+    await flush()
+    expect(host.querySelectorAll('.rh-avatar')).toHaveLength(0)
+    rows(host)[1].dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+    await flush()
+    expect(menuOf()).not.toBeNull()
+  })
+
   it('分享任务：markdown 摘要进剪贴板并 toast「已复制」', async () => {
     const { host } = mountRunHistory()
     await flush()
@@ -239,7 +248,7 @@ describe('RunHistory', () => {
     menuItem('批量操作')!.click()
     await flush()
 
-    // 多选态：条目前是公共 AppCheckbox（真渲染，含自绘 box），「···」让位
+    // 多选态：条目前是公共 AppCheckbox（真渲染，含自绘 box），行尾「···」让位
     expect(host.querySelectorAll('.rh-check .native')).toHaveLength(2)
     expect(host.querySelectorAll('.rh-more-btn')).toHaveLength(0)
     expect(host.querySelector('.bulk-bar')).not.toBeNull()
@@ -280,7 +289,7 @@ describe('RunHistory', () => {
     cancelBtn.click()
     await flush()
     expect(host.querySelector('.bulk-bar')).toBeNull()
-    expect(host.querySelectorAll('.rh-more-btn')).toHaveLength(2)
+    expect(host.querySelectorAll('.rh-item .rh-more-btn')).toHaveLength(2)
   })
 
   it('删除任务：AppModal 确认后软删除（run_meta_update deleted）', async () => {

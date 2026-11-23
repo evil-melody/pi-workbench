@@ -4,6 +4,9 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { marked } from 'marked'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import AppButton from '@/components/ui/AppButton.vue'
+import AppInput from '@/components/ui/AppInput.vue'
+import AppTextarea from '@/components/ui/AppTextarea.vue'
+import QuoteChip from './QuoteChip.vue'
 import ArtifactCard from './ArtifactCard.vue'
 import ArtifactPreview from './ArtifactPreview.vue'
 import CollapsibleRow from './CollapsibleRow.vue'
@@ -28,19 +31,145 @@ const props = defineProps<{
   streaming: boolean
   /** 本轮由用户点「中断」收场（ChatView 在 abort 成功后置位，下轮流式清零）。 */
   interrupted?: boolean
+  /** #67：编辑重开/刷新末条的回滚+重发在途——锁住所有重开入口，防双击并发。 */
+  resending?: boolean
   artifacts: Record<string, Artifact[]>
   root: string
 }>()
 
 const emit = defineEmits<{
   rewind: [msg: { id: string; turnSeq?: number; text: string }]
+  'edit-resend': [payload: { id: string; text: string }]
+  regen: [msg: any]
   'plan-execute': [msg: any]
   'plan-revise': [msg: any]
+  'quote-add': [payload: { text: string; note?: string; source?: string; kind?: 'text' | 'widget' }]
+  /** #68 M6：当前视口所在的 user 提问 id（滚动折算，刻度条的高亮源）。 */
+  'active-prompt': [id: string | null]
 }>()
+
+/**
+ * #67 M1「编辑后重开」的就地编辑态：消息 id → 编辑中文本。
+ * null = 没有在编辑的行。同一时刻只允许一行在编（两处开着编辑框就是状态灾难）；
+ * 提交/取消都由 ChatView 落定，这里只管形态——呈现层不碰 rewindTurn。
+ */
+const editingId = ref<string | null>(null)
+const editingText = ref('')
+
+function startEdit(m: any) {
+  // 没有 checkpoint turn（无法 fork）就不进编辑态；回滚在途由按钮 disabled 挡住。
+  if (!m.turnSeq) return
+  editingId.value = m.id
+  editingText.value = typeof m.text === 'string' ? m.text : ''
+}
+
+function cancelEdit() {
+  editingId.value = null
+  editingText.value = ''
+}
+
+function commitEdit(m: any) {
+  const text = editingText.value
+  // 与 composer 同一条合法性：「只发引用/附件」时正文可以是空的，编辑也一样。
+  if (!text.trim() && !m.attachments?.length && !m.quotes?.length) return
+  editingId.value = null
+  emit('edit-resend', { id: m.id, text })
+}
+
+/** Enter 提交、Shift+Enter 换行——与 composer 同一套键盘语义；IME 合成中不触发。 */
+function onEditEnter(e: KeyboardEvent, m: any) {
+  if (e.shiftKey) return
+  if (e.isComposing || (e as KeyboardEvent & { keyCode?: number }).keyCode === 229) return
+  e.preventDefault()
+  commitEdit(m)
+}
 
 const open = ref<Artifact | null>(null)
 /** G2：已展开 diff 的文件改动 id（同一个 turn 里多个文件可同时展开）。 */
 const openFiles = ref(new Set<string>())
+
+/**
+ * 选区引用浮层：在 assistant 正文里选中文字后浮出「添加到对话」+ 批注框。
+ * rect 用视口坐标（fixed 定位），滚动/再次选择即收起——浮层跟着选区走，
+ * 选区没了浮层还挂着就是幽灵按钮。
+ */
+const selPop = ref<{
+  text: string
+  note: string
+  source: string
+  top: number
+  left: number
+} | null>(null)
+const selNote = ref('')
+/** 浮层根节点：document 级 mousedown 用它区分「点浮层」与「点外面」。 */
+const selPopEl = ref<HTMLElement | null>(null)
+
+function closeSelPop() {
+  selPop.value = null
+  selNote.value = ''
+}
+
+/** 点浮层外面即收起（浮层内点击——批注框、按钮——不打断）。 */
+function onDocMouseDown(e: MouseEvent) {
+  if (!selPop.value) return
+  if (selPopEl.value?.contains(e.target as Node)) return
+  closeSelPop()
+}
+
+/** 纯视口坐标（fixed）：样式几何归 MessageList.css，这里只给定位数值。 */
+const selPopStyle = computed(() => {
+  const p = selPop.value
+  return p ? { top: `${p.top}px`, left: `${p.left}px` } : {}
+})
+
+/**
+ * 选区落在哪条 assistant 消息上就引用哪条：从 anchorNode 向上找 `.msg-row.assistant`，
+ * 用户行/系统行的选区不弹（引用自己的话没有意义，对齐 WorkBuddy 只引用回复）。
+ * source 存该行首 24 字，供托盘悬停提示「来自哪条回复」。
+ */
+function onMouseUp() {
+  const sel = window.getSelection()
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) return closeSelPop()
+  const range = sel.getRangeAt(0)
+  const container = range.commonAncestorContainer
+  const el = container.nodeType === Node.ELEMENT_NODE
+    ? (container as Element)
+    : container.parentElement
+  const row = el?.closest?.('.msg-row.assistant') as HTMLElement | null
+  if (!row) return closeSelPop()
+  const text = sel.toString()
+  if (!text.trim()) return closeSelPop()
+  const box = range.getBoundingClientRect()
+  if (!box.width && !box.height) return closeSelPop()
+  const md = row.querySelector('.md')
+  const source = (md?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 24)
+  // 浮层宽约 260、高约 96：贴着选区下沿，越界就翻到上沿并夹进视口。
+  const POP_W = 260
+  const POP_H = 96
+  const left = Math.min(Math.max(8, box.left), window.innerWidth - POP_W - 8)
+  const below = box.bottom + 8
+  const top = below + POP_H > window.innerHeight ? Math.max(8, box.top - POP_H - 8) : below
+  selPop.value = { text, note: '', source, top, left }
+}
+
+/** 确认添加：批注取输入框当前值，空批注不传字段（与 ChatView.onQuoteAdd 同约定）。 */
+function commitQuote() {
+  if (!selPop.value) return
+  const note = selNote.value.trim()
+  emit('quote-add', {
+    text: selPop.value.text,
+    ...(note ? { note } : {}),
+    ...(selPop.value.source ? { source: selPop.value.source } : {}),
+  })
+  // 添加后清选区，否则同一段文字还高亮着、浮层又弹一次。
+  window.getSelection()?.removeAllRanges()
+  closeSelPop()
+}
+
+/** #66 M9：产物卡/预览层的「添加到对话」——引用产物绝对路径，source 带文件名。 */
+function onArtifactQuote(a: Artifact) {
+  emit('quote-add', { text: a.path, kind: 'widget', source: a.name })
+}
 
 function toggleFile(id: string) {
   const next = new Set(openFiles.value)
@@ -368,6 +497,27 @@ function isLastRow(row: Row): boolean {
   return rows.value[rows.value.length - 1] === row
 }
 
+/**
+ * #67 M2「刷新最后一条回复」的数据源：末尾 turn 之前最近的那条 user 消息。
+ *
+ * 只有最后一轮有刷新键（WorkBuddy 口径）；往回扫时跳过系统 notice（失败提示
+ * 插在中间不算新一轮提问），撞到另一条 assistant 说明聚合断了、没有归属提问，
+ * 返回 null 让按钮隐藏——没有 user 消息就没人知道「重发什么」。
+ * 按钮显隐还看它的 turnSeq：没有 checkpoint 就无法 fork 会话。
+ */
+const lastTurnPrompt = computed(() => {
+  const rowsArr = rows.value
+  const last = rowsArr[rowsArr.length - 1]
+  if (!last || last.kind !== 'turn') return null
+  const i = props.messages.indexOf(last.msgs[0])
+  for (let j = i - 1; j >= 0; j--) {
+    const m = props.messages[j]
+    if (m.role === 'user') return m
+    if (m.role === 'assistant') return null
+  }
+  return null
+})
+
 /** turn 汇总行的合计增删：复用 chip 的缓存，同一份 diff 不摊第二次。 */
 function turnTotals(cs: PiFileChange[]): { added: number; deleted: number } {
   return cs.reduce(
@@ -385,13 +535,14 @@ function turnSteps(row: Turn): number {
 }
 
 /**
- * 过程折叠（用户截图：一轮里 9 条工具行平铺，正文被挤到很远）。
+ * 过程折叠（用户截图：一轮里 12 条工具行平铺，最终总结被挤到很远）。
  *
- * 规则：工具行 ≥ 3 时折成一行「过程 · N 步工具调用」；
- * 本轮未落定（live）默认展开，跑完默认收起；本轮有失败工具行则始终默认展开
- * （报错不能藏）。用户点过就记住，不再按流式状态反复抢开合。
+ * 规则：只要有工具行就折成一行「过程 · N 步工具调用」——中间过程不是主角，
+ * 落定后裸露的应该是模型的总结。本轮未落定（live）默认展开（要看进度），
+ * 跑完**一律收起**：失败不再强制展开（报错是过程的一部分，用户要查再点开），
+ * 折叠头用红标把「有失败」顶出来，藏不掉。用户点过就记住，不被流式状态抢开合。
  */
-const PROC_MIN_STEPS = 3
+const PROC_MIN_STEPS = 1
 const procOpen = ref(new Map<string, boolean>())
 
 function procCollapsible(row: Turn): boolean {
@@ -402,10 +553,14 @@ function procHasError(row: Turn): boolean {
   return row.msgs.some((m) => m.tool && m.toolError)
 }
 
+function procFailCount(row: Turn): number {
+  return row.msgs.filter((m) => m.tool && m.toolError).length
+}
+
 function isProcOpen(row: Turn): boolean {
   const fixed = procOpen.value.get(row.key)
   if (fixed !== undefined) return fixed
-  return row.live || procHasError(row)
+  return row.live
 }
 
 function toggleProc(row: Turn) {
@@ -444,6 +599,7 @@ watch(
 onBeforeUnmount(() => {
   if (tickTimer) clearInterval(tickTimer)
   ro?.disconnect()
+  document.removeEventListener('mousedown', onDocMouseDown)
 })
 
 /*
@@ -458,6 +614,45 @@ let pinned = true
 function onMsgsScroll() {
   const el = listEl.value
   if (el) pinned = el.scrollHeight - el.scrollTop - el.clientHeight < PIN_SLACK
+  syncActivePrompt()
+}
+
+/**
+ * #68 M6 当前位置折算：第一条「下沿越过视口顶边」的 user 行就是当前提问——
+ * 阅读一轮回复时，整轮都归属那条提问，高亮不跳。全部滚出顶边（到底了）
+ * 就取末条提问；空列表取 null。判定在滚动容器这层做：DOM 与滚动事件
+ * 都在这里，父层做就得跨组件量坐标，那是要出错的活。
+ */
+function currentPromptId(): string | null {
+  const el = listEl.value
+  if (!el) return null
+  const rows = Array.from(el.querySelectorAll<HTMLElement>('.msg-row.user[data-mid]'))
+  if (!rows.length) return null
+  const top = el.getBoundingClientRect().top
+  for (const r of rows) {
+    if (r.getBoundingClientRect().bottom > top) return r.dataset.mid ?? null
+  }
+  return rows[rows.length - 1].dataset.mid ?? null
+}
+
+let lastActiveId: string | null | undefined = undefined
+
+function syncActivePrompt() {
+  const id = currentPromptId()
+  if (id === lastActiveId) return
+  lastActiveId = id
+  emit('active-prompt', id)
+}
+
+/** #68：刻度条/列表的定位入口——滚动容器自己知道自己该去哪。 */
+function scrollToPrompt(id: string) {
+  const el = listEl.value
+  const row = el?.querySelector<HTMLElement>(`.msg-row.user[data-mid="${CSS.escape(id)}"]`)
+  if (!el || !row) return
+  // 定位即「从这条提问读起」：行首贴到视口顶，pinned 交还给滚动事件重算
+  el.scrollTop += row.getBoundingClientRect().top - el.getBoundingClientRect().top
+  // 程序滚动同样要刷新高亮（scroll 事件在部分平台合成延迟，不等它）
+  onMsgsScroll()
 }
 
 function scrollToEnd(force = false) {
@@ -480,14 +675,26 @@ watch(
       props.streaming ? 1 : 0,
     ].join(':')
   },
-  () => nextTick(() => scrollToEnd()),
+  () => nextTick(() => {
+    scrollToEnd()
+    // #68：高度变了就重折算当前位置——新提问落地、流式把旧行推出视口顶，
+    // 高亮都得跟上，不能干等用户下一次手动滚动。
+    syncActivePrompt()
+  }),
   { flush: 'post' },
 )
 
 // 打开历史会话时同样落在最新一条，而不是回放的第一条。
 let ro: ResizeObserver | null = null
 onMounted(() => {
-  nextTick(() => scrollToEnd(true))
+  nextTick(() => {
+    scrollToEnd(true)
+    // #68：打开历史会话首屏就贴底，当前提问多半是末条——不等手动滚动才折算。
+    syncActivePrompt()
+  })
+  // 选区引用浮层：mouseup 在列表容器上（模板绑定），mousedown 关浮层要在 document 上——
+  // 点列表外面的空白也得能收起，不能只有列表内响应。
+  document.addEventListener('mousedown', onDocMouseDown)
   // 窗口拉窄后内容变高，旧 scrollTop 就悬在半空（实测 390 下距底 457px）：视口变化继续贴底。
   // jsdom（单测）没有 ResizeObserver，构建真机一定有；缺了就不做这一层。
   ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => scrollToEnd())
@@ -573,10 +780,13 @@ async function copyMsg(key: string, text: string) {
   if (copyTimer) clearTimeout(copyTimer)
   copyTimer = setTimeout(() => (copiedKey.value = null), 1500)
 }
+
+// #68：刻度条/提问列表的定位入口经 expose 交给 ChatView 中转
+defineExpose({ scrollToPrompt })
 </script>
 
 <template>
-  <div ref="listEl" class="msgs" @scroll.passive="onMsgsScroll">
+  <div ref="listEl" class="msgs" @scroll.passive="onMsgsScroll" @mouseup="onMouseUp">
     <div v-if="!messages.length" class="empty">
       <span class="empty-icon"><AppIcon name="sparkles" :size="28" /></span>
       <strong>{{ t('向 Pi 下达编码任务') }}</strong>
@@ -587,8 +797,8 @@ async function copyMsg(key: string, text: string) {
       <!-- ── 系统行（notice）：状态图标 + tinted 容器，长文本默认两行（P0-2） ── -->
       <div v-if="row.kind === 'system'" class="msg-row system" :class="`sys-${row.tone}`">
         <div class="sys-body">
-          <span class="sys-ic" aria-hidden="true"><AppIcon :name="row.icon" :size="14" /></span>
           <div class="sys-note">
+            <span class="sys-ic" aria-hidden="true"><AppIcon :name="row.icon" :size="14" /></span>
             <!-- pre-wrap：内核文案自带换行，插值必须贴着标签写，否则模板换行会变成正文空行 -->
             <span class="sys-text" :class="{ 'sys-clamp': row.long && !openSys.has(row.key) }">{{ row.msg.text }}</span>
             <AppButton v-if="row.long" variant="text" class="sys-expand" @click="toggleSys(row.key)">
@@ -598,36 +808,88 @@ async function copyMsg(key: string, text: string) {
         </div>
       </div>
 
-      <!-- ── 用户行：右对齐气泡 + 气泡外的复制 / 回到此处（F7：每条头像删除） ── -->
-      <div v-else-if="row.kind === 'user'" class="msg-row user">
+      <!-- ── 用户行：右对齐气泡 + 气泡外的复制 / 编辑 / 回到此处（F7：每条头像删除） ──
+           data-mid：#68 刻度条的定位锚点（滚动折算与 scrollToPrompt 都查它）。 -->
+      <div v-else-if="row.kind === 'user'" class="msg-row user" :data-mid="row.msg.id">
         <div class="msg-body">
-          <div class="txt">{{ row.msg.text }}</div>
-          <div class="user-actions">
-            <AppButton
-              variant="text"
-              class="ghost-btn"
-              :title="copiedKey === row.key ? t('已复制') : t('复制这条消息')"
-              @click="copyMsg(row.key, row.msg.text)"
-            >
-              <AppIcon :name="copiedKey === row.key ? 'check' : 'copy'" :size="12" />
-              <span>{{ copiedKey === row.key ? t('已复制') : t('复制') }}</span>
-            </AppButton>
-            <!-- G3「回到此处」：仅带 checkpoint turn 的 user 消息可回滚。 -->
-            <AppButton
-              v-if="row.msg.turnSeq"
-              variant="text"
-              class="ghost-btn rewind-btn"
-              :title="t('回到此处：还原该轮改过的文件，并重开会话到这条消息处')"
-              @click="emit('rewind', row.msg)"
-            >
-              <AppIcon name="history" :size="12" />
-              <span>{{ t('回到此处') }}</span>
-            </AppButton>
-            <!-- dsh 的密度策略是「按钮常驻、时间 hover 才显」：这行本来就整行
-                 hover 浮现，时钟挂在末尾即可，不再单独做一套显隐规则。 -->
-            <span v-if="row.msg.ts" class="u-clock">{{ fmtClock(row.msg.ts) }}</span>
+          <!--
+            #67 M1 就地编辑态：气泡原位换成可编辑区（提示 + 取消/重新发送）。
+            编辑期间隐藏操作行——「复制/回到此处」与编辑框同屏是状态灾难；
+            附件/引用/产物在编辑态照常显示（重发会原样带上，用户要能看见带了什么）。
+          -->
+          <div v-if="editingId === row.msg.id" class="edit-box">
+            <AppTextarea
+              v-model="editingText"
+              class="edit-area"
+              :rows="2"
+              auto-grow
+              :max-rows="8"
+              @keydown.enter="onEditEnter($event, row.msg)"
+              @keydown.esc="cancelEdit"
+            />
+            <p class="edit-hint">{{ t('编辑后将从此处重新开始对话') }}</p>
+            <div class="edit-actions">
+              <AppButton variant="secondary" size="sm" class="edit-cancel" @click="cancelEdit">{{ t('取消') }}</AppButton>
+              <AppButton
+                variant="primary"
+                size="sm"
+                class="edit-resend"
+                :disabled="!editingText.trim() && !row.msg.attachments?.length && !row.msg.quotes?.length"
+                @click="commitEdit(row.msg)"
+              >
+                <AppIcon name="send" :size="12" />
+                <span>{{ t('重新发送') }}</span>
+              </AppButton>
+            </div>
           </div>
+          <template v-else>
+            <!-- 「只发引用」合法：text 为空时不渲染空气泡（截图核查抓出的 artifact） -->
+            <div v-if="typeof row.msg.text === 'string' && row.msg.text" class="txt">{{ row.msg.text }}</div>
+            <div class="user-actions">
+              <AppButton
+                variant="text"
+                class="ghost-btn"
+                :title="copiedKey === row.key ? t('已复制') : t('复制这条消息')"
+                @click="copyMsg(row.key, row.msg.text)"
+              >
+                <AppIcon :name="copiedKey === row.key ? 'check' : 'copy'" :size="12" />
+                <span>{{ copiedKey === row.key ? t('已复制') : t('复制') }}</span>
+              </AppButton>
+              <!-- #67 M1「编辑」：与回到此处同门槛——没有 checkpoint turn 无法 fork，按钮不出现；
+                   流式中也不能编辑（本轮还在跑，回滚它等于掐断它）。 -->
+              <AppButton
+                v-if="row.msg.turnSeq"
+                variant="text"
+                class="ghost-btn edit-btn"
+                :disabled="streaming || resending"
+                :title="t('编辑并从此处重新开始对话')"
+                @click="startEdit(row.msg)"
+              >
+                <AppIcon name="edit" :size="12" />
+                <span>{{ t('编辑') }}</span>
+              </AppButton>
+              <!-- G3「回到此处」：仅带 checkpoint turn 的 user 消息可回滚。 -->
+              <AppButton
+                v-if="row.msg.turnSeq"
+                variant="text"
+                class="ghost-btn rewind-btn"
+                :disabled="resending"
+                :title="t('回到此处：还原该轮改过的文件，并重开会话到这条消息处')"
+                @click="emit('rewind', row.msg)"
+              >
+                <AppIcon name="history" :size="12" />
+                <span>{{ t('回到此处') }}</span>
+              </AppButton>
+              <!-- dsh 的密度策略是「按钮常驻、时间 hover 才显」：这行本来就整行
+                   hover 浮现，时钟挂在末尾即可，不再单独做一套显隐规则。 -->
+              <span v-if="row.msg.ts" class="u-clock">{{ fmtClock(row.msg.ts) }}</span>
+            </div>
+          </template>
           <MessageAttachments v-if="row.msg.attachments?.length" :attachments="row.msg.attachments" />
+          <!-- 已发送的引用：历史记录，没有移除键（发出去的话删不掉，与附件同语义） -->
+          <div v-if="row.msg.quotes?.length" class="sent-quotes">
+            <QuoteChip v-for="q in row.msg.quotes" :key="q.id" :quote="q" />
+          </div>
           <div v-if="(artifacts?.[row.msg.id] ?? []).length" class="acstrip">
             <ArtifactCard
               v-for="a in artifacts[row.msg.id]"
@@ -635,6 +897,7 @@ async function copyMsg(key: string, text: string) {
               :artifact="a"
               :active="open?.path === a.path"
               @open="open = $event"
+              @quote="onArtifactQuote"
             />
           </div>
         </div>
@@ -674,6 +937,9 @@ async function copyMsg(key: string, text: string) {
                 <span class="crow-title">{{ t('过程') }}</span>
                 <span class="crow-sep" aria-hidden="true" />
                 <span class="crow-summary">{{ t('{0} 步工具调用', [turnSteps(row)]) }}</span>
+                <span v-if="procFailCount(row)" class="proc-fail-tag">
+                  {{ t('{0} 次工具失败', [procFailCount(row)]) }}
+                </span>
               </span>
             </AppButton>
           </div>
@@ -834,6 +1100,7 @@ async function copyMsg(key: string, text: string) {
               :artifact="a"
               :active="open?.path === a.path"
               @open="open = $event"
+              @quote="onArtifactQuote"
             />
           </div>
 
@@ -882,6 +1149,20 @@ async function copyMsg(key: string, text: string) {
             >
               <AppIcon :name="copiedKey === row.key ? 'check' : 'copy'" :size="15" />
             </AppButton>
+            <!-- #67 M2「刷新最后一条回复」：仅末尾轮、且其归属提问带 checkpoint 时出现。
+                 撤掉这轮回复 + 产物，用同一条提问原文重发（重发走 dispatch 全链路，
+                 产物由新一轮扫描重建——旧卡片随消息截断自然消失）。 -->
+            <AppButton
+              v-if="isLastRow(row) && lastTurnPrompt?.turnSeq"
+              variant="icon"
+              class="ta-btn regen-btn"
+              :disabled="streaming || resending"
+              :title="t('刷新最后一条回复')"
+              :aria-label="t('刷新最后一条回复')"
+              @click="emit('regen', lastTurnPrompt)"
+            >
+              <AppIcon name="refresh" :size="15" />
+            </AppButton>
             <span v-if="turnClock(row)" class="ta-clock">{{ turnClock(row) }}</span>
           </div>
 
@@ -918,7 +1199,42 @@ async function copyMsg(key: string, text: string) {
       :artifact="open"
       :root="root"
       @close="open = null"
+      @quote="onArtifactQuote"
     />
+
+    <!--
+      选区引用浮层：Teleport 到 body 是为了跳出 .msgs 的滚动裁剪（overflow 容器里
+      fixed 仍受 transform 祖先影响，body 是唯一干净参照系）。selPopStyle 是纯视口
+      定位（AUDIT-021 同类豁免：功能性动态坐标，不是装饰样式）。
+    -->
+    <Teleport to="body">
+      <div
+        v-if="selPop"
+        ref="selPopEl"
+        class="sel-pop"
+        :style="selPopStyle"
+        role="dialog"
+        :aria-label="t('添加到对话')"
+      >
+        <div class="sel-pop-head">
+          <AppIcon name="quote" :size="13" />
+          <span class="sel-pop-src">{{ selPop.source ? t('引用：{0}…', [selPop.source]) : t('引用选中内容') }}</span>
+        </div>
+        <AppInput
+          v-model="selNote"
+          class="sel-pop-note"
+          :placeholder="t('添加批注（可选）…')"
+          @keydown.enter.prevent="commitQuote"
+        />
+        <div class="sel-pop-actions">
+          <AppButton variant="secondary" size="sm" @click="closeSelPop">{{ t('取消') }}</AppButton>
+          <AppButton variant="primary" size="sm" class="sel-pop-add" @click="commitQuote">
+            <AppIcon name="plus" :size="12" />
+            <span>{{ t('添加到对话') }}</span>
+          </AppButton>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 

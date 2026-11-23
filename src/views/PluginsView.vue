@@ -30,6 +30,8 @@ interface ExtensionInfo {
   path: string
   tools: string[]
   enabled: boolean
+  loaded: boolean
+  removable: boolean
 }
 
 /** 一行的展示数据。所有字段都来自后端真实清单，没有 mock 占位。 */
@@ -40,9 +42,11 @@ interface Row {
   version: string
   description: string
   tags: string[]
-  /** 该扩展是否提供工具（决定启用按钮是否可用）。 */
+  /** 该扩展是否提供工具（决定工具级启用按钮是否可用）。 */
   hasTools: boolean
   enabled: boolean
+  loaded: boolean
+  removable: boolean
   tools: string[]
   path: string
 }
@@ -65,6 +69,8 @@ const error = ref('')
 const installedCount = computed(() => installed.value.length)
 /** 「全部启用」的候选：扩展的启用态由它的工具是否落进 defaultTools 决定。 */
 const disabledCount = computed(() => installed.value.filter((i) => !i.enabled).length)
+/** 加载层全关候选：当前正在加载的扩展（点完要重启内核）。 */
+const loadedCount = computed(() => installed.value.filter((i) => i.loaded).length)
 const allToolNames = computed(() => [
   ...new Set(installed.value.flatMap((i) => i.tools)),
 ])
@@ -90,6 +96,8 @@ const allRows = computed<Row[]>(() =>
     tags: [i.kind || 'unknown'],
     hasTools: i.tools.length > 0,
     enabled: i.enabled,
+    loaded: i.loaded,
+    removable: i.removable,
     tools: i.tools,
     path: i.path,
   })),
@@ -128,6 +136,60 @@ async function enableAll() {
     error.value = String(e?.message ?? e)
   }
   await load()
+}
+
+/** 加载层开关：物理移入/移出 extensions/；pi 0.87.1 只认文件位置，改完须重启内核。 */
+async function setExtensionLoaded(ext: Row, loaded: boolean) {
+  try {
+    installed.value = await listOf(
+      invoke<ExtensionInfo[]>('extensions_set_enabled', { id: ext.id, enabled: loaded }),
+    )
+    marketNote.value = t('「{0}」已{1}，重启内核后生效', [
+      ext.name,
+      loaded ? t('加载') : t('停用'),
+    ])
+    await restartKernel()
+  } catch (e: any) {
+    error.value = String(e?.message ?? e)
+  }
+}
+
+/** 一键全关/恢复：排查扩展冲突时先全关，问题消失再逐个加回来。 */
+async function setAllLoaded(loaded: boolean) {
+  const targets = installed.value.filter((i) => (loaded ? !i.loaded : i.loaded))
+  if (!targets.length) return
+  try {
+    for (const ext of targets) {
+      installed.value = await listOf(
+        invoke<ExtensionInfo[]>('extensions_set_enabled', { id: ext.id, enabled: loaded }),
+      )
+    }
+    marketNote.value = loaded
+      ? t('已恢复 {0} 个扩展，重启内核后生效', [targets.length])
+      : t('已停用 {0} 个扩展，重启内核后生效', [targets.length])
+    await restartKernel()
+  } catch (e: any) {
+    error.value = String(e?.message ?? e)
+  }
+}
+
+async function removeExtension(ext: Row) {
+  try {
+    installed.value = await listOf(invoke<ExtensionInfo[]>('extensions_remove', { id: ext.id }))
+    marketNote.value = t('「{0}」已卸载，重启内核后不再加载', [ext.name])
+    await restartKernel()
+  } catch (e: any) {
+    error.value = String(e?.message ?? e)
+  }
+}
+
+async function restartKernel() {
+  try {
+    const ok = await invoke<boolean>('pi_restart')
+    if (ok) marketNote.value += t(' · 内核已重启')
+  } catch {
+    // 内核没在跑时跳过重启，不改变开关已落盘的事实。
+  }
 }
 
 /** 诊断信息：内核版本 + 每个扩展的启用态与路径，直接给到剪贴板，省得用户猜。 */
@@ -259,6 +321,14 @@ onMounted(load)
           @click="enableAll"
         >{{ t('全部启用 ({0})', [disabledCount]) }}</AppButton>
 
+        <AppButton
+          variant="text"
+          class="text-btn"
+          :disabled="!installed.length"
+          :title="t('排查扩展冲突：全部停用或恢复加载，重启内核后生效')"
+          @click="setAllLoaded(loadedCount === 0)"
+        >{{ loadedCount > 0 ? t('全部停用 ({0})', [loadedCount]) : t('全部恢复') }}</AppButton>
+
         <AppButton variant="secondary"  :title="t('复制内核与扩展诊断信息')" @click="copyDiagnostics">
           <AppIcon name="copy" :size="13" />
           <span>{{ t('诊断信息') }}</span>
@@ -310,7 +380,7 @@ onMounted(load)
       </div>
 
     <div v-else class="market-list">
-      <article v-for="p in rows" :key="p.id" class="market-row">
+      <article v-for="p in rows" :key="p.id" class="market-row" :class="{ unloaded: !p.loaded }">
         <div class="row-body">
           <div class="row-title">
             <strong :title="p.name">{{ p.name }}</strong>
@@ -319,6 +389,7 @@ onMounted(load)
               <i v-if="p.version && p.version !== t('未知')">{{ p.version }}</i>
             </span>
             <span v-for="(tag, idx) in p.tags" :key="idx" class="row-tag">{{ tag }}</span>
+            <span v-if="!p.loaded" class="row-tag off">{{ t('已停用') }}</span>
           </div>
           <p class="row-desc" :title="p.description">{{ p.description }}</p>
           <p v-if="p.hasTools" class="row-tools" :title="t('工具：{0}', [p.tools.join('、')])">{{ t('工具：{0}', [p.tools.join('、')]) }}</p>
@@ -326,19 +397,37 @@ onMounted(load)
         <div class="row-actions">
           <AppButton
             variant="secondary"
+            class="row-load"
+            :class="{ off: !p.loaded }"
+            :title="p.loaded ? t('停用扩展（重启内核后不再加载）') : t('加载扩展（重启内核后生效）')"
+            @click="setExtensionLoaded(p, !p.loaded)"
+          >{{ p.loaded ? t('已加载') : t('加载') }}</AppButton>
+          <AppButton
+            variant="secondary"
+            class="row-remove"
+            :disabled="!p.removable"
+            :title="p.removable ? t('删除该扩展文件') : t('内置扩展不能删除，只能停用')"
+            @click="removeExtension(p)"
+          >
+            <AppIcon name="close" :size="12" />
+          </AppButton>
+          <AppButton
+            variant="secondary"
             class="row-install"
             :class="{ installed: p.enabled }"
-            :disabled="!p.hasTools"
+            :disabled="!p.hasTools || !p.loaded"
             :title="
-              p.hasTools
-                ? p.enabled
-                  ? t('从内核默认工具里移除')
-                  : t('把工具写进内核默认工具')
-                : t('该扩展不提供工具')
+              !p.loaded
+                ? t('扩展已停用')
+                : p.hasTools
+                  ? p.enabled
+                    ? t('从内核默认工具里移除')
+                    : t('把工具写进内核默认工具')
+                  : t('该扩展不提供工具')
             "
             @click="setExtensionEnabled(p.tools, !p.enabled, p.name)"
           >
-            {{ p.hasTools ? (p.enabled ? t('已启用') : t('启用')) : t('无工具') }}
+            {{ !p.hasTools ? t('无工具') : p.enabled ? t('已启用') : t('启用') }}
           </AppButton>
         </div>
       </article>

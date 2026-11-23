@@ -44,7 +44,17 @@ const ICONS: Record<HitKind, string> = {
 const KINDS: HitKind[] = ['session', 'project', 'file', 'memory']
 
 function kindLabel(kind: HitKind): string {
-  return t({ session: '会话', project: '项目', file: '文件', memory: '记忆' }[kind])
+  // 逐分支 t()：对象字面量塞 t() 会让覆盖率脚本看不见 key。
+  switch (kind) {
+    case 'session':
+      return t('会话')
+    case 'project':
+      return t('项目')
+    case 'file':
+      return t('文件')
+    case 'memory':
+      return t('记忆')
+  }
 }
 
 interface PaletteRow {

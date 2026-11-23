@@ -238,10 +238,10 @@ async function main() {
     await api.open(prompt)
     await page.waitForTimeout(200)
     if (!drawerOpen) {
-      // 气泡下只留一行入口：点它抽屉自己打开，并切到「轨迹」页签。
-      await page.locator('.msgs .run-entry').last().click()
+      // 运行链路入口已收进顶栏 .trace-toggle（气泡下不再重复渲染入口）。
+      await page.locator('.trace-toggle').first().click()
       await page.waitForTimeout(600)
-      check('[入口] 点「运行链路」展开轨迹抽屉', (await page.locator('.trace-drawer.open').count()) === 1)
+      check('[入口] 点顶栏入口展开轨迹抽屉', (await page.locator('.trace-drawer.open').count()) === 1)
       const onTab = (await page.locator('.td-tab.on').first().innerText().catch(() => '')).trim()
       check('[入口] 抽屉停在轨迹页签', onTab.includes('轨迹'), `tab=${onTab}`)
       drawerOpen = true
@@ -260,6 +260,12 @@ async function main() {
 
   // 主干折叠：只藏在成功的工具节点，异常环节一个都不藏。
   if (runIds.normal) {
+    // 旧轮次默认折叠成 .run-fold 摘要，先点开才铺图（与 visual-check 同一口径）。
+    const foldBtn = page.locator(`.trace-drawer .run-fold[data-run-id="${runIds.normal}"]`)
+    if (await foldBtn.count()) {
+      await foldBtn.click()
+      await page.waitForTimeout(200)
+    }
     const foldTarget = page.locator(`.trace-drawer [data-run-id="${runIds.normal}"]`)
     const before = await foldTarget.locator('.rg-node').count()
     await foldTarget.locator('.rg-trunk').click()
@@ -291,7 +297,11 @@ async function main() {
 
   // 团队分道：打开过程面板的「智能体」页签。
   await page.locator('.td-tab', { hasText: '智能体' }).first().click()
-  await page.waitForTimeout(900)
+  await page.waitForTimeout(400)
+  // 组件在 onMounted 读一次 teamRuns，而场景数据是逐轮 push 的——
+  // 切页签时挂载早于最后一次 push，需点刷新按钮重读，否则分道为空。
+  await page.locator('.al-refresh').first().click().catch(() => {})
+  await page.waitForTimeout(600)
   const lanes = await page.locator('.agent-lanes .al-lane').count()
   const handoffs = await page.locator('.agent-lanes .al-handoff').count()
   await page.screenshot({ path: path.join(OUT, 'lanes.png'), fullPage: true })
@@ -344,7 +354,7 @@ async function sendPrompt(page, text, first) {
 /** 校验轨迹抽屉里本轮的节点图：节点数、状态类、降级标记与几何可读性。 */
 async function verifyScenario(page, name, runId) {
   const graph = page.locator(`.trace-drawer [data-run-id="${runId}"]`)
-  check(`[${name}] 气泡下有「运行链路」入口`, (await page.locator('.msgs .run-entry').count()) >= 1)
+  check(`[${name}] 气泡下不重复渲染运行链路入口`, (await page.locator('.msgs .run-entry').count()) === 0)
   check(`[${name}] 抽屉里出现本轮节点图`, (await graph.count()) === 1)
   const nodes = await graph.locator('.rg-node').count()
   check(`[${name}] 链路按节点纵向渲染`, nodes >= 4, `nodes=${nodes}`)
@@ -572,14 +582,15 @@ function helpers(run, emit, page) {
     },
     /** 团队调度日志：成员产出，供分道视图读取。 */
     member(name, ok, output, round = 1) {
-      return { runId: run.runId, member: name, ok, output, at: Date.now(), round, strategy: 'sequential', real: true }
+      // IPC 契约：后端把磁盘日志的 runId 映射为 run_id，前端也按 run_id 聚合。
+      return { run_id: run.runId, member: name, ok, output, at: Date.now(), round, strategy: 'sequential', real: true }
     },
   }
   return api
 }
 
 function teamRows(name, run, api) {
-  const rows = [{ runId: run.runId, strategy: 'sequential', real: true, at: run.startedAt }]
+  const rows = [{ run_id: run.runId, strategy: 'sequential', real: true, at: run.startedAt }]
   const outputs = {
     normal: [
       ['Vera', true, 'STATUS: PASS｜索引写入死锁根因：持锁调用 save 重入。证据 src/index/store.ts:112。'],

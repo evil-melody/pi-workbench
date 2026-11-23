@@ -38,6 +38,10 @@ export interface TeamEntry {
   lead: string | null
   /** stop / continue / retry */
   on_failure: string | null
+  /** 人工关卡成员（LoopForge human-gate）：这些成员开跑前必须有人放行。 */
+  gates?: string[]
+  /** 成员级执行器 / 模型覆盖：{ 成员键: { executor?, model? } }。 */
+  member_overrides?: Record<string, { executor?: string; model?: string }>
   created_at: number | null
   /** 最近一次编辑时间；旧定义没有。 */
   updated_at?: number | null
@@ -47,6 +51,17 @@ export interface TeamEntry {
   running?: boolean
   active_run_id?: string | null
   runs: number
+}
+
+/** 待放行的人工关卡（扩展落盘，面板读取）。 */
+export interface TeamGate {
+  runId: string
+  member: string
+  label: string
+  team: string
+  at: number
+  /** 磁盘文件名，面板放行时后端按它写 decision。 */
+  file?: string
 }
 
 /** 团队调度日志的一行：成员产出行或运行摘要行（IPC 侧字段，磁盘日志的 `runId` 由后端映射为 `run_id`）。 */
@@ -59,6 +74,8 @@ export interface TeamRunEvent {
   lead?: boolean
   output?: string
   duration_ms?: number
+  /** 该成员进程消耗的 token（Pi json 模式 message_end.usage）。 */
+  tokens?: number
   attempts?: number
   from?: string
   to?: string
@@ -70,6 +87,12 @@ export interface TeamRunEvent {
   strategy?: string
   real?: boolean
   note?: string
+  /** 关卡决策：approve / reject / timeout（gate_decision 事件）。 */
+  decision?: string
+  /** 重放来源：本次是重放哪次运行的哪个成员（team_replay 写入）。 */
+  replay_of?: string
+  /** 关卡驳回 / 超时：成员本次未执行。 */
+  skipped?: boolean
 }
 
 export interface MemoryEntry {
@@ -155,6 +178,8 @@ export const agentTeamCreate = (
   strategy?: string,
   lead?: string,
   onFailure?: string,
+  gates?: string[],
+  memberOverrides?: Record<string, { executor?: string; model?: string }>,
 ) =>
   write<TeamEntry>('agent_team_create', {
     name,
@@ -162,6 +187,8 @@ export const agentTeamCreate = (
     strategy: strategy ?? null,
     lead: lead ?? null,
     on_failure: onFailure ?? null,
+    gates: gates ?? null,
+    member_overrides: memberOverrides ?? null,
   })
 /** 编辑团队定义：只改磁盘，正在跑的实例持有旧定义快照，下次调度才用新定义。 */
 export const agentTeamUpdate = (
@@ -171,6 +198,8 @@ export const agentTeamUpdate = (
   strategy?: string,
   lead?: string,
   onFailure?: string,
+  gates?: string[],
+  memberOverrides?: Record<string, { executor?: string; model?: string }>,
 ) =>
   write<TeamEntry>('agent_team_update', {
     id,
@@ -179,6 +208,8 @@ export const agentTeamUpdate = (
     strategy: strategy ?? null,
     lead: lead ?? null,
     on_failure: onFailure ?? null,
+    gates: gates ?? null,
+    member_overrides: memberOverrides ?? null,
   })
 /** 软删除：定义不再可调度，`<id>.jsonl` 历史运行记录保留可查。 */
 export const agentTeamDelete = (id: string) =>
@@ -187,6 +218,24 @@ export const agentTeamDelete = (id: string) =>
 export const agentTeamCancelRun = (teamId: string, runId?: string) =>
   write<{ run_id: string; at: number }>('agent_team_cancel', {
     team_id: teamId,
+    run_id: runId ?? null,
+  })
+/** 待放行关卡：扩展阻塞在 awaitGate 时面板能看到这条。 */
+export const agentTeamGates = (teamId: string) =>
+  isTauriRuntime()
+    ? invoke<TeamGate[]>('agent_team_gates', { team_id: teamId }).then((r) => r ?? [])
+    : Promise.resolve([] as TeamGate[])
+/** 关卡放行 / 驳回：写 decision 文件，扩展轮询到即继续。 */
+export const agentTeamGateDecide = (
+  teamId: string,
+  member: string,
+  decision: 'approve' | 'reject',
+  runId?: string,
+) =>
+  write<{ member: string; decision: string }>('agent_team_gate_decide', {
+    team_id: teamId,
+    member,
+    decision,
     run_id: runId ?? null,
   })
 export const agentMemoryStore = (text: string, tags: string[]) =>

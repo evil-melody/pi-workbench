@@ -26,7 +26,7 @@ import BrowserView from '@/views/BrowserView.vue'
 import { skillsInstall, skillsInstallFromUrl, skillsUninstall } from '@/composables/useSkills'
 import { toolsActivate, toolsList } from '@/composables/useTools'
 import { describeConnectorError } from '@/composables/useConnectors'
-import { expertsList, type ExpertSummary } from '@/composables/useExperts'
+import { expertsList, expertAvatars, loadExpertAvatar, type ExpertSummary } from '@/composables/useExperts'
 import { PI_SESSION_ID, activeProjectId } from '@/composables/useProject'
 import { listOf } from '@/utils/ipc'
 
@@ -68,12 +68,14 @@ const TABS = computed<{ key: Tab; label: string; icon: string }[]>(() => [
 
 const route = useRoute()
 
-/** 只接受已知 tab 名，非法 query 一律回落到默认页，避免出现空白能力中心。 */
+/** 只接受已知 tab 名，非法 query 一律回落到默认页，避免出现空白能力中心。
+ *  默认落「专家」：侧栏入口叫「专家 · 技能 · 连接器」，专家是第一位，
+ *  WorkBuddy 也是进专家——落技能页等于进门就走错了房间。 */
 const TAB_KEYS: Tab[] = ['expert', 'skill', 'connector', 'team', 'market', 'browser']
 function tabFromQuery(): Tab {
   const q = route.query.tab
   const value = Array.isArray(q) ? q[0] : q
-  return TAB_KEYS.includes(value as Tab) ? (value as Tab) : 'skill'
+  return TAB_KEYS.includes(value as Tab) ? (value as Tab) : 'expert'
 }
 
 const tab = ref<Tab>(tabFromQuery())
@@ -121,7 +123,11 @@ const expertRoot = computed(
   () => projects.value.find((p) => p.id === activeProjectId.value)?.path ?? null,
 )
 const activeExpert = ref<string | null>(null)
+/** 编辑弹窗：点卡片「编辑」才打开，不再让右侧编辑器常驻（用户「太杂乱」）。 */
+const showEditExpert = ref(false)
 const expertViewError = ref('')
+/** 真头像缓存：与聊天选择器共用 useExperts 模块级 ref，导入的专家显示包内头像。 */
+const expertAvatarsMap = expertAvatars()
 
 const rows = computed<Row[]>(() => {
   if (subTab.value === 'hub') return []
@@ -176,6 +182,11 @@ async function load() {
       activeExpert.value = null
     }
     expertViewError.value = ''
+    // 只拉有真头像的；并发分批，与选择器共用缓存（同一 id 全站只拉一次）。
+    const need = expertItems.value.filter((e) => e.has_avatar && !(e.id in expertAvatarsMap.value))
+    for (let i = 0; i < need.length; i += 8) {
+      await Promise.all(need.slice(i, i + 8).map((e) => loadExpertAvatar(e.id)))
+    }
   } catch (e: any) {
     expertItems.value = []
     expertViewError.value = String(e?.message ?? e)
@@ -186,8 +197,28 @@ async function load() {
 const expertDraftCount = computed(() => expertItems.value.length)
 const publishedExpertCount = computed(() => expertItems.value.filter((e) => e.published).length)
 
-function pickExpert(id: string) {
+/** 专家搜索：市场卡片多了之后没有筛选就等于没有。 */
+const expertKeyword = ref('')
+const filteredExperts = computed(() => {
+  const k = expertKeyword.value.trim().toLowerCase()
+  if (!k) return expertItems.value
+  return expertItems.value.filter(
+    (e) =>
+      e.name.toLowerCase().includes(k) ||
+      e.id.toLowerCase().includes(k) ||
+      e.description.toLowerCase().includes(k) ||
+      e.tags.some((tag) => tag.toLowerCase().includes(k)),
+  )
+})
+
+/** 打开编辑弹窗：卡片点「编辑」直达，编辑/发布/删除都在弹窗里完成。 */
+function editExpert(id: string) {
   activeExpert.value = id
+  showEditExpert.value = true
+}
+
+function onEditClosed() {
+  showEditExpert.value = false
 }
 
 /** 新建专家：只登记 id 并打开编辑器；草稿真正落盘发生在编辑器里点保存之后。 */
@@ -198,13 +229,25 @@ const createExpertError = ref('')
 const showImportExpert = ref(false)
 
 function openImportExpert() {
+  importNotice.value = ''
   showImportExpert.value = true
 }
 
 /** 导入落盘后刷新列表，并选中第一个真正写入的专家。 */
+const importNotice = ref('')
 function onExpertsImported(ids: string[]) {
-  if (ids.length) activeExpert.value = ids[0]
+  if (ids.length) {
+    activeExpert.value = ids[0]
+    importNotice.value = t('已导入 {0} 个专家', [ids.length])
+  }
   void load()
+}
+
+/** 扫描导入顺手建的团队：团队 tab 是 v-if 挂载，回来时自然重载，只需回执。 */
+function onTeamsImported(created: string[], errors: string[]) {
+  const parts = [importNotice.value, ...created.map((n) => t('已建团队「{0}」', [n])), ...errors]
+    .filter(Boolean)
+  importNotice.value = parts.join(' · ')
 }
 
 function openCreateExpert() {
@@ -221,14 +264,13 @@ function confirmCreateExpert() {
     createExpertError.value = t('id 至少需要一个英文字母、数字或连字符')
     return
   }
+  showCreateExpert.value = false
   if (expertItems.value.some((e) => e.id === id)) {
-    // 已存在就直接切过去，避免用同一个 id 造出第二份草稿。
-    activeExpert.value = id
-    showCreateExpert.value = false
+    // 已存在就直接打开它的编辑弹窗，避免用同一个 id 造出第二份草稿。
+    editExpert(id)
     return
   }
-  activeExpert.value = id
-  showCreateExpert.value = false
+  editExpert(id)
 }
 
 /** 编辑器保存后同步左侧列表：修订号变了要立刻反映出来。 */
@@ -240,9 +282,12 @@ function onExpertPublished() {
   void load()
 }
 
-/** 删除后回列表：被删的专家可能是当前选中项，清空选择再刷新。 */
+/** 删除后回列表：被删的专家可能是当前编辑项，弹窗一并关掉再刷新。 */
 function onExpertDeleted(id: string) {
-  if (activeExpert.value === id) activeExpert.value = null
+  if (activeExpert.value === id) {
+    activeExpert.value = null
+    showEditExpert.value = false
+  }
   void load()
 }
 
@@ -341,7 +386,7 @@ onMounted(load)
 <template>
   <section class="wd-market">
     <!-- 标题在上、工具与分类在下：层级从「我在哪」到「怎么筛」，不再让两排 tab 夹住标题。 -->
-    <h1 v-if="!isEmbeddedTab" class="market-title">{{ title }}</h1>
+    <h1 class="market-title">{{ title }}</h1>
 
     <header class="market-header">
       <nav class="market-tabs" role="tablist" :aria-label="t('能力分类')" @keydown="onTablistKeydown">
@@ -363,6 +408,7 @@ onMounted(load)
 
       <div class="market-tools">
         <AppInput v-if="tab === 'skill'" v-model="keyword" :placeholder="t('搜索技能')" />
+        <AppInput v-if="tab === 'expert'" v-model="expertKeyword" :placeholder="t('搜索专家')" />
         <span v-if="tab === 'expert' || tab === 'skill' || tab === 'connector'" class="installed-badge">
           {{ tab === 'expert'
               ? t('草稿 {0} · 已发布 {1}', [expertDraftCount, publishedExpertCount])
@@ -429,62 +475,59 @@ onMounted(load)
       />
     </section>
 
-    <!-- 专家：左列表 + 右编辑器。没有 market 服务端，给的是可落盘的草稿链路。 -->
-    <section v-else-if="tab === 'expert'" class="expert-shell">
-      <aside class="expert-list">
-        <div class="expert-list-head">
-          <span>{{ t('我的专家') }}</span>
-          <AppButton variant="text" class="ed-mini" @click="openCreateExpert">{{ t('+ 新建') }}</AppButton>
-        </div>
-        <AppButton v-if="!expertItems.length" variant="card" class="expert-blank" @click="openCreateExpert">
-          <AppIcon name="plus" :size="16" />
-          <span>{{ t('还没有专家，点这里新建') }}</span>
-        </AppButton>
-        <template v-else>
-          <AppButton
-            v-for="e in expertItems"
-            :key="e.id"
-            variant="card"
-            class="expert-item"
-            :class="{ active: e.id === activeExpert }"
-            :aria-current="e.id === activeExpert ? 'true' : undefined"
-            @click="pickExpert(e.id)"
-          >
-            <span class="expert-item-top">
-              <strong>{{ e.name || e.id }}</strong>
-              <AppIcon v-if="e.published" name="check" :size="13" class="expert-pub" />
-            </span>
-            <span class="expert-item-desc">{{ e.description || t('（暂无简介）') }}</span>
-            <span v-if="e.role" class="expert-item-role">{{ e.role }}</span>
-            <span class="expert-item-tags">
-              <span class="tag-source" :data-source="e.source">
-                {{ e.source === 'imported' ? t('导入') : t('本地创建') }}
-              </span>
-              <span v-if="e.published" class="tag-published">{{ t('已发布') }}</span>
-            </span>
-            <span class="expert-item-stats">
-              <span>{{ e.tool_count ? t('{0} 个工具', [e.tool_count]) : t('不限工具') }}</span>
-              <span v-if="e.last_run" class="expert-run" :data-status="e.last_run.status">{{ lastRunLabel(e) }}</span>
-              <span>{{ t('修订 #{0}', [e.draft_revision]) }}</span>
-            </span>
-          </AppButton>
-        </template>
-        <p v-if="expertViewError" class="expert-list-err">{{ expertViewError }}</p>
-      </aside>
+    <!-- 专家：WorkBuddy 式卡片网格。列表只管「看与选」，
+         编辑进弹窗（点「编辑」），不再右侧常驻一整块表单（用户「太杂乱」）。 -->
+    <section v-else-if="tab === 'expert'" class="expert-grid-shell">
+      <div v-if="expertViewError" class="market-counts">{{ expertViewError }}</div>
+      <div v-else-if="busy && !expertItems.length" class="market-counts">{{ t('正在读取专家目录…') }}</div>
+      <p v-else-if="importNotice" class="expert-list-notice">{{ importNotice }}</p>
 
-      <div class="expert-main">
-        <ExpertDraftEditor
-          v-if="activeExpert"
-          :expert-id="activeExpert"
-          :project-root="expertRoot"
-          @saved="onExpertSaved"
-          @published="onExpertPublished"
-          @deleted="onExpertDeleted"
-        />
-        <div v-else class="expert-main-blank">
-          <strong>{{ busy ? t('正在读取专家目录…') : t('未选中专家') }}</strong>
-          <span class="muted">{{ t('专家由「角色定位 / 工作方法 / 行为边界 / 交付物」四段人格拼装， 保存为草稿后需一次显式确认才会发布到 Pi 的角色文件。') }}</span>
+      <div v-if="!expertItems.length && !busy" class="empty-state">
+        <div class="empty-icon"><AppIcon name="sparkles" :size="20" /></div>
+        <p class="empty-title">{{ t('还没有专家') }}</p>
+        <p class="empty-hint">{{ t('专家由「角色定位 / 工作方法 / 行为边界 / 交付物」四段人格拼装，可从 WorkBuddy 一键导入或手工新建。') }}</p>
+        <div class="empty-actions">
+          <AppButton variant="primary" @click="openCreateExpert">{{ t('新建专家') }}</AppButton>
+          <AppButton variant="secondary" @click="openImportExpert">{{ t('从 WorkBuddy 导入') }}</AppButton>
         </div>
+      </div>
+
+      <div v-else-if="!filteredExperts.length" class="empty-state">
+        <div class="empty-icon"><AppIcon name="search" :size="20" /></div>
+        <p class="empty-title">{{ t('没有匹配的专家') }}</p>
+        <p class="empty-hint">{{ t('保留搜索词，可清除后重试。') }}</p>
+      </div>
+
+      <div v-else class="market-grid">
+        <article v-for="e in filteredExperts" :key="e.id" class="market-card expert-card">
+          <div class="expert-card-head">
+            <span class="expert-avatar" aria-hidden="true">
+              <img v-if="expertAvatarsMap[e.id]" :src="expertAvatarsMap[e.id]!" alt="" />
+              <template v-else>{{ (e.name || e.id).trim().charAt(0).toUpperCase() }}</template>
+            </span>
+            <div class="expert-card-id">
+              <strong class="card-name" :title="e.name || e.id">{{ e.name || e.id }}</strong>
+              <span class="expert-card-sub mono-cell">{{ e.id }}</span>
+            </div>
+            <span v-if="e.published" class="tag-published">{{ t('已发布') }}</span>
+            <span v-else class="tag-draft">{{ t('草稿') }}</span>
+          </div>
+          <p class="card-desc">{{ e.description || t('（暂无简介）') }}</p>
+          <div class="expert-card-tags">
+            <span v-for="tag in e.tags.slice(0, 3)" :key="tag" class="ed-chip">{{ tag }}</span>
+            <span class="tag-source" :data-source="e.source">
+              {{ e.source === 'imported' ? t('导入') : t('本地创建') }}
+            </span>
+          </div>
+          <div class="expert-card-foot">
+            <span class="meta">{{ e.tool_count ? t('{0} 个工具', [e.tool_count]) : t('不限工具') }}</span>
+            <span v-if="e.last_run" class="expert-run" :data-status="e.last_run.status">{{ lastRunLabel(e) }}</span>
+            <AppButton variant="secondary" size="sm" class="expert-edit-btn" @click="editExpert(e.id)">
+              <AppIcon name="edit" :size="13" />
+              {{ t('编辑') }}
+            </AppButton>
+          </div>
+        </article>
       </div>
     </section>
 
@@ -584,7 +627,27 @@ onMounted(load)
       :existing-ids="expertItems.map((e) => e.id)"
       @close="showImportExpert = false"
       @imported="onExpertsImported"
+      @teams-created="onTeamsImported"
     />
+
+    <!-- 专家编辑弹窗：整表单进 720px 对话框，列表页保持干净。 -->
+    <AppModal
+      :open="showEditExpert && !!activeExpert"
+      :title="t('编辑专家')"
+      size="page"
+      @close="onEditClosed"
+    >
+      <div class="ed-modal-shell">
+        <ExpertDraftEditor
+          v-if="activeExpert"
+          :expert-id="activeExpert"
+          :project-root="expertRoot"
+          @saved="onExpertSaved"
+          @published="onExpertPublished"
+          @deleted="onExpertDeleted"
+        />
+      </div>
+    </AppModal>
 
     <AppModal
       v-model:open="showInstallModal"

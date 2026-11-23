@@ -33,14 +33,16 @@
 .hero-card {
   position: relative;
   z-index: 1;
-  width: min(var(--chat-col), calc(100% - 48px));
+  /* 落地页用独立的窄卡宽度（--hero-col），不跟消息列铺满：
+     输入框是主角，但一行拉到全屏宽反而难对齐视线（用户「输入框太宽」）。 */
+  width: min(var(--hero-col), calc(100% - 48px));
   /* margin:auto 让内容比窗口矮时居中、比窗口高时从顶部开始滚 */
   margin: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--sp-5);
-  padding: var(--sp-7) 0 var(--sp-6);
+  gap: var(--sp-4);
+  padding: var(--sp-5) 0 var(--sp-4);
   text-align: center;
 }
 
@@ -49,7 +51,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-1);
 }
 
 .hero-art {
@@ -72,7 +74,7 @@
 /* 常驻循环的浮动动画去掉：静态页面上没有任何东西在「等结果」。 */
 .hero-mascot {
   position: relative;
-  width: 136px;
+  width: 96px;
   height: auto;
   object-fit: contain;
   filter: drop-shadow(var(--sh-mascot));
@@ -108,13 +110,6 @@
   display: flex;
   align-items: center;
   gap: var(--sp-1);
-}
-
-.bar-muted {
-  padding: 0 var(--sp-2);
-  color: var(--text-faint);
-  font-size: var(--fs-meta);
-  white-space: nowrap;
 }
 
 .hero-hint {
@@ -260,7 +255,7 @@
   }
 
   .hero-mascot {
-    width: 108px;
+    width: 80px;
   }
 
   .hero-title {

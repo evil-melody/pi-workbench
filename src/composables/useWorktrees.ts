@@ -109,3 +109,66 @@ export async function wtSpawnAgent(root: string, launch: AgentLaunch): Promise<A
   await invoke('wt_agent', { root, launch: { ...launch, custom_cmd: launch.custom_cmd ?? '' }, id })
   return run
 }
+
+// ---------- 舰队看板 ----------
+
+export interface FleetLane {
+  branch: string
+  path: string
+  /** 流 id（`<fleet>:<branch>`），与 agentRuns 缓冲配对。 */
+  id: string
+  status: 'running' | 'done' | 'failed'
+  exit_code: number | null
+  started_at: number
+  ended_at: number | null
+}
+
+export interface FleetRun {
+  id: string
+  task: string
+  agent: string
+  lanes: FleetLane[]
+  created_at: number
+  updated_at: number
+}
+
+export interface FleetLaunch {
+  task: string
+  agent: 'claude' | 'codex' | 'pi' | 'custom'
+  custom_cmd?: string
+  branches: string[]
+}
+
+/** 一次派发 N 条 lane；流 id 形如 `<fleet>:<branch>`，前端按前缀归组。 */
+export async function wtFleetLaunch(
+  root: string,
+  launch: FleetLaunch,
+): Promise<FleetRun> {
+  await ensureAgentListeners()
+  const fleetId = `fleet-${Date.now()}-${++agentSeq}`
+  const run = await invoke<FleetRun>('wt_fleet_launch', {
+    root,
+    launch: { ...launch, custom_cmd: launch.custom_cmd ?? '' },
+    fleet_id: fleetId,
+  })
+  for (const lane of run?.lanes ?? []) {
+    agentRuns.value.push({ id: lane.id, branch: lane.branch, lines: [], running: true })
+  }
+  return run
+}
+
+export const wtFleetList = (root: string) =>
+  invoke<FleetRun[]>('wt_fleet_list', { root }).then((r) => r ?? [])
+
+// ---------- 合并冲突预测 ----------
+
+export interface ConflictPair {
+  a: string
+  b: string
+  file: string
+  lines: Array<[number, number]>
+  level: 'high' | 'medium'
+}
+
+export const wtConflicts = (root: string) =>
+  invoke<ConflictPair[]>('wt_conflicts', { root }).then((r) => r ?? [])

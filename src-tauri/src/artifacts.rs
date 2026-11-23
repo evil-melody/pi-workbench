@@ -8,7 +8,7 @@
 //!   3. 体积与类型都要设闸：二进制与超大文件直接拒，避免预览区卡死。
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -391,9 +391,39 @@ pub fn artifacts_open(app: tauri::AppHandle, path: String) -> Result<(), String>
         .map_err(|e| e.to_string())
 }
 
+/// 把成果文件另存为用户选定的目标路径（#66 M9「保存到本地」）。
+///
+/// 与 `attachment_add` 方向相反：那是「用户文件 → 托管目录」，这是
+/// 「项目产物 → 用户指定位置」。目标路径由系统保存对话框给出，
+/// **不套项目内边界**——用户主动选的去向就是合法去向（同 `artifacts_open` 的取舍）。
+/// 只校验源必须是存在的文件，避免把目录/设备节点拷过去。
+#[tauri::command(async)]
+pub fn artifact_save_as(src: String, dest: String) -> Result<(), String> {
+    let src_path = Path::new(&src);
+    if !src_path.is_file() {
+        return Err(format!("源文件不存在：{src}"));
+    }
+    fs::copy(src_path, &dest)
+        .map(|_| ())
+        .map_err(|e| format!("保存失败: {e}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 另存到用户指定路径：内容原样拷贝；源不存在必须报错而不是建空文件。
+    #[test]
+    fn save_as_copies_file_and_rejects_missing_source() {
+        let d = tmpproj("save-as");
+        let src = d.join("README.md").to_string_lossy().to_string();
+        let dest = d.join("out-copy.md");
+        artifact_save_as(src.clone(), dest.to_string_lossy().to_string()).unwrap();
+        assert_eq!(fs::read_to_string(&dest).unwrap(), "line1\nline2\nline3\n");
+        // 目录当源 → 拒；目标在不存在的路径 → 错而不 panic。
+        assert!(artifact_save_as(d.to_string_lossy().to_string(), dest.to_string_lossy().to_string()).is_err());
+        assert!(artifact_save_as("/nonexistent/nope.md".into(), dest.to_string_lossy().to_string()).is_err());
+    }
 
     /// 每个用例独立目录：cargo test 默认并发跑，共用目录会互相删除产物。
     fn tmpproj(tag: &str) -> PathBuf {

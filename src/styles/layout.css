@@ -7,6 +7,17 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 拖拽带占顶部 28px，页面容器吃掉剩余高度。各页根元素的 height:100%
+   相对本容器（已扣除拖拽带），不会溢出。 */
+.app-page {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /*
@@ -69,5 +80,5 @@
 .cc-btn.primary {
   border-color: var(--accent);
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
 }

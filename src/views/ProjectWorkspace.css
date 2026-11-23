@@ -5,6 +5,11 @@
   height: 100%;
   min-height: 0;
   overflow: auto;
+  /* 页面壳定律：内容列统一封顶 --page-max 居中（页头 sticky 横条随壳收窄，
+     与其余页的整壳形态一致）。工具面同样随壳封顶：横切标签时内容边线不跳
+     （见 .pw.tool .pw-body 的既有注释——贴边曾导致整块左右位移）。 */
+  max-width: var(--page-max);
+  margin: 0 auto;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
@@ -262,7 +267,9 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  margin: 0;
+  /* 高度让给工具，但左右仍与 .pw-tabs 同缩进：原先 margin:0 让文件/浏览器
+     贴到侧栏边（截图 x197 vs 标签 x235），横切标签时内容整块左右跳。 */
+  margin: 0 var(--page-x);
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -547,6 +554,58 @@
   color: var(--text-faint);
   font-size: var(--fs-meta);
   font-family: var(--mono);
+}
+
+/* 并行工作区入口：与「在对话中打开」同排，次要样式。 */
+.pw-open-wt {
+  flex: 0 0 auto;
+}
+
+/* 计划项筛选条 */
+.pw-filterbar {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 2px;
+}
+
+.pw-filter-note {
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+}
+
+/* 行内编辑：主区可点，光标提示「这是入口」而不是死文本。 */
+.pw-row-editable {
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .pw-row-editable:hover strong {
+    color: var(--accent);
+  }
+}
+
+/* 就地编辑弹窗字段 */
+.pw-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.pw-edit-field > span {
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+}
+
+.pw-edit-row {
+  display: flex;
+  gap: 10px;
+}
+
+.pw-edit-row .pw-edit-field {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 /* D-04：390 下页头固定子项合计超过可用宽度，标题被压成 0；窄屏允许换行，

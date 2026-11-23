@@ -4,7 +4,7 @@
  *   · A6 McpClient 加固（agent-mcp-bridge.ts）—— 连接复用 / 错误规范化
  * 运行：rtk node --experimental-strip-types scripts/test-harness-p2.ts
  */
-import { classifyToolCall } from '../src-tauri/extensions/agent-tool-gate.ts'
+import { classifyToolCall, expertGateDecision, expertIterationDenial, resetExpertIterationBudget, type ExpertPolicy } from '../src-tauri/extensions/agent-tool-gate.ts'
 import { McpClient } from '../src-tauri/extensions/agent-mcp-bridge.ts'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
@@ -51,6 +51,46 @@ assert(classifyToolCall('write', { path: '/Users/x/.env' }).level === 'block', '
 assert(classifyToolCall('write', { path: 'src/new.ts' }).level === 'allow', '项目内 write 放行')
 // write 在项目外（非受保护）→ confirm
 assert(classifyToolCall('write', { path: '/tmp/elsewhere.ts' }).level === 'confirm', '项目外 write 需审批')
+
+console.log('[B1x] expertGateDecision（专家工具门 + MCP 名单）')
+{
+  const policy: ExpertPolicy = {
+    expertId: 'reviewer',
+    name: '评审专家',
+    allowedTools: ['read', 'grep', 'bash'],
+    deniedPatterns: ['git push'],
+    mcpServers: [],
+  }
+  assert(expertGateDecision(policy, 'read', {}) === null, '白名单内 read 放行')
+  assert(expertGateDecision(policy, 'write', {})?.block === true, '白名单外 write 拦截')
+  assert(expertGateDecision(policy, 'bash', { command: 'sudo git push origin' })?.block === true, '拒绝模式命中拦截')
+  assert(expertGateDecision(policy, 'bash', { command: 'git status' }) === null, '白名单内且未命中拒绝模式的 bash 放行')
+  assert(expertGateDecision(null, 'write', {}) === null, '无策略 = 不按专家限制')
+  assert(expertGateDecision(policy, 'gate_status', {}) === null, '守卫诊断工具永远放行')
+  // MCP：声明名单 = 隐含授权 mcp_call，但只放行名单内 server
+  const mcpPolicy: ExpertPolicy = { ...policy, mcpServers: ['codebase-memory-mcp'] }
+  assert(expertGateDecision(mcpPolicy, 'mcp_call', { server: 'codebase-memory-mcp' }) === null, '名单内 MCP server 放行')
+  assert(expertGateDecision(mcpPolicy, 'mcp_call', { server: 'evil' })?.block === true, '名单外 MCP server 拦截')
+  assert(expertGateDecision(mcpPolicy, 'write', {})?.block === true, '声明 MCP 不影响白名单对其他工具的约束')
+}
+
+console.log('[B1y] expertIterationDenial（maxIterations 真消费者）')
+{
+  const budgeted: ExpertPolicy = { expertId: 'reviewer', name: '评审专家', maxIterations: 2 }
+  assert(expertIterationDenial(budgeted, 0) === null, '额度内第 1 次调用放行')
+  assert(expertIterationDenial(budgeted, 1) === null, '额度内第 2 次调用放行')
+  assert(expertIterationDenial(budgeted, 2)?.block === true, '第 3 次调用超上限拦截')
+  assert(
+    expertIterationDenial(budgeted, 5)?.reason.includes('2') === true,
+    '拦截理由带上限数值，模型知道停在哪',
+  )
+  assert(expertIterationDenial({ expertId: 'x' }, 99) === null, '没设上限 = 不限（fail-open）')
+  assert(expertIterationDenial(null, 99) === null, '无专家策略 = 不限制')
+  // 归零函数必须存在且幂等（handler 在 before_agent_start 调它；重复调不炸）。
+  resetExpertIterationBudget()
+  resetExpertIterationBudget()
+  assert(true, '迭代额度归零可重复调用')
+}
 
 console.log('[A6] McpClient 加固（连接复用 + 错误规范化）')
 async function runA6() {

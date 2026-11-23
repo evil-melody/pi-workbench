@@ -18,6 +18,8 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+  /* 第三个动作按钮（导入）加入后窄栏会溢出：允许换行，统计文本永远占第一行剩余宽度。 */
+  flex-wrap: wrap;
 }
 
 .cp-stat {
@@ -286,7 +288,7 @@
   font-size: var(--fs-meta);
   background: var(--bg-soft, var(--bg-hover));
   border-radius: var(--r-sm);
-  padding: 1px 4px;
+  padding: 1px var(--sp-2);
 }
 
 .cp-session {
@@ -356,7 +358,7 @@
   font-size: var(--fs-micro);
   background: var(--bg-soft, var(--bg-hover));
   border-radius: var(--r-sm);
-  padding: 1px 5px;
+  padding: 1px var(--sp-2);
 }
 
 .cp-orphans {

@@ -104,6 +104,48 @@ export const connectorsSetSelection = (
 export const connectorsApplyScope = (sessionId: string): Promise<string[]> =>
   invoke<string[]>('connectors_apply_scope', { session_id: sessionId })
 
+// ── 外部导入源（Cordis 归一化：适配器只产出规范候选，导入走 connectorsCreate 主路径） ──
+
+export interface ConnectorCandidate {
+  server_name: string
+  title: string
+  description: string
+  transport: ConnectorTransport
+  command?: string
+  args?: string[]
+  url?: string
+  /** 源配置里是否启用（WorkBuddy disabled:true → false）。 */
+  source_enabled: boolean
+  /** 与本地连接器重名 = 冲突，不可导入。 */
+  conflict: boolean
+  /** 不可导入的原因（i18n key）；null = 可导入。 */
+  skip_reason: string | null
+}
+
+export interface ConnectorImportScan {
+  /** 源文件绝对路径；空 = 本机没有 WorkBuddy。 */
+  root: string
+  candidates: ConnectorCandidate[]
+}
+
+export const connectorsImportScan = (): Promise<ConnectorImportScan> =>
+  invoke<ConnectorImportScan>('connectors_import_scan')
+
+/** 候选 → 规范入参：与手工新建完全同构，域路径零分叉。 */
+export function candidateToInput(c: ConnectorCandidate): ConnectorInput {
+  return {
+    title: c.title.trim() || c.server_name,
+    description: c.description.trim(),
+    server_name: c.server_name,
+    transport: c.transport,
+    command: c.command ?? '',
+    args: c.args ?? [],
+    url: c.url ?? '',
+    // 凭据不迁移：导入后由用户在编辑器里自己配。
+    authorization_token: '',
+  }
+}
+
 function connectorErrorTable(): Array<[string, string]> {
   return [
   ['connector/title-required', t('连接器名称不能为空')],

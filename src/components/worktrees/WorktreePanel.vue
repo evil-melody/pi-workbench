@@ -15,17 +15,22 @@ import { t } from '@/i18n'
 import { activeProjectPath } from '@/composables/useProject'
 import {
   agentRuns,
+  wtConflicts,
   wtCreate,
   wtDiff,
+  wtFleetLaunch,
+  wtFleetList,
   wtList,
   wtMerge,
   wtRemove,
   wtSpawnAgent,
+  type ConflictPair,
   type DiffSummary,
+  type FleetRun,
   type WorktreeInfo,
 } from '@/composables/useWorktrees'
 import { invoke } from '@tauri-apps/api/core'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
 
@@ -68,6 +73,15 @@ const fleetPrompt = ref('')
 const fleetCustom = ref('')
 const fleetBusy = ref(false)
 
+// 舰队看板：一次派发 = 一个 fleet run，N 条 lane 各有独立状态。
+// 数据来自 wt_fleet_list（内存表 + 磁盘账本合并，重启可回放）。
+const fleets = ref<FleetRun[]>([])
+const fleetBoardOpen = ref(new Set<string>())
+
+// 合并冲突预测（Clash 思路）：worktree 两两求 hunk 行区间交集，
+// 合并前先亮红灯，避免「合了才发现炸」。
+const conflicts = ref<ConflictPair[]>([])
+
 const root = computed(() => props.root?.trim() || activeProjectPath.value.trim())
 const hasRoot = computed(() => root.value.length > 0)
 
@@ -81,6 +95,8 @@ const agentOptions = computed(() => [
 async function refresh() {
   if (!hasRoot.value) {
     items.value = []
+    fleets.value = []
+    conflicts.value = []
     return
   }
   loading.value = true
@@ -93,7 +109,104 @@ async function refresh() {
   } finally {
     loading.value = false
   }
+  // 看板与冲突预测失败不阻塞主列表：它们是附加情报，不是主数据。
+  try {
+    fleets.value = await wtFleetList(root.value)
+  } catch {
+    fleets.value = []
+  }
+  try {
+    conflicts.value = await wtConflicts(root.value)
+  } catch {
+    conflicts.value = []
+  }
 }
+
+// 有 lane 在跑时每 4s 静默刷新看板（lane 状态由后端线程回写，前端只读）。
+let fleetTimer: ReturnType<typeof setInterval> | null = null
+const anyRunning = computed(() =>
+  fleets.value.some((f) => f.lanes.some((l) => l.status === 'running')),
+)
+watch(anyRunning, (run) => {
+  if (run && !fleetTimer) {
+    fleetTimer = setInterval(async () => {
+      if (!hasRoot.value) return
+      try {
+        fleets.value = await wtFleetList(root.value)
+      } catch {
+        /* 静默：下一轮再试 */
+      }
+    }, 4000)
+  } else if (!run && fleetTimer) {
+    clearInterval(fleetTimer)
+    fleetTimer = null
+  }
+})
+onUnmounted(() => {
+  if (fleetTimer) clearInterval(fleetTimer)
+  fleetTimer = null
+})
+
+function toggleBoard(id: string) {
+  const next = new Set(fleetBoardOpen.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  fleetBoardOpen.value = next
+}
+
+/** lane 的运行流缓冲（与单卡派发共用 agentRuns，按流 id 配对）。 */
+const laneRun = (laneId: string) => agentRuns.value.find((r) => r.id === laneId)
+
+function fleetTally(f: FleetRun) {
+  const done = f.lanes.filter((l) => l.status === 'done').length
+  const failed = f.lanes.filter((l) => l.status === 'failed').length
+  const running = f.lanes.filter((l) => l.status === 'running').length
+  return { done, failed, running, total: f.lanes.length }
+}
+
+/** 跨全部舰队的 lane 汇总：一次看清总条数、在跑、成功率。 */
+const fleetTotal = computed(() => {
+  const lanes = fleets.value.flatMap((f) => f.lanes)
+  const done = lanes.filter((l) => l.status === 'done').length
+  const failed = lanes.filter((l) => l.status === 'failed').length
+  const running = lanes.filter((l) => l.status === 'running').length
+  const settled = done + failed
+  return {
+    runs: fleets.value.length,
+    total: lanes.length,
+    done,
+    failed,
+    running,
+    rate: settled ? Math.round((done / settled) * 100) : null,
+  }
+})
+
+/** 重放：拿原任务原文再发一轮（LoopForge 节点重放思路的最简形态）。 */
+async function relaunchFleet(f: FleetRun) {
+  if (!hasRoot.value || fleetBusy.value) return
+  fleetBusy.value = true
+  error.value = ''
+  try {
+    // 保留原 agent（claude/codex/pi），不再一律退回 pi——重放应重现原执行器。
+    // custom 的命令行没进 FleetRun 结构，后端补字段前暂以 pi 兜底。
+    const agent = (['claude', 'codex', 'pi'].includes(f.agent) ? f.agent : 'pi') as 'claude' | 'codex' | 'pi'
+    await wtFleetLaunch(root.value, {
+      task: f.task,
+      agent,
+      branches: f.lanes.map((l) => l.branch),
+    })
+    fleets.value = await wtFleetList(root.value)
+    note(t('舰队已重放：{n} 条 lane', { n: f.lanes.length }))
+  } catch (e) {
+    error.value = toText(e)
+  } finally {
+    fleetBusy.value = false
+  }
+}
+
+/** 某个分支的冲突预警条目（合并按钮旁的红灯依据）。 */
+const conflictsFor = (branch: string) =>
+  conflicts.value.filter((c) => c.a === branch || c.b === branch)
 
 function toText(e: unknown) {
   return String((e as { message?: string })?.message ?? e)
@@ -146,6 +259,9 @@ async function remove(w: WorktreeInfo) {
 
 async function merge(w: WorktreeInfo) {
   error.value = ''
+  // 高危冲突（行区间相撞）合并前再拦一道：预测不是保证，但至少不让人手滑点过。
+  const risky = conflictsFor(w.branch).filter((c) => c.level === 'high')
+  if (risky.length && !window.confirm(t('与 {0} 个分支行级相撞，合并很可能冲突。仍要继续？', [risky.length]))) return
   try {
     const out = await wtMerge(root.value, w.branch)
     out.steps.forEach((s) => note(s))
@@ -189,41 +305,43 @@ async function spawnAgent(w: WorktreeInfo) {
   }
 }
 
-/** 批量派发：前缀-序号建 worktree（已存在的复用），同一 prompt 各起一个 agent。 */
+/** 批量派发：前缀-序号建 worktree（已存在的复用），一次 wt_fleet_launch 起 N 条 lane。 */
 async function spawnFleet() {
   const prompt = fleetPrompt.value.trim()
   const prefix =
     (fleetPrefix.value.trim() || 'task')
       .replace(/[^\w.-]+/g, '-')
       .replace(/^-+|-+$/g, '') || 'task'
-  if (!prompt) return
+  if (!prompt || !hasRoot.value) return
   fleetBusy.value = true
   error.value = ''
   const count = Math.min(10, Math.max(1, Math.floor(fleetCount.value) || 1))
   const existing = new Set(items.value.map((w) => w.branch))
-  let launched = 0
-  for (let i = 1; i <= count; i++) {
-    const branch = `${prefix}-${i}`
-    try {
+  const branches: string[] = []
+  try {
+    for (let i = 1; i <= count; i++) {
+      const branch = `${prefix}-${i}`
       if (!existing.has(branch)) {
         await wtCreate(root.value, branch)
         note(t('已创建 worktree：{branch}', { branch }))
       }
-      await wtSpawnAgent(root.value, {
-        branch,
-        agent: fleetKind.value,
-        prompt,
-        custom_cmd: fleetKind.value === 'custom' ? fleetCustom.value : undefined,
-      })
-      launched++
-    } catch (e) {
-      error.value = toText(e)
-      break
+      branches.push(branch)
     }
+    const run = await wtFleetLaunch(root.value, {
+      task: prompt,
+      agent: fleetKind.value,
+      custom_cmd: fleetKind.value === 'custom' ? fleetCustom.value : undefined,
+      branches,
+    })
+    fleets.value = [run, ...fleets.value.filter((f) => f.id !== run.id)]
+    fleetBoardOpen.value = new Set([...fleetBoardOpen.value, run.id])
+    note(t('舰队已出发：{n} 个 agent 并行运行', { n: run.lanes.length }))
+    await refresh()
+  } catch (e) {
+    error.value = toText(e)
+  } finally {
+    fleetBusy.value = false
   }
-  fleetBusy.value = false
-  await refresh()
-  if (launched) note(t('舰队已出发：{n} 个 agent 并行运行', { n: launched }))
 }
 
 function reveal(w: WorktreeInfo) {
@@ -309,7 +427,81 @@ watch(root, refresh)
       <ul class="wtp-notices">
         <li v-for="(n, i) in notices" :key="i" class="wtp-notice">{{ n }}</li>
       </ul>
+
+      <!-- 冲突预警横幅：合并前先亮灯（Clash 思路，行区间交集 = 高危） -->
+      <div v-if="conflicts.length" class="wtp-clashes">
+        <p class="wtp-clashes-title">{{ t('冲突预测：{n} 处重叠', { n: conflicts.length }) }}</p>
+        <details v-for="(c, i) in conflicts.slice(0, 4)" :key="i" class="wtp-clash">
+          <summary class="wtp-clash-head">
+            <span :class="c.level === 'high' ? 'clash-high' : 'clash-medium'">
+              {{ c.level === 'high' ? t('行相撞') : t('同文件') }}
+            </span>
+            <span class="clash-pair">{{ c.a }} × {{ c.b }}</span>
+            <span class="clash-file">{{ c.file }}</span>
+          </summary>
+          <p class="clash-lines">
+            {{ t('重叠行区间') }}：
+            <code v-for="([s, e], j) in c.lines" :key="j">{{ s }}-{{ e }}<template v-if="j < c.lines.length - 1">、</template></code>
+          </p>
+        </details>
+        <p v-if="conflicts.length > 4" class="wtp-meta">
+          {{ t('另有 {n} 处', { n: conflicts.length - 4 }) }}
+        </p>
+      </div>
     </header>
+
+    <!-- 舰队看板：每次派发一张卡，lane 状态实时（4s 轮询驱动） -->
+    <section v-if="fleets.length" class="wtp-fleets">
+      <h3 class="wtp-section-title">{{ t('舰队看板') }}</h3>
+      <div class="wtp-fleet-total">
+        <span>{{ t('{0} 次派发 · {1} 条 lane', [fleetTotal.runs, fleetTotal.total]) }}</span>
+        <span v-if="fleetTotal.running" class="tally-run">{{ fleetTotal.running }} {{ t('在跑') }}</span>
+        <span class="tally-ok">{{ fleetTotal.done }} ✓</span>
+        <span v-if="fleetTotal.failed" class="tally-fail">{{ fleetTotal.failed }} ✗</span>
+        <span v-if="fleetTotal.rate !== null" class="wtp-rate">{{ t('成功率 {n}%', { n: fleetTotal.rate }) }}</span>
+      </div>
+      <article v-for="f in fleets.slice(0, 8)" :key="f.id" class="wtp-fleetcard">
+        <button class="wtp-fleet-head" @click="toggleBoard(f.id)">
+          <span class="wtp-fleet-caret">{{ fleetBoardOpen.has(f.id) ? '▾' : '▸' }}</span>
+          <span class="wtp-fleet-task" :title="f.task">{{ f.task }}</span>
+          <span class="wtp-fleet-tally">
+            <em v-if="fleetTally(f).running" class="tally-run">
+              {{ fleetTally(f).running }} {{ t('在跑') }}
+            </em>
+            <em v-if="fleetTally(f).done" class="tally-ok">{{ fleetTally(f).done }} ✓</em>
+            <em v-if="fleetTally(f).failed" class="tally-fail">{{ fleetTally(f).failed }} ✗</em>
+          </span>
+        </button>
+        <div v-if="fleetBoardOpen.has(f.id)" class="wtp-fleet-body">
+          <ul class="wtp-lanes">
+            <li v-for="l in f.lanes" :key="l.id" class="wtp-lane">
+              <span :class="l.status === 'running' ? 'tally-run' : l.status === 'done' ? 'tally-ok' : 'tally-fail'">
+                {{ l.status === 'running' ? '●' : l.status === 'done' ? '✓' : '✗' }}
+              </span>
+              <span class="lane-branch">{{ l.branch }}</span>
+              <span class="lane-meta">
+                {{ l.status === 'running' ? t('{n} 行', { n: laneRun(l.id)?.lines.length ?? 0 }) : `exit ${l.exit_code ?? '?'}` }}
+              </span>
+              <details v-if="laneRun(l.id)?.lines.length" class="wtp-run lane-log">
+                <summary>{{ t('lane 输出') }}</summary>
+                <pre class="wtp-run-log">{{ laneRun(l.id)!.lines.join('\n') }}</pre>
+              </details>
+            </li>
+          </ul>
+          <div class="wtp-fleet-actions">
+            <AppButton
+              variant="text"
+              size="sm"
+              :disabled="fleetBusy"
+              :title="t('用原任务在所有分支再跑一轮')"
+              @click="relaunchFleet(f)"
+            >
+              {{ t('重放') }}
+            </AppButton>
+          </div>
+        </div>
+      </article>
+    </section>
 
     <div class="wtp-list">
       <article v-for="w in items" :key="w.branch" class="wtp-card" :class="{ main: w.is_main }">
@@ -342,8 +534,23 @@ watch(root, refresh)
           <AppButton variant="text" size="sm" @click="toggleDiff(w)">
             {{ diffOpen.has(w.branch) ? t('收起') : t('diff') }}
           </AppButton>
-          <AppButton v-if="!w.is_main" variant="text" size="sm" @click="merge(w)">
+          <AppButton
+            v-if="!w.is_main"
+            variant="text"
+            size="sm"
+            :class="{ 'merge-risk': conflictsFor(w.branch).some((c) => c.level === 'high') }"
+            :title="
+              conflictsFor(w.branch).length
+                ? t('与 {n} 个分支存在改动重叠，合并前先确认', { n: conflictsFor(w.branch).length })
+                : ''
+            "
+            @click="merge(w)"
+          >
             {{ t('合并') }}
+            <span
+              v-if="conflictsFor(w.branch).some((c) => c.level === 'high')"
+              class="merge-risk-dot"
+            >!</span>
           </AppButton>
           <AppButton variant="text" size="sm" @click="reveal(w)">{{ t('打开目录') }}</AppButton>
           <AppButton v-if="!w.is_main" variant="text" size="sm" class="danger" @click="remove(w)">

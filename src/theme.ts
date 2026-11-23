@@ -11,6 +11,37 @@ import { isTauriRuntime } from '@/composables/useRuntime'
 export type Theme = 'dark' | 'light'
 
 const KEY = 'pi-workbench:theme'
+const FS_KEY = 'pi-workbench:font-scale'
+
+/** 字号档位（对齐 WorkBuddy 设置「字号」）：值是 --fs-scale 因子。 */
+export const FONT_SCALES = [
+  { value: 'sm', scale: 0.9 },
+  { value: 'md', scale: 1 },
+  { value: 'lg', scale: 1.1 },
+  { value: 'xl', scale: 1.2 },
+] as const
+export type FontScale = (typeof FONT_SCALES)[number]['value']
+
+function fontScaleValue(): number {
+  const saved = localStorage.getItem(FS_KEY)
+  return FONT_SCALES.find((f) => f.value === saved)?.scale ?? 1
+}
+
+/** 首帧与启动时写入：<html> 上的因子让全站阶梯等比缩放。 */
+export function applyFontScale(scale: number): void {
+  document.documentElement.style.setProperty('--fs-scale', String(scale))
+}
+
+export function currentFontScale(): FontScale {
+  const scale = fontScaleValue()
+  return (FONT_SCALES.find((f) => f.scale === scale)?.value ?? 'md') as FontScale
+}
+
+export function setFontScale(value: FontScale): void {
+  const found = FONT_SCALES.find((f) => f.value === value) ?? FONT_SCALES[1]
+  localStorage.setItem(FS_KEY, found.value)
+  applyFontScale(found.scale)
+}
 
 /**
  * 把主题同步给原生窗口底色（WebView 提交 HTML 前的那一帧由 Rust 侧绘制）。
@@ -30,6 +61,7 @@ export function initTheme(): Theme {
   const saved = localStorage.getItem(KEY)
   const theme: Theme = saved === 'light' || saved === 'dark' ? saved : systemTheme()
   document.documentElement.dataset.theme = theme
+  applyFontScale(fontScaleValue())
   syncWindowTheme(theme)
   return theme
 }

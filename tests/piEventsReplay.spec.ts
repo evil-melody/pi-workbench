@@ -202,3 +202,81 @@ describe('applyEvent · 用户消息四类场景', () => {
     ])
   })
 })
+
+/**
+ * #65 引用回放：引用与附件同构但语义不同——引用是一段随 prompt 下发的文本，
+ * 走独立 `[引用 / quotes]` 块 + 独立富字段。两条通道都要还原：
+ * 内核回显只有 marker 块（块解析），崩溃窗口的 user_prompt 带富字段（优先）。
+ */
+describe('applyEvent · 引用回放（#65）', () => {
+  const userEnd = (text: string) => ({
+    type: 'message_end',
+    message: { role: 'user', content: [{ type: 'text', text }] },
+  })
+
+  it('内核回显：引用块还原成 quotes、正文剥干净', () => {
+    const c = ctx()
+    c.replay = true
+    applyEvent(c, userEnd('接着分析\n\n[引用 / quotes]\n- [1] 第一段结论\n  批注: 看这里'))
+    expect(c.messages[0].text).toBe('接着分析')
+    expect(c.messages[0].quotes).toHaveLength(1)
+    expect(c.messages[0].quotes![0]).toMatchObject({ kind: 'text', text: '第一段结论', note: '看这里' })
+  })
+
+  it('多行引用往返无损（编码把 \n 压成 \\n）', () => {
+    const c = ctx()
+    c.replay = true
+    applyEvent(c, userEnd('看这段\n\n[引用 / quotes]\n- [1] 第一行\\n第二行'))
+    expect(c.messages[0].quotes![0].text).toBe('第一行\n第二行')
+  })
+
+  it('引用 + 附件同轮：两块各自还原，不互相污染', () => {
+    const c = ctx()
+    c.replay = true
+    applyEvent(
+      c,
+      userEnd('图文并参\n\n[引用 / quotes]\n- [1] 一句引用\n\n[附件 / attachments]\n- image: /x/a.png'),
+    )
+    expect(c.messages[0].text).toBe('图文并参')
+    expect(c.messages[0].quotes).toHaveLength(1)
+    expect(c.messages[0].attachments).toHaveLength(1)
+  })
+
+  it('只有引用、无正文：仍然落气泡（引用单独发送合法）', () => {
+    const c = ctx()
+    c.replay = true
+    applyEvent(c, userEnd('\n\n[引用 / quotes]\n- [1] 光秃秃的一句引用'))
+    expect(c.messages).toHaveLength(1)
+    expect(c.messages[0].text).toBe('')
+    expect(c.messages[0].quotes![0].text).toBe('光秃秃的一句引用')
+  })
+
+  it('user_prompt 富字段优先于块解析（保留 id/note 原样）', () => {
+    const c = ctx()
+    c.replay = true
+    applyEvent(c, {
+      type: 'user_prompt',
+      text: '接着分析',
+      mode: 'prompt',
+      quotes: [{ id: 'q7', kind: 'text', text: '富字段原文', note: '批注', source: '来自回复' }],
+    })
+    expect(c.messages[0].quotes).toEqual([
+      { id: 'q7', kind: 'text', text: '富字段原文', note: '批注', source: '来自回复' },
+    ])
+  })
+
+  it('先落 user_prompt（富字段）、内核后回显（仅块）：不回退覆盖成块解析', () => {
+    const c = ctx()
+    c.replay = true
+    applyEvent(c, {
+      type: 'user_prompt',
+      text: '接着分析',
+      mode: 'prompt',
+      quotes: [{ id: 'q7', kind: 'text', text: '富字段原文' }],
+    })
+    applyEvent(c, userEnd('接着分析\n\n[引用 / quotes]\n- [1] 块解析原文'))
+    expect(c.messages).toHaveLength(1)
+    // 富字段的 id 更准，块解析不该反向覆盖。
+    expect(c.messages[0].quotes![0].id).toBe('q7')
+  })
+})

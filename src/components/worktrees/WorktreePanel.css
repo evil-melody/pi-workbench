@@ -98,6 +98,218 @@
   flex: 0 0 64px;
 }
 
+/* 冲突预警横幅 */
+.wtp-clashes {
+  background: var(--warn-soft);
+  border-radius: var(--r);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+}
+
+.wtp-clashes-title {
+  color: var(--warn-ink);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  margin: 0;
+}
+
+.wtp-clash {
+  font-size: var(--fs-micro);
+  min-width: 0;
+}
+
+.wtp-clash-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.wtp-clash-head::-webkit-details-marker {
+  display: none;
+}
+
+.clash-lines {
+  margin: 2px 0 0;
+  color: var(--text-dim);
+}
+
+.clash-lines code {
+  font-family: var(--mono);
+}
+
+.clash-high {
+  color: var(--danger);
+  flex: 0 0 auto;
+  font-weight: 600;
+}
+
+.clash-medium {
+  color: var(--warn-ink);
+  flex: 0 0 auto;
+}
+
+.clash-pair {
+  color: var(--text-dim);
+  flex: 0 0 auto;
+  font-family: var(--mono);
+}
+
+.clash-file {
+  color: var(--text-faint);
+  font-family: var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 舰队看板 */
+.wtp-fleets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wtp-section-title {
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+  margin: 0;
+}
+
+.wtp-fleetcard {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+
+.wtp-fleet-head {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  width: 100%;
+}
+
+.wtp-fleet-caret {
+  color: var(--text-faint);
+  flex: 0 0 auto;
+}
+
+.wtp-fleet-task {
+  flex: 1;
+  font-size: var(--fs-meta);
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 跨舰队汇总条：一屏看到总条数/在跑/成功/失败/成功率。 */
+.wtp-fleet-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-2);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r);
+  background: var(--bg-elev);
+  font-size: var(--fs-sm);
+}
+
+.wtp-rate {
+  margin-left: auto;
+  font-weight: var(--fw-medium);
+}
+
+.wtp-fleet-tally {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.wtp-fleet-tally em {
+  font-size: var(--fs-micro);
+  font-style: normal;
+}
+
+.tally-run {
+  color: var(--accent);
+}
+
+.tally-ok {
+  color: var(--ok);
+}
+
+.tally-fail {
+  color: var(--danger);
+}
+
+.wtp-fleet-body {
+  border-top: 1px solid var(--border-soft);
+  padding: 6px 8px;
+}
+
+.wtp-lanes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wtp-lane {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--fs-micro);
+  gap: 6px;
+}
+
+.lane-branch {
+  color: var(--text-dim);
+  font-family: var(--mono);
+}
+
+.lane-meta {
+  color: var(--text-faint);
+}
+
+.lane-log {
+  width: 100%;
+}
+
+.wtp-fleet-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+/* 合并风险红灯 */
+.merge-risk {
+  color: var(--danger);
+}
+
+.merge-risk-dot {
+  background: var(--danger);
+  border-radius: var(--r-full);
+  color: var(--bg);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  margin-left: 2px;
+  padding: 0 4px;
+}
+
 /* worktree 卡片 */
 .wtp-list {
   display: flex;
@@ -127,7 +339,7 @@
 }
 
 .wtp-branch {
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--mono);
   font-size: var(--fs-meta);
   font-weight: 600;
   overflow: hidden;
@@ -196,7 +408,7 @@
 
 .wtp-file {
   display: flex;
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--mono);
   font-size: var(--fs-micro);
   gap: 6px;
 }
@@ -257,7 +469,7 @@
   background: var(--bg-panel);
   border: 1px solid var(--border-soft);
   border-radius: var(--r);
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--mono);
   font-size: var(--fs-micro);
   margin: 4px 0 0;
   max-height: 200px;

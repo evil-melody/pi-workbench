@@ -20,6 +20,7 @@
     "agent-codebase.ts",
     "agent-guard.ts",
     "agent-mcp-bridge.ts",
-    "agent-tool-gate.ts"
+    "agent-tool-gate.ts",
+    "agent-suggest.ts"
   ]
 }

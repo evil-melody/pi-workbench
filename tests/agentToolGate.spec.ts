@@ -34,54 +34,78 @@ afterEach(() => {
 
 describe('专家工具门', () => {
   it('没有策略文件 = 不限制', () => {
-    const cwd = project(null)
-    expect(readExpertPolicy(cwd)).toBeNull()
-    expect(expertGateDecision(null, 'bash', { command: 'rm -rf /' })).toBeNull()
+    const prevExpertId = process.env.PI_EXPERT_ID
+    delete process.env.PI_EXPERT_ID
+    try {
+      const cwd = project(null)
+      expect(readExpertPolicy(cwd)).toBeNull()
+      expect(expertGateDecision(null, 'bash', { command: 'rm -rf /' })).toBeNull()
+    } finally {
+      if (prevExpertId === undefined) delete process.env.PI_EXPERT_ID
+      else process.env.PI_EXPERT_ID = prevExpertId
+    }
   })
 
   it('白名单外的工具被拦下，白名单内放行', () => {
-    const cwd = project({
-      expertId: 'reviewer',
-      name: '代码评审专家',
-      allowedTools: ['read', 'grep'],
-      deniedPatterns: [],
-    })
-    const policy = readExpertPolicy(cwd)
-    expect(policy).not.toBeNull()
+    const prevExpertId = process.env.PI_EXPERT_ID
+    delete process.env.PI_EXPERT_ID
+    try {
+      const cwd = project({
+        expertId: 'reviewer',
+        name: '代码评审专家',
+        allowedTools: ['read', 'grep'],
+        deniedPatterns: [],
+      })
+      const policy = readExpertPolicy(cwd)
+      expect(policy).not.toBeNull()
 
     const denied = expertGateDecision(policy, 'bash', { command: 'echo hi' })
     expect(denied?.block).toBe(true)
     expect(denied?.reason).toContain('未授权工具 bash')
     expect(denied?.reason).toContain('代码评审专家')
-    expect(expertGateDecision(policy, 'read', { path: 'a.ts' })).toBeNull()
+      expect(expertGateDecision(policy, 'read', { path: 'a.ts' })).toBeNull()
+    } finally {
+      if (prevExpertId === undefined) delete process.env.PI_EXPERT_ID
+      else process.env.PI_EXPERT_ID = prevExpertId
+    }
   })
 
   it('拒绝模式命中 bash 命令（大小写不敏感）', () => {
-    const cwd = project({
-      expertId: 'reviewer',
-      allowedTools: ['bash'],
-      deniedPatterns: ['git push', 'npm publish'],
-    })
-    const policy = readExpertPolicy(cwd)
-    const hit = expertGateDecision(policy, 'bash', { command: 'git PUSH origin main' })
-    expect(hit?.block).toBe(true)
-    expect(hit?.reason).toContain('git push')
-    expect(expertGateDecision(policy, 'bash', { command: 'git status' })).toBeNull()
+    const prevExpertId = process.env.PI_EXPERT_ID
+    delete process.env.PI_EXPERT_ID
+    try {
+      const cwd = project({
+        expertId: 'reviewer',
+        allowedTools: ['bash'],
+        deniedPatterns: ['git push', 'npm publish'],
+      })
+      const policy = readExpertPolicy(cwd)
+      const hit = expertGateDecision(policy, 'bash', { command: 'git PUSH origin main' })
+      expect(hit?.block).toBe(true)
+      expect(hit?.reason).toContain('git push')
+      expect(expertGateDecision(policy, 'bash', { command: 'git status' })).toBeNull()
+    } finally {
+      if (prevExpertId === undefined) delete process.env.PI_EXPERT_ID
+      else process.env.PI_EXPERT_ID = prevExpertId
+    }
   })
 
   it('越界被拦后写审计行（真实用例：允许 read，bash 被拒）', () => {
-    const cwd = project({
-      expertId: 'reviewer',
-      name: '代码评审专家',
-      allowedTools: ['read'],
-      deniedPatterns: [],
-    })
-    const policy = readExpertPolicy(cwd)!
-    const before = expertGateDecision(policy, 'bash', { command: 'ls' })
+    const prevExpertId = process.env.PI_EXPERT_ID
+    delete process.env.PI_EXPERT_ID
+    try {
+      const cwd = project({
+        expertId: 'reviewer',
+        name: '代码评审专家',
+        allowedTools: ['read'],
+        deniedPatterns: [],
+      })
+      const policy = readExpertPolicy(cwd)!
+      const before = expertGateDecision(policy, 'bash', { command: 'ls' })
     expect(before?.block).toBe(true)
-    auditExpertDenial(cwd, policy, 'bash', 'ls')
+      auditExpertDenial(cwd, policy, 'bash', 'ls')
 
-    const audit = fs
+      const audit = fs
       .readFileSync(path.join(cwd, '.pi', 'policy', 'expert-audit.jsonl'), 'utf8')
       .trim()
       .split('\n')
@@ -93,6 +117,10 @@ describe('专家工具门', () => {
       tool: 'bash',
       detail: 'ls',
     })
+    } finally {
+      if (prevExpertId === undefined) delete process.env.PI_EXPERT_ID
+      else process.env.PI_EXPERT_ID = prevExpertId
+    }
   })
 
   it('gate_status 永远放行，便于确认策略是否生效', () => {

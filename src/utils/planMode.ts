@@ -25,6 +25,25 @@ export function stripPlanInstruction(body: string): string {
   return body === PLAN_INSTRUCTION ? '' : body
 }
 
+/**
+ * Ask 模式（对齐 WorkBuddy「仅问答」）：只答不动手——不改文件、不执行命令，
+ * 与 Plan 的「先出计划等确认」互斥（同一时刻只能开一个，见 ComposerPlusMenu）。
+ */
+export const ASK_INSTRUCTION =
+  '[问答模式] 只回答用户的问题，不要修改任何文件，也不要执行任何命令或工具调用。需要动手的部分，提示用户切到 Agent 或计划模式。' // i18n-ignore: model prompt
+
+/** ask 轮发送：指令前缀拼在最外（与 plan 同一位置规则）。 */
+export function withAskInstruction(body: string): string {
+  return `${ASK_INSTRUCTION}\n\n${body}`
+}
+
+/** 剥掉正文头部的问答指令（回放路径，同 stripPlanInstruction）。 */
+export function stripAskInstruction(body: string): string {
+  const head = `${ASK_INSTRUCTION}\n\n`
+  if (body.startsWith(head)) return body.slice(head.length)
+  return body === ASK_INSTRUCTION ? '' : body
+}
+
 /** 单行最大步骤数：防模型失控输出撑爆卡片。 */
 const MAX_STEPS = 20
 

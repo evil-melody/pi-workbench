@@ -30,10 +30,88 @@
   cursor: pointer;
 }
 
+/* ── #66 M9 工具条 ────────────────────────────────────────────
+ * 视图切换（预览/代码）与动作键（引用/复制/保存）同一族：
+ * hairline 描边 + elev 底，和 .ext 拉开层级但不再造第三种样式。 */
+.ap-seg {
+  display: inline-flex;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.ap-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+
+.ap-seg-btn + .ap-seg-btn {
+  border-left: 1px solid var(--border);
+}
+
+.ap-seg-btn.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.ap-act {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+
+  .ap-act:hover:not(:disabled),
+  .ap-seg-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+}
+
+.ap-act:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 复制失败之类的瞬时状态说明，走 status 语义而不是错误红。 */
+.ap-note {
+  margin: 0 0 8px;
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+}
+
+/* 源码视图：等宽、可滚动，不裁字。 */
+.ap-code {
+  max-height: 60vh;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg-elev);
+}
+
 @media (hover: hover) {
 
   .ext:hover:not(:disabled) {
-    background: rgba(110, 168, 254, 0.14);
+    background: var(--accent-soft);
 }
 }
 
@@ -110,7 +188,7 @@
 }
 
 .md code {
-  padding: 1px 4px;
+  padding: 1px var(--sp-2);
   border-radius: var(--r-sm);
   background: var(--bg-elev);
   font-family: var(--mono);

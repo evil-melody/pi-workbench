@@ -20,10 +20,12 @@ import { onTablistKeydown } from '@/composables/useTablist'
 import AppInput from '@/components/ui/AppInput.vue'
 import AppSelect from '@/components/ui/AppSelect.vue'
 import type { SelectOption } from '@/components/ui/AppSelect.vue'
+import AppModal from '@/components/ui/AppModal.vue'
 import AppTextarea from '@/components/ui/AppTextarea.vue'
 import FilesWorkspace from '@/components/fs/FilesWorkspace.vue'
 import TerminalPanel from '@/components/terminal/TerminalPanel.vue'
 import AgentBrowserPane from '@/components/chat/AgentBrowserPane.vue'
+import WorktreePanel from '@/components/worktrees/WorktreePanel.vue'
 import { PICK_TIMEOUT_NOTE, pickDirectoryGuarded } from '@/composables/useDirPicker'
 import {
   addAsset,
@@ -47,7 +49,7 @@ const WORK_ITEM_STATUS = computed(() => workItemStatusOptions())
 const router = useRouter()
 const projectId = computed(() => String(route.params.id ?? ''))
 
-type Tab = 'config' | 'work-items' | 'assets' | 'activity' | 'files' | 'term' | 'browser'
+type Tab = 'config' | 'work-items' | 'assets' | 'activity' | 'files' | 'term' | 'browser' | 'worktree'
 const tab = ref<Tab>('config')
 
 const snapshot = ref<ProjectSnapshot | null>(null)
@@ -65,10 +67,11 @@ const TABS = computed<Array<{ key: Tab; label: string }>>(() => [
   { key: 'files', label: t('文件') },
   { key: 'term', label: t('终端') },
   { key: 'browser', label: t('浏览器') },
+  { key: 'worktree', label: t('并行工作区') },
 ])
 
 /** 工具面：占满剩余高度，不用文档流的卡片内边距。 */
-const toolTab = computed(() => tab.value === 'files' || tab.value === 'term' || tab.value === 'browser')
+const toolTab = computed(() => tab.value === 'files' || tab.value === 'term' || tab.value === 'browser' || tab.value === 'worktree')
 /** 工具面需要工作目录；没目录时说清楚缺什么，而不是渲染一个空壳。 */
 const needPath = computed(() => (tab.value === 'files' || tab.value === 'term') && !snapshot.value?.project.path)
 
@@ -370,10 +373,86 @@ async function refresh() {
   loading.value = false
 }
 
-async function goChat() {
+async function goChat(panel?: string) {
   // 直接深链进工作台时活动项目未必是这一个，先落一次再跳，避免对话页读到旧项目。
   await invoke('project_set_active', { id: projectId.value }).catch(() => {})
-  router.push('/chat')
+  router.push(panel ? { path: '/chat', query: { panel } } : '/chat')
+}
+
+// ── 计划项：状态筛选 + 行内编辑 ────────────────────────────────
+/** 筛选 = 纯前端视图态；计数跟着全量列表走，筛选不藏数字。 */
+const statusFilter = ref('')
+const filteredItems = computed(() =>
+  statusFilter.value
+    ? workItems.value.filter((w) => w.status === statusFilter.value)
+    : workItems.value,
+)
+const statusCounts = computed(() => {
+  const map = new Map<string, number>()
+  for (const w of workItems.value) map.set(w.status, (map.get(w.status) ?? 0) + 1)
+  return map
+})
+const statusFilterOptions = computed<SelectOption[]>(() => [
+  { value: '', label: t('全部'), hint: String(workItems.value.length) },
+  ...WORK_ITEM_STATUS.value.map((o) => ({
+    ...o,
+    hint: statusCounts.value.get(o.value) ? String(statusCounts.value.get(o.value)) : undefined,
+  })),
+])
+
+const PRIORITY_OPTIONS: SelectOption[] = [
+  { value: 'p0', label: 'P0' },
+  { value: 'p1', label: 'P1' },
+  { value: 'p2', label: 'P2' },
+  { value: 'p3', label: 'P3' },
+]
+
+/** 行内编辑弹窗：改标题 / 状态 / 优先级 / 负责人 / 标签，保存走乐观锁修订。 */
+const editTarget = ref<(typeof workItems.value)[number] | null>(null)
+const editDraft = ref({ title: '', status: 'todo', priority: 'p2', assignee: '', tags: '' })
+const savingEdit = ref(false)
+
+function openEdit(item: (typeof workItems.value)[number]) {
+  editTarget.value = item
+  editDraft.value = {
+    title: item.title,
+    status: item.status,
+    priority: item.priority || 'p2',
+    assignee: item.assignee ?? '',
+    tags: item.tags.join('、'),
+  }
+}
+
+async function saveEdit() {
+  const item = editTarget.value
+  if (!item || savingEdit.value) return
+  const title = editDraft.value.title.trim()
+  if (!title) return
+  savingEdit.value = true
+  const next = await updateWorkItem(
+    projectId.value,
+    {
+      id: item.id,
+      title,
+      status: editDraft.value.status,
+      priority: editDraft.value.priority,
+      assignee: editDraft.value.assignee.trim(),
+      tags: editDraft.value.tags
+        .split(/[,，、\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+    },
+    item.revision,
+  ).catch((e) => {
+    errorText.value = describeProjectError(e, t('更新失败'))
+    return null
+  })
+  savingEdit.value = false
+  if (next) {
+    snapshot.value = next
+    editTarget.value = null
+    okText.value = t('计划项已更新')
+  }
 }
 
 onMounted(refresh)
@@ -401,7 +480,18 @@ onMounted(refresh)
       </div>
       <!-- 模式切换器常驻头部：进入工作台不消失，与对话页共用同一份档位。 -->
       <ModeSwitcher :model-value="thinkingLevel" width="auto" @update:model-value="setThinkingMode" />
-      <AppButton variant="primary" class="pw-open-chat" @click="goChat">
+      <!-- 绑了目录的项目才有并行工作区：直达对话页抽屉，不用先找按钮。 -->
+      <AppButton
+        v-if="app.path"
+        variant="secondary"
+        class="pw-open-wt"
+        :title="t('打开并行工作区（worktree / 舰队 / 冲突预测）')"
+        @click="goChat('worktree')"
+      >
+        <AppIcon name="layers" :size="14" />
+        <span>{{ t('并行工作区') }}</span>
+      </AppButton>
+      <AppButton variant="primary" class="pw-open-chat" @click="goChat()">
         <AppIcon name="chat" :size="14" />
         <span>{{ t('在对话中打开') }}</span>
       </AppButton>
@@ -483,11 +573,20 @@ onMounted(refresh)
           </AppButton>
         </div>
 
-        <ul v-if="workItems.length" class="pw-list">
-          <li v-for="item in workItems" :key="item.id" class="pw-row">
-            <span class="pw-row-main">
+        <div v-if="workItems.length" class="pw-filterbar">
+          <AppSelect v-model="statusFilter" :options="statusFilterOptions" width="132px" />
+          <span class="pw-filter-note">
+            {{ statusFilter ? t('筛出 {0} / {1}', [filteredItems.length, workItems.length]) : '' }}
+          </span>
+        </div>
+
+        <ul v-if="filteredItems.length" class="pw-list">
+          <li v-for="item in filteredItems" :key="item.id" class="pw-row">
+            <span class="pw-row-main pw-row-editable" :title="t('点击就地编辑')" @click="openEdit(item)">
               <strong :title="item.title">{{ item.title }}</strong>
-              <small :title="item.priority + ' · ' + (item.tags.length ? item.tags.join('、') : t('无标签'))">{{ item.priority }} · {{ item.tags.length ? item.tags.join('、') : t('无标签') }}</small>
+              <small :title="item.priority + ' · ' + (item.tags.length ? item.tags.join('、') : t('无标签')) + (item.assignee ? ' · ' + item.assignee : '')">
+                {{ item.priority }} · {{ item.tags.length ? item.tags.join('、') : t('无标签') }}<template v-if="item.assignee"> · {{ item.assignee }}</template>
+              </small>
             </span>
             <AppSelect
               :model-value="item.status"
@@ -500,6 +599,9 @@ onMounted(refresh)
             </AppButton>
           </li>
         </ul>
+        <p v-else-if="workItems.length" class="pw-empty">
+          {{ t('该状态下没有计划项。') }}
+        </p>
         <p v-else class="pw-empty">{{ t('还没有计划项，先添加一条。') }}</p>
       </div>
 
@@ -594,10 +696,53 @@ onMounted(refresh)
       <FilesWorkspace v-else-if="tab === 'files' && app.path" :root="app.path" />
       <TerminalPanel v-else-if="tab === 'term' && app.path" :cwd="app.path" :root="app.path" />
       <AgentBrowserPane v-else-if="tab === 'browser'" />
+      <WorktreePanel v-else-if="tab === 'worktree' && app.path" :root="app.path" />
       <div v-else-if="needPath" class="pw-pane">
         <p class="pw-empty">{{ t('这个项目还没有工作目录 —— 先在上面点「选择目录」，再回来开工具。') }}</p>
       </div>
     </div>
+
+    <!-- 计划项就地编辑：标题 / 状态 / 优先级 / 负责人 / 标签 -->
+    <AppModal
+      :open="!!editTarget"
+      :title="t('编辑计划项')"
+      size="sm"
+      @close="editTarget = null"
+    >
+      <label class="pw-edit-field">
+        <span>{{ t('标题') }}</span>
+        <AppInput v-model="editDraft.title" :placeholder="t('一句话说清要做什么')" />
+      </label>
+      <div class="pw-edit-row">
+        <label class="pw-edit-field">
+          <span>{{ t('状态') }}</span>
+          <AppSelect v-model="editDraft.status" :options="WORK_ITEM_STATUS" />
+        </label>
+        <label class="pw-edit-field">
+          <span>{{ t('优先级') }}</span>
+          <AppSelect v-model="editDraft.priority" :options="PRIORITY_OPTIONS" />
+        </label>
+      </div>
+      <label class="pw-edit-field">
+        <span>{{ t('负责人') }}</span>
+        <AppInput v-model="editDraft.assignee" :placeholder="t('可留空')" />
+      </label>
+      <label class="pw-edit-field">
+        <span>{{ t('标签') }}</span>
+        <AppInput v-model="editDraft.tags" :placeholder="t('逗号分隔')" />
+      </label>
+      <template #footer>
+        <AppButton variant="text" class="pw-ghost" @click="editTarget = null">{{ t('取消') }}</AppButton>
+        <AppButton
+          variant="primary"
+          class="pw-primary"
+          :disabled="!editDraft.title.trim() || savingEdit"
+          @click="saveEdit"
+        >
+          {{ savingEdit ? t('保存中…') : t('保存') }}
+        </AppButton>
+      </template>
+    </AppModal>
   </section>
 </template>
 

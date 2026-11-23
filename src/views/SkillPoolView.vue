@@ -121,7 +121,10 @@ onMounted(refresh)
     <div v-else-if="!statusError" class="empty-state">
       <div class="empty-icon"><AppIcon name="layers" :size="20" /></div>
       <p class="empty-title">{{ t('市场池还是空的') }}</p>
-      <p class="empty-hint">{{ t('点「发布技能」沉淀第一个可复用能力，或在对话里用') }}<code>/skills-market</code>{{ t('查看。') }}</p>
+      <p class="empty-hint">{{ t('沉淀第一个可复用能力，或在对话里用') }}<code>/skills-market</code>{{ t('查看。') }}</p>
+      <div class="empty-actions">
+        <AppButton variant="primary" @click="dialog = true">{{ t('发布技能') }}</AppButton>
+      </div>
     </div>
 
     <AppModal :open="dialog" :title="t('发布技能')" size="md" @close="dialog = false">

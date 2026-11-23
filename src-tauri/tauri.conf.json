@@ -10,6 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "Pi Workbench",
@@ -18,7 +19,9 @@
         "minWidth": 900,
         "minHeight": 600,
         "visible": false,
-        "backgroundColor": "#121212"
+        "backgroundColor": "#121212",
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
       }
     ],
     "security": {

@@ -10,8 +10,22 @@ import { activeReplayIndex } from './useReplay'
  */
 export const chatEpoch = ref(0)
 
+/**
+ * 对话页 UI 态（面板开合 / 抽屉页签 / 专家选择）。
+ *
+ * 路由切走再切回时 ChatView 会重挂载，本地 ref 全部丢失——用户看到的是
+ * 「面板突然没了、专家 chip 空了」，而内核那轮还在跑。这些是**会话级**状态，
+ * 跟 chatEpoch 同寿命：切页保留，点「新会话」才清。
+ */
+export const traceOpen = ref(false)
+export const drawerTab = ref<string | undefined>(undefined)
+export const expertQueue = ref<string[]>([])
+
 export function startNewSession() {
   // 新会话不再指向任何历史段，侧栏的选中高亮随之清掉。
   activeReplayIndex.value = null
+  traceOpen.value = false
+  drawerTab.value = undefined
+  expertQueue.value = []
   chatEpoch.value += 1
 }

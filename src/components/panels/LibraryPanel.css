@@ -6,6 +6,9 @@
   display: flex;
   flex-direction: column;
   padding: var(--page-y) var(--page-x) var(--page-bottom);
+  /* 页面壳定律：内容列统一封顶 --page-max 居中。 */
+  max-width: var(--page-max);
+  margin: 0 auto;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
@@ -447,6 +450,25 @@
   color: var(--text-faint);
   font-size: var(--fs-ui);
   text-align: center;
+}
+
+/* 未选中文件的详情占位：与 .preview-binary 同形态，只多一层居中容器
+   （占位节没有 head/meta，正文自己撑满）。 */
+.lib-preview-empty .preview-empty-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: var(--sp-7) var(--sp-6);
+  color: var(--text-faint);
+  font-size: var(--fs-ui);
+  text-align: center;
+}
+
+.lib-preview-empty .preview-empty-body p {
+  margin: 0;
 }
 
 /* 选择器压过子组件自带的 .app-textarea 边框与内边距：

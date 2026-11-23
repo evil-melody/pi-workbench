@@ -5,6 +5,9 @@
   min-height: 0;
   overflow: auto;
   padding: var(--page-y) var(--page-x) var(--page-bottom);
+  /* 页面壳定律：内容列统一封顶 --page-max 居中。 */
+  max-width: var(--page-max);
+  margin: 0 auto;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
@@ -307,9 +310,42 @@
   align-items: center;
   justify-content: flex-end;
   flex-shrink: 0;
-  /* 按钮文案长短（启用 / 已启用 / 无工具）不再牵动正文列宽：
-     固定两倍行高，正文右缘同一条线。 */
-  width: calc(var(--row-h) * 2);
+  gap: var(--sp-1);
+}
+
+/* 两层开关 + 删除并排：加载开关（文件位置）/ 工具开关（defaultTools）/ 卸载（文件删除）。
+   三者语义不同，不会互相替代——停用不等于删，删不掉的默认扩展仍可停用。 */
+.row-load,
+.row-remove {
+  height: var(--row-h);
+  padding: 0 var(--sp-2);
+  border: var(--stroke);
+  border-radius: var(--r);
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+
+.row-load.off {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.row-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--sp-1);
+}
+
+.market-row.unloaded {
+  opacity: 0.62;
+}
+
+.row-tag.off {
+  background: var(--accent-dim);
+  color: var(--accent);
 }
 
 .row-install {

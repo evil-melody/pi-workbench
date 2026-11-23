@@ -1,10 +1,4 @@
-/* 记忆层视图专属样式（共享容器样式见 agent-ops.css）。 */
-
-.agent-ops.memory.embedded {
-  height: auto;
-  padding: 0;
-  max-width: none;
-}
+/* 记忆层视图专属样式（共享容器样式见 agent-ops.css；embedded 收拢在那边）。 */
 
 /* 骨架条按卡片宽度分档收窄，避免整行拉到 900px 的灰色长条 */
 .mem-skeleton .sk-line {

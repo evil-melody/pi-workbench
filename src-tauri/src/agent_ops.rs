@@ -39,6 +39,29 @@ fn team_cancel_path(root: &Path, id: &str) -> PathBuf {
     root.join("teams").join(format!("{id}.cancel"))
 }
 
+/// 团队目录下的人工关卡文件：`<id>.gate.<key>.json`（待放行）与
+/// `<id>.gate.<key>.decision.json`（放行决定）。
+///
+/// 关键设计：`<key>` 的生成规则只存在于 TS 扩展里，Rust 不复刻哈希算法——
+/// 它靠扫描目录找到待放行文件，再按同名规则写 `.decision.json`。
+/// 两处各写一份哈希，迟早会漂移成「面板点了放行、扩展永远收不到」。
+fn team_gate_files(root: &Path, id: &str) -> Vec<PathBuf> {
+    let dir = root.join("teams");
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return Vec::new();
+    };
+    let prefix = format!("{id}.gate.");
+    entries
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| {
+            let name = p.file_name().and_then(|s| s.to_str()).unwrap_or("");
+            name.starts_with(&prefix)
+                && name.ends_with(".json")
+                && !name.ends_with(".decision.json")
+        })
+        .collect()
+}
+
 fn safe_team_id(raw: &str) -> Result<String, String> {
     let id = raw.trim();
     if id.is_empty() || id.contains('/') || id.contains('\\') || id.contains("..") {
@@ -55,6 +78,10 @@ struct TeamInput {
     strategy: String,
     lead: String,
     on_failure: String,
+    /// 人工关卡成员：这些成员开跑前必须有人放行（LoopForge human-gate）。
+    gates: Vec<String>,
+    /// 成员级执行器 / 模型覆盖。
+    member_overrides: Value,
 }
 
 fn normalize_team(
@@ -63,6 +90,8 @@ fn normalize_team(
     strategy: Option<String>,
     lead: Option<String>,
     on_failure: Option<String>,
+    gates: Option<Vec<String>>,
+    member_overrides: Option<Value>,
     reject_duplicates: bool,
 ) -> Result<TeamInput, String> {
     let name = name.trim().to_string();
@@ -102,12 +131,45 @@ fn normalize_team(
         Some(s @ ("stop" | "continue" | "retry")) => s.to_string(),
         _ => "stop".to_string(),
     };
+    // 关卡只允许指向真实成员：指向不存在的成员等于关卡永不触发，
+    // 用户以为有人审，实际直接放行——必须报错而不是静默丢弃。
+    let mut gate_list: Vec<String> = Vec::new();
+    for raw in gates.unwrap_or_default() {
+        let g = raw.trim().to_string();
+        if g.is_empty() {
+            continue;
+        }
+        if !unique.contains(&g) {
+            return Err(format!("关卡成员不在团队里：{g}"));
+        }
+        if !gate_list.contains(&g) {
+            gate_list.push(g);
+        }
+    }
+    // 覆盖项只保留成员键在团队里的条目；其余键写进去也永远不会被调度读到。
+    let overrides = match member_overrides {
+        Some(Value::Object(map)) => {
+            let mut out = serde_json::Map::new();
+            for (k, v) in map {
+                if !unique.contains(&k) {
+                    continue;
+                }
+                if v.is_object() {
+                    out.insert(k, v);
+                }
+            }
+            Value::Object(out)
+        }
+        _ => Value::Object(serde_json::Map::new()),
+    };
     Ok(TeamInput {
         name,
         members: unique,
         strategy,
         lead,
         on_failure,
+        gates: gate_list,
+        member_overrides: overrides,
     })
 }
 
@@ -293,10 +355,21 @@ pub fn agent_team_create(
     strategy: Option<String>,
     lead: Option<String>,
     on_failure: Option<String>,
+    gates: Option<Vec<String>>,
+    member_overrides: Option<Value>,
 ) -> Result<Value, String> {
     let root = agent_ops_root(&app).ok_or_else(|| "取配置目录失败".to_string())?;
     // 去重保序：重复成员会让同一角色在团队里跑两遍，与 Pi 工具侧行为保持一致。
-    let input = normalize_team(name, members, strategy, lead, on_failure, false)?;
+    let input = normalize_team(
+        name,
+        members,
+        strategy,
+        lead,
+        on_failure,
+        gates,
+        member_overrides,
+        false,
+    )?;
     let def = json!({
         "id": short_id(),
         "name": input.name,
@@ -304,6 +377,8 @@ pub fn agent_team_create(
         "lead": input.lead,
         "strategy": input.strategy,
         "on_failure": input.on_failure,
+        "gates": input.gates,
+        "member_overrides": input.member_overrides,
         "created_at": now_ms(),
     });
     let dir = root.join("teams");
@@ -330,6 +405,8 @@ pub fn agent_team_update(
     strategy: Option<String>,
     lead: Option<String>,
     on_failure: Option<String>,
+    gates: Option<Vec<String>>,
+    member_overrides: Option<Value>,
 ) -> Result<Value, String> {
     let root = agent_ops_root(&app).ok_or_else(|| "取配置目录失败".to_string())?;
     let id = safe_team_id(&id)?;
@@ -342,7 +419,16 @@ pub fn agent_team_update(
     )
     .map_err(|e| e.to_string())?;
     // 编辑是显式操作：重复成员直接报错，不静默去重。
-    let input = normalize_team(name, members, strategy, lead, on_failure, true)?;
+    let input = normalize_team(
+        name,
+        members,
+        strategy,
+        lead,
+        on_failure,
+        gates,
+        member_overrides,
+        true,
+    )?;
     let def = json!({
         "id": id,
         "name": input.name,
@@ -350,6 +436,8 @@ pub fn agent_team_update(
         "lead": input.lead,
         "strategy": input.strategy,
         "on_failure": input.on_failure,
+        "gates": input.gates,
+        "member_overrides": input.member_overrides,
         "created_at": old.get("created_at").cloned().unwrap_or(Value::Null),
         "updated_at": now_ms(),
     });
@@ -403,6 +491,105 @@ pub fn agent_team_cancel(
     std::fs::write(team_cancel_path(&root, &id), payload.to_string())
         .map_err(|e| e.to_string())?;
     Ok(json!({ "run_id": open_id, "at": at }))
+}
+
+/// 待放行的人工关卡列表：扫团队目录里的 `<id>.gate.*.json`。
+///
+/// 面板据此显示「等人放行」的卡片；扩展那边此刻正阻塞在 awaitGate 里。
+#[tauri::command(async, rename_all = "snake_case")]
+pub fn agent_team_gates(app: tauri::AppHandle, team_id: String) -> Result<Vec<Value>, String> {
+    let root = agent_ops_root(&app).ok_or_else(|| "取配置目录失败".to_string())?;
+    let id = safe_team_id(&team_id)?;
+    let mut out = Vec::new();
+    for file in team_gate_files(&root, &id) {
+        let Ok(text) = std::fs::read_to_string(&file) else {
+            continue;
+        };
+        let Ok(mut v) = serde_json::from_str::<Value>(&text) else {
+            continue;
+        };
+        // 带上文件名：放行时要写到同名 `.decision.json`，Rust 不复刻 key 算法。
+        if let Some(obj) = v.as_object_mut() {
+            obj.insert(
+                "file".into(),
+                Value::String(
+                    file.file_name()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("")
+                        .to_string(),
+                ),
+            );
+        }
+        out.push(v);
+    }
+    out.sort_by(|a, b| {
+        a.get("at")
+            .and_then(|x| x.as_u64())
+            .unwrap_or(0)
+            .cmp(&b.get("at").and_then(|x| x.as_u64()).unwrap_or(0))
+    });
+    Ok(out)
+}
+
+/// 人工关卡放行 / 驳回：写 `<gate 文件同名>.decision.json`，扩展读到即继续。
+#[tauri::command(async, rename_all = "snake_case")]
+pub fn agent_team_gate_decide(
+    app: tauri::AppHandle,
+    team_id: String,
+    member: String,
+    run_id: Option<String>,
+    decision: String,
+) -> Result<Value, String> {
+    let root = agent_ops_root(&app).ok_or_else(|| "取配置目录失败".to_string())?;
+    let id = safe_team_id(&team_id)?;
+    let member = member.trim().to_string();
+    if member.is_empty() {
+        return Err("成员不能为空".into());
+    }
+    // 只认 approve / reject：拼错的决定不能当成放行。
+    let decision = match decision.trim() {
+        "approve" => "approve",
+        "reject" => "reject",
+        _ => return Err("关卡决定只能是 approve 或 reject".into()),
+    };
+    let files = team_gate_files(&root, &id);
+    let mut hit: Option<(PathBuf, Value)> = None;
+    for file in files {
+        let Ok(text) = std::fs::read_to_string(&file) else {
+            continue;
+        };
+        let Ok(v) = serde_json::from_str::<Value>(&text) else {
+            continue;
+        };
+        if v.get("member").and_then(|m| m.as_str()) != Some(member.as_str()) {
+            continue;
+        }
+        // 指定了 runId 就必须匹配：同一成员可能排队过多次，放行错的那次会串味。
+        if let Some(want) = run_id.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            if v.get("runId").and_then(|m| m.as_str()) != Some(want) {
+                continue;
+            }
+        }
+        hit = Some((file, v));
+        break;
+    }
+    let Some((file, gate)) = hit else {
+        return Err("该关卡已不在等待中（可能已放行或已超时）".into());
+    };
+    let stem = file
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_string();
+    let decision_path = root.join("teams").join(format!("{stem}.decision.json"));
+    let payload = json!({
+        "runId": gate.get("runId").cloned().unwrap_or(Value::Null),
+        "member": member,
+        "decision": decision,
+        "at": now_ms(),
+    });
+    std::fs::write(&decision_path, payload.to_string()).map_err(|e| e.to_string())?;
+    Ok(json!({ "member": member, "decision": decision }))
 }
 
 /// 记忆条目（物化后的有效条目，最近 200 条，含 id/ts/text/tags）。
@@ -636,6 +823,8 @@ mod tests {
             members.iter().map(|s| s.to_string()).collect(),
             None,
             lead.map(String::from),
+            None,
+            None,
             None,
             reject,
         )

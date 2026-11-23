@@ -12,7 +12,7 @@ import { t } from '@/i18n'
  * 顺序策略的成员间按执行顺序标「交接」，并行 / 辩论不标。
  * 缺失的成员工具级事件与真实 handoff 数据在底部明写，不拿假数据补洞。
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import AppButton from '@/components/ui/AppButton.vue'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import AppSelect, { type SelectOption } from '@/components/ui/AppSelect.vue'
@@ -65,7 +65,10 @@ const expanded = ref(new Set<string>())
 const teamOptions = computed<SelectOption[]>(() =>
   teams.value.map((x) => ({
     value: x.id,
-    label: `${x.name || x.id} · ${x.runs} ${t('次')}`,
+    // 运行中的 run 未收口时不计入 runs——不标出来就是「0 次」谜团（2026-11-22 截图）。
+    label: x.running
+      ? `${x.name || x.id} · ${t('运行中')}`
+      : `${x.name || x.id} · ${x.runs} ${t('次')}`,
   })),
 )
 
@@ -131,11 +134,29 @@ async function loadRuns() {
   }
 }
 
+async function refreshAll() {
+  // 只拉 runs 的话，进行中的调度收口后「N 次」永不更新——计数在 teams 里。
+  await loadTeams()
+  await loadRuns()
+}
+
 watch(teamId, loadRuns)
+
+// 团队调度在后台跑：不轮询的话「运行中」永远不收口，成员产出要手动点刷新才出现。
+// 4s 一次，与手动刷新按钮走同一条路径；组件卸载即停，不留定时器。
+const POLL_MS = 4_000
+let pollTimer: ReturnType<typeof setInterval> | undefined
 
 onMounted(async () => {
   await loadTeams()
   await loadRuns()
+  pollTimer = setInterval(() => {
+    if (document.visibilityState === 'visible') void refreshAll()
+  }, POLL_MS)
+})
+
+onBeforeUnmount(() => {
+  if (pollTimer) clearInterval(pollTimer)
 })
 
 function toggleOutput(key: string) {
@@ -192,7 +213,7 @@ const missingNote = computed(() => {
 
       <div v-if="teams.length" class="al-team-pick">
         <AppSelect v-model="teamId" :options="teamOptions" :placeholder="t('选择团队')" width="100%" />
-        <AppButton variant="icon" class="al-refresh" :title="t('刷新调度日志')" :aria-label="t('刷新调度日志')" @click="loadRuns">
+        <AppButton variant="icon" class="al-refresh" :title="t('刷新调度日志')" :aria-label="t('刷新调度日志')" @click="refreshAll">
           <AppIcon name="refresh" :size="13" />
         </AppButton>
       </div>

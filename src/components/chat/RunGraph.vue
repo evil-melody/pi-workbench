@@ -98,8 +98,23 @@ const detail = computed(() => {
   const s = selectedStage.value
   if (!s) return null
   const raw = parsedRaw(s)
-  const input = (s.kind === 'tool' ? pretty(raw?.args) || s.detail : s.detail) || ''
-  const output = (s.kind === 'tool' ? toolStdout(raw) || s.result : s.result) || ''
+  let input = (s.kind === 'tool' ? pretty(raw?.args) || s.detail : s.detail) || ''
+  let output = (s.kind === 'tool' ? toolStdout(raw) || s.result : s.result) || ''
+  // 专家接管是桥侧合成节点：没有模型 stdout，但人格/工具门已经落盘。
+  // 这里展开真事件字段，避免用户看到「没有输出」误以为专家没上场。
+  if (s.kind === 'expert' && raw) {
+    const list = (key: string) =>
+      Array.isArray(raw[key]) ? (raw[key] as unknown[]).map((v) => String(v)).join('、') : ''
+    input = [
+      t('专家身份：{0}', [String(raw.expertName ?? raw.expertId ?? '')]),
+      list('allowedTools') && t('工具白名单：{0}', [list('allowedTools')]),
+      list('deniedPatterns') && t('禁止模式：{0}', [list('deniedPatterns')]),
+      raw.handoffFrom && t('交接自：{0}', [String(raw.handoffFrom)]),
+    ]
+      .filter(Boolean)
+      .join('\n')
+    output = t('已写入人格与工具门')
+  }
   return {
     input,
     inputWhy: input ? '' : emptyWhy(s, 'input'),

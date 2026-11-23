@@ -337,6 +337,13 @@ pub(crate) fn start_kernel(
     // G3：checkpoint 备份目录。扩展（agent-tool-gate）在 edit/write 放行前把目标
     // 文件复制进 `<这里>/turn-<seq>/<镜像路径>`，rewind 时原样还原。
     cmd.env("PI_CHECKPOINT_DIR", checkpoint_base(app));
+    // 反废话纪律：注入环境变量，agent-teams 扩展读它拼进每个成员子进程的提示词。
+    // 真源在 agent_style 模块——Rust 自己派发外部 CLI 时也用同一段文本，
+    // 不在这里再写一份。
+    let terse = crate::agent_style::terse_directive();
+    if !terse.is_empty() {
+        cmd.env(crate::agent_style::TERSE_ENV, terse);
+    }
     if let Some(l) = &launch {
         cmd.arg("--provider").arg(&l.provider);
         cmd.arg("--model").arg(&l.model);
@@ -718,6 +725,7 @@ pub(crate) fn user_prompt_event(
     mode: &str,
     text: &str,
     attachments: Option<Value>,
+    quotes: Option<Value>,
     run_id: Option<String>,
 ) -> Value {
     let mut ev = serde_json::json!({
@@ -732,6 +740,11 @@ pub(crate) fn user_prompt_event(
     }
     if let Some(attachments) = attachments {
         ev["attachments"] = attachments;
+    }
+    // 引用元数据与附件同待遇：合成事件里的 text 是干净原文，marker 块只存在于
+    // 下发给内核的 message 里。崩溃窗口（note 已落、内核未回显）回放只能靠这个富字段。
+    if let Some(quotes) = quotes {
+        ev["quotes"] = quotes;
     }
     ev
 }
@@ -838,6 +851,10 @@ pub fn pi_note_user(app: AppHandle, json: String, state: State<PiState>) -> Resu
         .get("attachments")
         .filter(|a| a.as_array().map(|x| !x.is_empty()).unwrap_or(false))
         .cloned();
+    let quotes = v
+        .get("quotes")
+        .filter(|a| a.as_array().map(|x| !x.is_empty()).unwrap_or(false))
+        .cloned();
     // prompt 尚未 begin_run，runId 由随后的 run_start 提供；排队/插话才需要挂当前 run。
     let run_id = if mode == "prompt" {
         None
@@ -847,7 +864,7 @@ pub fn pi_note_user(app: AppHandle, json: String, state: State<PiState>) -> Resu
     emit_synthetic(
         &app,
         &state,
-        user_prompt_event(mode, text, attachments, run_id),
+        user_prompt_event(mode, text, attachments, quotes, run_id),
     );
     Ok(())
 }
@@ -898,6 +915,8 @@ pub fn pi_send(app: AppHandle, json: String, state: State<PiState>) -> Result<()
         .map(|s| s.to_string());
     // 附件元数据（name/size/kind）只用于 journal 回放气泡，内核只读 message 里的路径块。
     let attachments = command.get("attachments").cloned();
+    // 引用元数据同上：内核只读 message 里的引用块，富字段专供回放还原卡片。
+    let quotes = command.get("quotes").cloned();
     // 前端已在乐观气泡出现时先落过 user_prompt（pi_note_user），这里不再重复合成。
     let journaled = command
         .get("journaled")
@@ -908,6 +927,7 @@ pub fn pi_send(app: AppHandle, json: String, state: State<PiState>) -> Result<()
         obj.remove("handoffFrom");
         obj.remove("expertQueue");
         obj.remove("attachments");
+        obj.remove("quotes");
         obj.remove("journaled");
     }
     let mut expert_start: Option<Value> = None;
@@ -915,10 +935,14 @@ pub fn pi_send(app: AppHandle, json: String, state: State<PiState>) -> Result<()
         let cwd = state.launch_cwd.lock().unwrap().clone();
         match expert_id.as_deref().filter(|id| !id.trim().is_empty()) {
             Some(id) => {
-                let definition = crate::experts::load_expert(&app, id)
-                    .ok_or_else(|| format!("专家不存在: {id}"))?;
+                let definition = crate::experts::load_expert(&app, id).ok_or_else(|| {
+                    format!("专家「{id}」尚未发布，不能参与对话。请在能力中心发布后再召唤。")
+                })?;
                 let root = cwd.ok_or_else(|| "内核未启动，无法写入专家策略".to_string())?;
                 crate::experts::write_expert_policy(&root, id, &definition)?;
+                // 人格与工具门同批切换：只切门不切 persona，「发布 A 后选 B」
+                // 会让 B 带着 A 的人格上场（十期运行链路核查抓出的缺口）。
+                crate::experts::apply_expert_persona(&root, id, &definition)?;
                 state
                     .run
                     .lock()
@@ -940,8 +964,10 @@ pub fn pi_send(app: AppHandle, json: String, state: State<PiState>) -> Result<()
             None => {
                 // 不带专家 = 回到全局策略：清掉落盘的专家策略，
                 // 否则上一轮专家的限制会继续生效（fail-open 而非残留）。
+                // persona 同理：只收回专家写下的人格，用户手动切的全局角色不动。
                 if let Some(root) = cwd {
                     let _ = std::fs::remove_file(crate::experts::expert_policy_path(&root));
+                    crate::experts::clear_expert_persona(&root);
                 }
                 state.run.lock().unwrap().set_expert(None);
             }
@@ -963,7 +989,7 @@ pub fn pi_send(app: AppHandle, json: String, state: State<PiState>) -> Result<()
             emit_synthetic(
                 &app,
                 &state,
-                user_prompt_event("prompt", &prompt_text, attachments.clone(), run_id.clone()),
+                user_prompt_event("prompt", &prompt_text, attachments.clone(), quotes.clone(), run_id.clone()),
             );
         }
         if let Some(mut start) = expert_start {
@@ -981,7 +1007,7 @@ pub fn pi_send(app: AppHandle, json: String, state: State<PiState>) -> Result<()
         emit_synthetic(
             &app,
             &state,
-            user_prompt_event(&cmd_type, &prompt_text, attachments, run_id),
+            user_prompt_event(&cmd_type, &prompt_text, attachments, quotes, run_id),
         );
     }
     Ok(())
@@ -1072,7 +1098,16 @@ pub fn checkpoint_begin_turn(
     crate::checkpoint::begin_turn(&checkpoint_base(&app), leaf_id.as_deref(), &prompt_head)
 }
 
-/// G3：回到某轮之前——还原该轮改动过的文件 + fork 会话树到该轮 prompt 之前。
+/// #76 M3：回退**之前**的 dry-run——列第 seq 轮起受影响的文件（将还原 / 将被删除），
+/// 不落任何盘。确认框拿它把「对话+产物一起回退」摊开给用户看。
+/// 与 `checkpoint_rewind` 共用同一段收集逻辑，预览与还原结果必然一致。
+#[tauri::command(rename_all = "snake_case", async)]
+pub fn checkpoint_preview(seq: u64, app: AppHandle) -> crate::checkpoint::RewindPreview {
+    crate::checkpoint::preview(&checkpoint_base(&app), seq)
+}
+
+/// G3：回到某轮之前——还原**该轮起**改动过的文件、删除该轮起新建的文件
+/// （#76 起为区间语义，与「之后的对话内容会被移除」一致）+ fork 会话树到该轮 prompt 之前。
 ///
 /// fork 走内核原生能力：`get_fork_messages` 拿 user 消息清单，按 marker 里的
 /// prompt_head 定位该轮 entry，`fork(entryId)` 默认 position=before，
@@ -1814,7 +1849,15 @@ mod tests {
                     "reveal_path",
                 ],
             ),
-            ("pi_bridge.rs", &["pi_journal_read", "pi_journal_sessions"]),
+            (
+                "pi_bridge.rs",
+                &[
+                    "pi_journal_read",
+                    "pi_journal_sessions",
+                    "checkpoint_preview",
+                    "checkpoint_rewind",
+                ],
+            ),
             (
                 "artifacts.rs",
                 &["artifacts_scan", "artifacts_read", "artifacts_open"],
@@ -1824,7 +1867,7 @@ mod tests {
                 "conversation.rs",
                 &["conversation_export", "conversation_import"],
             ),
-            ("attachments.rs", &["attachment_add"]),
+            ("attachments.rs", &["attachment_add", "attachment_add_bytes"]),
             ("mcp.rs", &["mcp_connect", "mcp_disconnect"]),
             (
                 "agent_ops.rs",
@@ -1864,9 +1907,13 @@ mod tests {
                 "experts.rs",
                 &[
                     "experts_list",
+                    "expert_avatar",
                     "expert_draft_load",
                     "expert_draft_save",
                     "expert_publish",
+                    "expert_import_scan",
+                    "expert_import_preview",
+                    "expert_import_apply",
                 ],
             ),
             ("roles.rs", &["role_list", "role_set", "role_current"]),
@@ -1913,10 +1960,19 @@ mod tests {
                     "connectors_set_enabled",
                     "connectors_set_selection",
                     "connectors_apply_scope",
+                    "connectors_import_scan",
                 ],
             ),
             ("tools.rs", &["tools_activate", "tools_list"]),
-            ("extensions.rs", &["extensions_list"]),
+            (
+                "extensions.rs",
+                &[
+                    "extensions_list",
+                    "extensions_install_from_url",
+                    "extensions_set_enabled",
+                    "extensions_remove",
+                ],
+            ),
         ];
 
         for (file, names) in IO_WATCHED {
@@ -2291,7 +2347,7 @@ mod tests {
     /// 有 runId 时挂上；prompt 不该被误标成排队消息。
     #[test]
     fn user_prompt_event_covers_all_dispatch_modes() {
-        let prompt = user_prompt_event("prompt", "你好", None, Some("run-1".into()));
+        let prompt = user_prompt_event("prompt", "你好", None, None, Some("run-1".into()));
         assert_eq!(prompt["type"], "user_prompt");
         assert_eq!(prompt["text"], "你好");
         assert_eq!(prompt["mode"], "prompt");
@@ -2299,15 +2355,21 @@ mod tests {
         assert_eq!(prompt["runId"], "run-1");
 
         for mode in ["follow_up", "steer"] {
-            let ev = user_prompt_event(mode, "排队的话", None, None);
+            let ev = user_prompt_event(mode, "排队的话", None, None, None);
             assert_eq!(ev["mode"], mode);
             assert_eq!(ev["queued"], true);
             assert!(ev.get("runId").is_none(), "没有在飞运行时不能编 runId");
         }
 
         let atts = serde_json::json!([{ "id": "a1", "name": "shot.png", "kind": "image", "path": "/tmp/shot.png", "size": 2048 }]);
-        let with_att = user_prompt_event("prompt", "看图", Some(atts.clone()), None);
+        let with_att = user_prompt_event("prompt", "看图", Some(atts.clone()), None, None);
         assert_eq!(with_att["attachments"], atts);
+
+        // 引用富字段与附件同通道：崩溃窗口（note 已落、内核未回显）回放凭它还原卡片。
+        let qs = serde_json::json!([{ "id": "rq0", "kind": "text", "text": "第一段结论", "note": "看这里" }]);
+        let with_quote = user_prompt_event("prompt", "接着分析", None, Some(qs.clone()), None);
+        assert_eq!(with_quote["quotes"], qs);
+        assert!(with_quote.get("attachments").is_none(), "没有附件就不要塞空字段");
     }
 
     /// journal 一行一次 write_all：整行可解析、以换行结尾，不会与相邻行交错。
@@ -2316,7 +2378,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("pi-journal-line-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("events.jsonl");
-        let ev = user_prompt_event("steer", "插个话", None, Some("run-9".into()));
+        let ev = user_prompt_event("steer", "插个话", None, None, Some("run-9".into()));
         append_journal_line(&path, &ev);
         append_journal_line(&path, &ev);
         let content = std::fs::read_to_string(&path).unwrap();

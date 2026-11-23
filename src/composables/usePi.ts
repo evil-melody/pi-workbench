@@ -3,9 +3,9 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getCurrentScope, onScopeDispose, ref, watch } from 'vue'
 import { flattenTree, type FlatNode, type PiTreeNode } from '@/composables/useSessionTree'
-import { applyEvent, emptyUsageState, type EventCtx, type PiUsage, type QueueState, type UsageState, emptyQueueState, readQueueUpdate } from '@/composables/piEvents'
+import { applyEvent, emptyUsageState, type EventCtx, type PiUsage, type QueueState, type QueueMutation, type UsageState, emptyQueueState, queueEntries, mutateQueueSnapshot, readQueueUpdate } from '@/composables/piEvents'
 import type { PiFileChange } from '@/utils/fileChanges'
-import { stripPlanInstruction } from '@/utils/planMode'
+import { stripAskInstruction, stripPlanInstruction } from '@/utils/planMode'
 import { traceLog } from '@/composables/useWebLog'
 
 /**
@@ -62,6 +62,8 @@ export interface PiMsg {
   usage?: PiUsage
   /** 用户消息附带的图片/文件（已落盘到 app_config_dir/attachments）。 */
   attachments?: PiAttachment[]
+  /** 用户消息引用的既有内容（选区/表格/Widget），随 prompt 以文本块下发，非落盘文件。 */
+  quotes?: PiQuote[]
   /**
    * 回放重建的「排队/插话」用户消息：已落 journal，但内核尚未把它回显成正式消息。
    * 内核消费后会推同样文本的 message_end，届时清掉此标记而不是再插一条。
@@ -105,12 +107,28 @@ export interface PiPlan {
   state: 'pending' | 'executing'
 }
 
+/** #76 M3：受影响文件（绝对路径 + 归属的最早备份轮）。 */
+export interface RewindFile {
+  path: string
+  from_seq: number
+}
+
 /** G3：rewind 结果（Rust checkpoint_rewind 原样回传）。 */
 export interface RewindReport {
   seq: number
-  restored: string[]
+  restored: RewindFile[]
+  /** 随回退删除的新建文件。 */
+  removed: RewindFile[]
   failed: string[]
   fork_entry_id: string | null
+}
+
+/** #76 M3：回退前 dry-run（Rust checkpoint_preview 原样回传）。 */
+export interface RewindPreview {
+  seq: number
+  restore: RewindFile[]
+  delete: RewindFile[]
+  failed: string[]
 }
 
 /** 一条附件的引用：id/name 供 UI，path 供 Pi 按路径读取（内核当前只接受字符串 prompt）。 */
@@ -122,6 +140,23 @@ export interface PiAttachment {
   path: string
   /** 字节数；旧 journal 无此字段，卡片按未知处理。 */
   size?: number
+}
+
+/**
+ * 一条「引用」：把某段既有内容（assistant 正文选区、表格行、Widget 结果）摘出来
+ * 附到新消息里，语义与附件不同——附件是磁盘文件的路径，引用是一段随 prompt 下发的文本。
+ * 走独立通道，不混进 attachments 的 image/file 渲染。
+ */
+export interface PiQuote {
+  id: string
+  /** text=纯文本选区；table/widget 留给后续结果区引用（#66），数据层先支持三种。 */
+  kind: 'text' | 'table' | 'widget'
+  /** 被引用的原文（可多行）。 */
+  text: string
+  /** 用户附加的批注（可空）。 */
+  note?: string
+  /** 来源标注（哪条消息/哪个面板，可空，仅供 UI 悬停展示，不下发内核）。 */
+  source?: string
 }
 
 /**
@@ -137,25 +172,64 @@ export interface PiAttachment {
  * 不参与界面本地化——否则切换语言后回放解析会对不上。
  */
 const ATTACHMENT_MARKER = '[附件 / attachments]' // i18n-ignore: model prompt marker
+const QUOTE_MARKER = '[引用 / quotes]' // i18n-ignore: model prompt marker
 
-export function buildPrompt(text: string, attachments?: PiAttachment[]): string {
-  if (!attachments || attachments.length === 0) return text
-  const lines = attachments.map((a) =>
-    a.kind === 'image' ? `- image: ${a.path}` : `- file: ${a.path}`,
-  )
-  return `${text}\n\n${ATTACHMENT_MARKER}\n${lines.join('\n')}`
+/** 批注行前缀（仅当 quote 带 note 时输出）。 */
+const QUOTE_NOTE_PREFIX = '批注: ' // i18n-ignore: model prompt marker
+
+/**
+ * 引用块的行内编码：多行原文压成一行，避免与附件块/空行解析规则打架。
+ * `\n` → `\\n`，反斜杠 → `\\\\`。解码必须单遍成对消费：
+ * 顺序两次 replace 会把 `C:\\new`（反斜杠+字母 n）里的 `\n` 误放出真换行。
+ */
+function encodeQuoteText(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/\n/g, '\\n')
+}
+function decodeQuoteText(s: string): string {
+  return s.replace(/\\(n|\\)/g, (_m, ch: string) => (ch === 'n' ? '\n' : '\\'))
 }
 
-/** buildPrompt 的逆运算：从下发给内核的正文还原「用户原文 + 附件」。
- *  dispatchToPi 会加 `preamble\n\n---\n\n` 前缀、buildPrompt 会追加附件块，
+/** 把引用块拼成下发文本（不含前导空行，由 buildPrompt 决定位置）。 */
+function renderQuoteBlock(quotes: PiQuote[]): string {
+  const lines = quotes.map((q, i) => {
+    const head = `- [${i + 1}] ${encodeQuoteText(q.text)}`
+    return q.note ? `${head}\n  ${QUOTE_NOTE_PREFIX}${encodeQuoteText(q.note)}` : head
+  })
+  return `${QUOTE_MARKER}\n${lines.join('\n')}`
+}
+
+export function buildPrompt(
+  text: string,
+  attachments?: PiAttachment[],
+  quotes?: PiQuote[],
+): string {
+  let out = text
+  // 引用块在附件块之前：splitPromptBody 先剥附件（总在最后），再剥引用。
+  if (quotes && quotes.length > 0) out = `${out}\n\n${renderQuoteBlock(quotes)}`
+  if (attachments && attachments.length > 0) {
+    const lines = attachments.map((a) =>
+      a.kind === 'image' ? `- image: ${a.path}` : `- file: ${a.path}`,
+    )
+    out = `${out}\n\n${ATTACHMENT_MARKER}\n${lines.join('\n')}`
+  }
+  return out
+}
+
+/** buildPrompt 的逆运算：从下发给内核的正文还原「用户原文 + 附件 + 引用」。
+ *  dispatchToPi 会加 `preamble\n\n---\n\n` 前缀、buildPrompt 会追加引用/附件块，
  *  journal 回放时必须都剥掉，气泡里才显示用户原话而不是大段项目上下文。 */
-export function splitPromptBody(body: string): { text: string; attachments: PiAttachment[] } {
+export function splitPromptBody(body: string): {
+  text: string
+  attachments: PiAttachment[]
+  quotes: PiQuote[]
+} {
   const SEP = '\n\n---\n\n'
   const ATT = `\n\n${ATTACHMENT_MARKER}\n`
+  const QT = `\n\n${QUOTE_MARKER}\n`
   const sepAt = body.indexOf(SEP)
   let rest = sepAt >= 0 ? body.slice(sepAt + SEP.length) : body
-  // G5：plan 指令前缀拼在最外，无 preamble（无 SEP）时会残留在 rest 头部，剥掉。
-  rest = stripPlanInstruction(rest)
+  // G5：plan/ask 指令前缀拼在最外，无 preamble（无 SEP）时会残留在 rest 头部，剥掉。
+  rest = stripAskInstruction(stripPlanInstruction(rest))
   const attachments: PiAttachment[] = []
   const attAt = rest.indexOf(ATT)
   if (attAt >= 0) {
@@ -173,7 +247,27 @@ export function splitPromptBody(body: string): { text: string; attachments: PiAt
       })
     }
   }
-  return { text: rest, attachments }
+  // 附件块剥离后再找引用块——顺序不能反，否则引用解析会把附件路径行当正文吃掉。
+  const quotes: PiQuote[] = []
+  const qtAt = rest.indexOf(QT)
+  if (qtAt >= 0) {
+    const block = rest.slice(qtAt + QT.length)
+    rest = rest.slice(0, qtAt)
+    let cur: PiQuote | null = null
+    for (const raw of block.split('\n')) {
+      // 与 renderQuoteBlock 严格镜像（`- [n] ` / `  批注: ` 都是精确单空格）：
+      // 宽松的 \s* + trimEnd 会把原文首尾的空格当格式符吃掉，往返就不无损了。
+      const head = /^- \[\d+\] (.*)$/.exec(raw)
+      if (head) {
+        cur = { id: `rq${quotes.length}`, kind: 'text', text: decodeQuoteText(head[1]) }
+        quotes.push(cur)
+        continue
+      }
+      const note = /^  批注: (.*)$/.exec(raw) // i18n-ignore: model prompt marker (parse side)
+      if (note && cur) cur.note = decodeQuoteText(note[1])
+    }
+  }
+  return { text: rest, attachments, quotes }
 }
 
 export interface PiTreeData {
@@ -195,6 +289,11 @@ export function usePi() {
    * 跨模块可见是为了让 eventCtx 用 getter/setter 桥接，消费写回同一 ref。
    */
   const planPending = ref<{ task: string } | null>(null)
+  /**
+   * M5：本轮落定后扩展产出的延续问题。eventCtx 用 getter/setter 桥接，
+   * 新条目到达整体覆盖；用户发送/换会话时前端自行清空。
+   */
+  const suggestions = ref<string[]>([])
   /**
    * G6：消息队列（steer 插话 + follow_up 排队）。以内核 queue_update 事件为
    * 权威数据源——入队/消费内核都会回推，前端不维护副账。
@@ -296,8 +395,9 @@ export function usePi() {
   }
 
   /**
-   * G3：回到某轮之前——还原该轮 edit/write 改过的文件 + fork 会话树。
-   * bash 产生的变更不在快照范围（对齐 Claude Code checkpoint 限制）。
+   * G3：回到某轮之前——还原**该轮起** edit/write 改过的文件、删除该轮起新建的
+   * 文件（#76 区间语义）+ fork 会话树。bash 产生的变更不在快照范围（对齐
+   * Claude Code checkpoint 限制）。
    */
   async function rewindTurn(seq: number): Promise<RewindReport> {
     const rep = await invoke<RewindReport>('checkpoint_rewind', { seq })
@@ -305,13 +405,19 @@ export function usePi() {
     return rep
   }
 
-  function pushUser(text: string, attachments?: PiAttachment[]) {
+  /** #76 M3：回退前 dry-run——确认框列受影响产物用（不落盘）。 */
+  async function previewTurn(seq: number): Promise<RewindPreview> {
+    return await invoke<RewindPreview>('checkpoint_preview', { seq })
+  }
+
+  function pushUser(text: string, attachments?: PiAttachment[], quotes?: PiQuote[]) {
     messages.value.push({
       id: `u${seq++}`,
       role: 'user',
       text,
       ts: Date.now(),
       ...(attachments?.length ? { attachments } : {}),
+      ...(quotes?.length ? { quotes } : {}),
     })
   }
 
@@ -327,12 +433,17 @@ export function usePi() {
    * 尚未下发的消息。先落一条 `user_prompt`，回放即可还原；
    * 随后的 `send(..., journaled=true)` 不再重复合成。
    */
-  function noteUser(text: string, attachments?: PiAttachment[]): Promise<boolean> {
+  function noteUser(
+    text: string,
+    attachments?: PiAttachment[],
+    quotes?: PiQuote[],
+  ): Promise<boolean> {
     if (!IN_TAURI) return Promise.resolve(false)
     const payload = {
       text,
       mode: 'prompt',
       ...(attachments?.length ? { attachments } : {}),
+      ...(quotes?.length ? { quotes } : {}),
     }
     return invoke('pi_note_user', { json: JSON.stringify(payload) }).then(
       () => true,
@@ -349,14 +460,16 @@ export function usePi() {
     attachments?: PiAttachment[],
     expert?: { id: string; handoffFrom?: string },
     journaled = false,
+    quotes?: PiQuote[],
   ) {
     if (!IN_TAURI) return Promise.reject(new Error(noKernel()))
-    // message 必须是字符串（Pi 协议约束）；附件以路径引用块追加进文本。
+    // message 必须是字符串（Pi 协议约束）；附件以路径引用块、引用以文本块追加进文本。
     const cmd = {
       id: `c${Date.now()}`,
       type: 'prompt',
-      message: buildPrompt(text, attachments),
+      message: buildPrompt(text, attachments, quotes),
       ...(attachments?.length ? { attachments } : {}),
+      ...(quotes?.length ? { quotes } : {}),
       ...(journaled ? { journaled: true } : {}),
       ...(expert
         ? { expertId: expert.id, ...(expert.handoffFrom ? { handoffFrom: expert.handoffFrom } : {}) }
@@ -370,13 +483,19 @@ export function usePi() {
   }
 
   /** 排队/插话也必须走 pi_send：只有它会把 user_prompt 落 journal（pi_call 不会）。 */
-  function sendQueued(type: 'follow_up' | 'steer', text: string, attachments?: PiAttachment[]) {
+  function sendQueued(
+    type: 'follow_up' | 'steer',
+    text: string,
+    attachments?: PiAttachment[],
+    quotes?: PiQuote[],
+  ) {
     if (!IN_TAURI) return Promise.reject(new Error(noKernel()))
     const cmd = {
       id: `c${Date.now()}`,
       type,
-      message: buildPrompt(text, attachments),
+      message: buildPrompt(text, attachments, quotes),
       ...(attachments?.length ? { attachments } : {}),
+      ...(quotes?.length ? { quotes } : {}),
     }
     return invoke('pi_send', { json: JSON.stringify(cmd) })
   }
@@ -400,6 +519,13 @@ export function usePi() {
         },
         set planPending(v) {
           planPending.value = v
+        },
+        // M5：推荐源同 planPending——applyEvent 写入写回同一 ref。
+        get suggestions() {
+          return suggestions.value
+        },
+        set suggestions(v) {
+          suggestions.value = v ?? []
         },
       }
     }
@@ -612,16 +738,16 @@ export function usePi() {
    * G6：流式中入队（内核 follow_up）——本轮完全结束（无工具调用、无 steer
    * 消息）后自动执行为新 prompt。附件走 buildPrompt 路径引用块，与 send 一致。
    */
-  async function followUp(text: string, attachments?: PiAttachment[]) {
-    await sendQueued('follow_up', text, attachments)
+  async function followUp(text: string, attachments?: PiAttachment[], quotes?: PiQuote[]) {
+    await sendQueued('follow_up', text, attachments, quotes)
   }
 
   /**
    * G6：插话（内核 steer）——本轮工具调用跑完后、下次 LLM 调用前注入，
    * 用来把跑偏的 agent 拽回当前输入（对齐 Cursor 的 mid-turn 引导）。
    */
-  async function steerTurn(text: string, attachments?: PiAttachment[]) {
-    await sendQueued('steer', text, attachments)
+  async function steerTurn(text: string, attachments?: PiAttachment[], quotes?: PiQuote[]) {
+    await sendQueued('steer', text, attachments, quotes)
   }
 
   /**
@@ -630,6 +756,35 @@ export function usePi() {
    */
   async function clearQueue(): Promise<QueueState> {
     return await rpc<QueueState>('clear_queue')
+  }
+
+  /**
+   * #69 M7：队列变更（重排/编辑/删除）的统一编排。内核没有重排命令，
+   * 但 `clear_queue` 返回全部排队文本——清空 → 在快照上做变更 → 按新序
+   * 逐条重发，权威仍在内核（queue_update 回推逐条收敛 UI，零副账）。
+   *
+   * 快照漂移（clear 与重发之间内核消费了一条）：变更在旧快照上可能越界——
+   * 越界回退为「原序回发」，白忙一场但零损失。重发中途失败：尽力按原快照
+   * 回发后抛出，调用方落「队列操作失败，请稍后重试」进消息流。
+   *
+   * 重发用**下发全文**走 sendQueued：body 已带 buildPrompt 的标记块，
+   * 无附件/引用时 buildPrompt(body) === body 原样——二次包装会把块越裹越多。
+   */
+  async function applyQueueOp(mutation: QueueMutation): Promise<void> {
+    const cleared = await rpc<QueueState>('clear_queue')
+    const snap: QueueState = { steering: cleared?.steering ?? [], followUp: cleared?.followUp ?? [] }
+    const next = mutateQueueSnapshot(snap, mutation) ?? snap
+    try {
+      for (const e of queueEntries(next)) {
+        await sendQueued(e.seg === 'steer' ? 'steer' : 'follow_up', e.body)
+      }
+    } catch (e) {
+      // 尽力补救：原序回发，每条失败不阻断下一条——能回来多少是多少。
+      for (const s of queueEntries(snap)) {
+        await sendQueued(s.seg === 'steer' ? 'steer' : 'follow_up', s.body).catch(() => {})
+      }
+      throw e
+    }
   }
 
   // AUDIT-002：`pi://event` 监听必须随组件作用域销毁退订，否则路由切换/重建后
@@ -664,13 +819,16 @@ export function usePi() {
     forkFrom,
     beginTurn,
     rewindTurn,
+    previewTurn,
     abortTurn,
     suppressExitNotice,
     timeoutTick,
     planPending,
+    suggestions,
     queue,
     followUp,
     steerTurn,
     clearQueue,
+    applyQueueOp,
   }
 }

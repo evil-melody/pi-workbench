@@ -1,10 +1,4 @@
-/* 多智能体团队视图专属样式（共享容器样式见 agent-ops.css）。 */
-
-.agent-ops.teams.embedded {
-  height: auto;
-  padding: 0;
-  max-width: none;
-}
+/* 多智能体团队视图专属样式（共享容器样式见 agent-ops.css；embedded 收拢在那边）。 */
 
 .team-list {
   list-style: none;
@@ -159,7 +153,7 @@
 
 .run-block {
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r);
   padding: var(--sp-3);
   margin-bottom: var(--sp-3);
 }
@@ -226,6 +220,32 @@
   font-style: normal;
   font-size: var(--fs-micro);
   color: var(--text-faint);
+}
+
+/* 重放轮次徽标：与「牵头」同档，强调色区分真跑与回放。 */
+.run-replay {
+  margin-left: 4px;
+  font-style: normal;
+  font-size: var(--fs-micro);
+  color: var(--accent);
+}
+
+.run-replay-btn {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: var(--fs-micro);
+}
+
+.run-tokens {
+  font-size: var(--fs-micro);
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.run-row-tokens {
+  font-size: var(--fs-micro);
+  color: var(--text-faint);
+  white-space: nowrap;
 }
 
 .run-note,
@@ -336,5 +356,130 @@
     border-color: var(--danger);
     color: var(--danger);
 }
+}
+
+.gate-fact {
+  color: var(--warn-ink);
+}
+
+/* 关卡与执行器：折叠头（低频配置，默认收成一行） */
+.adv-head {
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  font-size: var(--fs-ui);
+  gap: 6px;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+
+.adv-head:hover .dialog-block-label {
+  color: var(--text);
+}
+
+.adv-badge {
+  background: var(--accent-soft, var(--warn-soft));
+  border-radius: var(--r-full);
+  color: var(--accent-ink, var(--warn-ink));
+  flex: none;
+  font-size: var(--fs-meta);
+  padding: 1px 8px;
+}
+
+.adv-none {
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 成员级关卡 / 执行器配置 */
+.member-cfg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.member-cfg-row {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.member-cfg-name {
+  color: var(--text);
+  flex: 1 1 0;
+  font-size: var(--fs-meta);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-cfg-model {
+  flex: 0 0 140px;
+}
+
+/* 人工关卡待审区 */
+.gate-box {
+  background: var(--warn-soft);
+  border-radius: var(--r);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 8px 10px;
+}
+
+.gate-title {
+  color: var(--warn-ink);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  margin: 0;
+}
+
+.gate-row {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.gate-dot {
+  animation: gate-pulse 1.4s ease-in-out infinite;
+  background: var(--warn-ink);
+  border-radius: 50%;
+  flex: 0 0 8px;
+  height: 8px;
+}
+
+@keyframes gate-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.gate-name {
+  color: var(--text);
+  flex: 1 1 0;
+  font-size: var(--fs-meta);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gate-run {
+  color: var(--text-faint);
+  flex: 0 0 auto;
+  font-size: var(--fs-micro);
 }
 

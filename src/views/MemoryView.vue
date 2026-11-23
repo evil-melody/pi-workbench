@@ -440,8 +440,11 @@ onUnmounted(() => {
             ? t('换个关键词，或清空搜索框。')
             : trash.length
               ? t('下面的待撤销条目可在 24 小时内恢复。')
-              : t('点「写入记忆」记下一条经验，或在对话里用 /memory 查看。') }}
+              : t('记下一条经验，或在对话里用 /memory 查看。') }}
       </p>
+      <div v-if="!query.trim() && !trash.length" class="empty-actions">
+        <AppButton variant="primary" @click="dialog = true">{{ t('写入记忆') }}</AppButton>
+      </div>
     </div>
 
     <AppModal :open="dialog" :title="t('写入记忆')" size="md" @close="dialog = false">

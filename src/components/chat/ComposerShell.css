@@ -24,9 +24,11 @@
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
 
-/* 聚焦反馈只发生在外框：不换强调色（避免整个输入区跳起来），只把描边压深一档。 */
+/* 聚焦反馈在外框：描边压深一档 + 统一焦点光圈。
+   原先只换 border-color，浅色下 hover / focus 几乎同色（实测差 <10 灰阶）。 */
 .composer-shell:focus-within {
   border-color: var(--border-strong);
+  box-shadow: var(--sh-card), var(--focus-ring);
 }
 
 /* ── 正文 ────────────────────────────────────────────────────── */
@@ -160,14 +162,12 @@
 .composer-shell .ws-picker,
 .composer-shell .model-switcher,
 .composer-shell .mode-switcher,
-.composer-shell .role-switcher,
-.composer-shell .expert-picker {
+.composer-shell .cpm {
   min-width: 0;
 }
 
 .composer-shell .app-select .trigger .label,
-.composer-shell .ws-label,
-.composer-shell .ep-label {
+.composer-shell .ws-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -182,8 +182,8 @@
   flex: 0 1 auto;
 }
 
-/* 图标键（附件 / 发送 / 停止）统一 36 正圆，不被全局 button 基座拉成椭圆。 */
-.composer-shell .attach,
+/* 图标键（+ 菜单 / 发送 / 停止）统一 36 正圆，不被全局 button 基座拉成椭圆。 */
+.composer-shell .cpm-trigger,
 .composer-shell .send,
 .composer-shell .stop,
 .composer-shell .hero-send {
@@ -239,9 +239,6 @@
 @media (max-width: 640px) {
   /* 类型选择器 + 类：压过各组件 scoped 的 `.xxx[data-v]`（同权重时加载顺序不可靠）。 */
   .composer-shell div.mode-switcher,
-  .composer-shell div.role-switcher,
-  .composer-shell div.expert-picker,
-  .composer-shell span.bar-muted,
   .composer-shell div.composer-tools-status {
     display: none;
   }

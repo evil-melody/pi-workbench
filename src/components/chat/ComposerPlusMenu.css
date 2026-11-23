@@ -1,0 +1,481 @@
+/* Composer「+」菜单：触发器是无描边图标键（工具条内其他控件同样裸形态），
+   面板 Teleport 到 body，fixed 定位由 JS 常量封顶（宽 320 / 高 420）。 */
+.cpm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cpm-trigger {
+  border-radius: var(--r-full);
+  color: var(--text-dim);
+}
+
+.cpm-trigger:hover {
+  color: var(--text);
+}
+
+/* 选中态 chip：专家头像 + 名字 + 移除键；模式 chip 只读展示。
+   状态只有这一处展示——菜单里不再并列一个触发器标签（用户「这俩是不是重复」）。 */
+.cpm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 200px;
+  padding: 0 8px;
+  height: 26px;
+  border-radius: var(--r-full);
+  background: var(--accent-soft, var(--bg-hover));
+  color: var(--text);
+  font-size: var(--fs-xs);
+}
+
+.cpm-chip-avatar {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--bg-elev);
+  color: var(--accent);
+  font-size: var(--fs-micro);
+  font-weight: var(--fw-semibold);
+}
+
+.cpm-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cpm-chip-x {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  min-height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.cpm-chip-x:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+/* 团队绑定 chip：与专家 chip 同形态，图标用强调色区分「这是团队」。 */
+.cpm-chip.team .app-icon {
+  color: var(--accent);
+}
+
+/* 面板：WorkBuddy flyout 形态——主列常驻，子列在右侧并列弹出（不是整屏替换）。
+   总宽由 JS 按「主 320 + 缝 6 + 子 300」算好写进 style；窄屏回落 drill-in。 */
+.cpm-menu {
+  position: fixed;
+  z-index: 60;
+  overflow: hidden;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-md, 0 8px 24px rgba(0, 0, 0, 0.28));
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+}
+
+.cpm-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* 列宽与 JS 的总宽常量一一对应（border-box）：外层 626 = 边框 2 + 内边距 16 +
+   主列 302 + 缝 6 + 子列 300；主列单独出现时外层 320（边框 2 + 内边距 16 + 302）。
+   曾经主列写 304 而 JS 忘算边框 2px，右缘被 overflow:hidden 吃掉 2px 留白。 */
+.cpm-col-main {
+  flex: 0 0 302px;
+}
+
+.cpm-col-fly {
+  flex: 0 0 300px;
+  margin-left: 6px;
+  padding-left: 6px;
+  border-left: 1px solid var(--border-soft, var(--border));
+}
+
+/* drill-in 回落（视口放不下两列）：子列独占整卡，主列隐藏、返回头出现。 */
+.cpm-menu.is-drill .cpm-col-main {
+  display: none;
+}
+
+.cpm-menu.is-drill .cpm-col-fly {
+  flex: 1 1 auto;
+  margin-left: 0;
+  padding-left: 0;
+  border-left: 0;
+}
+
+.cpm-col > .cpm-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cpm-col > .cpm-search,
+.cpm-col > .cpm-empty,
+.cpm-col > .cpm-actions,
+.cpm-col > .cpm-foot,
+.cpm-col > .cpm-sub-head,
+.cpm-col > .cpm-tabs {
+  flex: none;
+}
+
+/* 主菜单行 / 子面板选项行共用骨架：46px 行高、18px 图标列、16px semibold 标签。
+   目标截图里图标与文字左缘严格成列；gap 固定 12px，值/箭头右对齐。 */
+.cpm-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 46px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font-size: var(--fs-body);
+  cursor: pointer;
+}
+
+/* 首行「添加文件」是主操作：常驻浅底，和 WorkBuddy 截图同款。 */
+.cpm-row.primary {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.04));
+}
+
+.cpm-row:hover:not(:disabled),
+.cpm-row.on {
+  background: var(--bg-active, var(--bg-hover, rgba(255, 255, 255, 0.04)));
+}
+
+.cpm-row.on {
+  box-shadow: inset 0 0 0 1px var(--accent-soft, var(--border));
+}
+
+/* 图标列固定宽，标签左缘永远对齐；子面板无图标行也留同宽占位。 */
+.cpm-row > .app-icon:first-child {
+  width: 18px;
+  height: 18px;
+}
+
+.cpm-row:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+.cpm-row > .app-icon:first-child {
+  flex: none;
+  color: var(--text-dim);
+}
+
+.cpm-row-label {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--fw-semibold);
+}
+
+.cpm-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cpm-row-label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cpm-row-hint {
+  font-size: var(--fs-micro);
+  color: var(--text-faint);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 行尾的当前值 + 右箭头：箭头由 margin-left:auto 锚到统一右列；
+   值用绝对定位贴在箭头左侧（不参与 flex 排布），有无值都不推动箭头——
+   目标截图里「模式」行的箭头与「技能」行严格同列。 */
+.cpm-row-value {
+  position: absolute;
+  right: 30px;
+  max-width: 150px;
+  text-align: right;
+  font-size: var(--fs-ui);
+  color: var(--text-dim);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cpm-row-arrow {
+  flex: none;
+  margin-left: auto;
+  width: 14px;
+  height: 14px;
+  color: var(--text-faint);
+}
+
+.cpm-tick {
+  flex: none;
+  color: var(--accent);
+}
+
+/* 子面板头部：返回键 + 标题 */
+.cpm-sub-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 6px;
+}
+
+.cpm-back {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.cpm-back:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.cpm-sub-title {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-dim);
+}
+
+/* 召唤子面板的双页签：个人专家 / 专家团。选中态与列表共用一套语义色。 */
+.cpm-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 4px 6px;
+}
+
+.cpm-tab {
+  flex: 1;
+  min-height: 30px;
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.cpm-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.cpm-tab.on {
+  border-color: var(--border);
+  background: var(--bg-active, var(--bg-hover));
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+
+.cpm-search {
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.cpm-empty {
+  margin: 6px 8px;
+  font-size: var(--fs-xs);
+  color: var(--text-faint);
+  line-height: var(--lh-body);
+}
+
+.cpm-actions {
+  display: flex;
+  gap: var(--sp-2);
+  padding: 2px 8px 4px;
+}
+
+/* 专家行：头像 + 名称/简介两行 + 选中勾（与旧 ep-item 同一视觉语言） */
+.cpm-expert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.cpm-expert:hover,
+.cpm-expert.on {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.04));
+}
+
+.cpm-expert.on {
+  box-shadow: inset 0 0 0 1px var(--accent-soft, var(--border));
+}
+
+/* 草稿只可预览，不可召唤：降透明度 + 禁用光标，与已发布一眼可分。 */
+.cpm-expert.draft {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.cpm-expert.draft:hover {
+  background: transparent;
+}
+
+.cpm-expert-avatar {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  background: var(--accent-soft, var(--bg-hover));
+  color: var(--accent);
+  font-size: var(--fs-meta);
+  font-weight: var(--fw-semibold);
+  overflow: hidden;
+}
+
+.cpm-expert-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cpm-expert-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cpm-expert-name {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--fs-ui);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cpm-draft,
+.cpm-live {
+  flex: none;
+  font-style: normal;
+  font-size: var(--fs-micro);
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  padding: 0 5px;
+}
+
+.cpm-live {
+  color: var(--accent);
+  border-color: var(--accent-soft, var(--border));
+}
+
+.cpm-expert-desc {
+  font-size: var(--fs-micro);
+  color: var(--text-faint);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 底栏：召唤更多专家 → 能力中心专家 tab（WorkBuddy 同位同款入口） */
+.cpm-foot {
+  margin-top: 4px;
+  padding: 6px 4px 2px;
+  border-top: 1px solid var(--border);
+}
+
+.cpm-more {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+}
+
+.cpm-more:hover {
+  background: var(--bg-hover);
+}
+
+.cpm-more > .app-icon:last-child {
+  margin-left: auto;
+}
+
+/* 连接器行：勾选 + 状态字；未就绪/停用置灰但仍看得见（选择由后端裁决） */
+.cpm-conn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+
+.cpm-conn:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.04));
+}
+
+.cpm-conn.off {
+  opacity: 0.55;
+}
+
+.cpm-conn-state {
+  flex: none;
+  font-size: var(--fs-micro);
+  color: var(--text-faint);
+}

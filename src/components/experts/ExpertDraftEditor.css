@@ -92,7 +92,7 @@
   padding: 9px 18px;
   font-size: var(--fs-meta);
   color: var(--danger);
-  background: rgba(239, 68, 68, 0.06);
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
   border-bottom: 1px solid var(--border);
 }
 
@@ -101,7 +101,7 @@
   padding: 9px 18px;
   font-size: var(--fs-meta);
   color: var(--ok);
-  background: rgba(61, 217, 108, 0.07);
+  background: color-mix(in srgb, var(--ok) 7%, transparent);
   border-bottom: 1px solid var(--border);
 }
 
@@ -302,28 +302,145 @@
   color: var(--text);
 }
 
+/* 阻塞项：红色，发布被挡住的具体字段 */
+.ed-check-list.blocking {
+  color: var(--danger);
+}
+
+.ed-check-list.blocking code {
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  color: var(--danger);
+}
+
+/* 非阻塞提示：琥珀色一行摘要（「建议补全 X、Y，不阻塞发布」）。
+   逐字段红字/黄字唠叨是噪音——WorkBuddy 没有这种提示，我们也不做。 */
+.ed-check-notice {
+  color: var(--warn-ink);
+  font-size: var(--fs-meta);
+  line-height: 1.55;
+}
+
 .ed-create {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-/* 工具勾选清单：两列自适应，长工具名不挤压复选框。 */
-.ed-tools {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 6px 12px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--bg-elev);
+/* 执行配置只读区：分隔头 + 只读值行。
+   只读不是「灰掉看不见」——值必须清晰可读，只是没有输入控件。 */
+.ed-readonly-head {
+  align-items: baseline;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 14px;
 }
 
-.ed-tool {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.ed-readonly-title {
+  color: var(--text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+
+.ed-readonly-note {
+  color: var(--text-faint);
+  font-size: var(--fs-micro);
+}
+
+.ed-field.readonly .ed-label em {
+  color: var(--text-faint);
+}
+
+.ed-ro-value {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--text);
+  font-size: var(--fs-meta);
+  margin: 0;
   min-width: 0;
+  overflow: hidden;
+  padding: 7px 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ed-ro-value.muted-cell {
+  color: var(--text-faint);
+}
+
+.mono-cell {
+  font-family: var(--mono);
+}
+
+.ed-ro-pre {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  margin: 0;
+  max-height: 180px;
+  overflow: auto;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+}
+
+/* 只读值用胶囊芯片铺开；ghost = 内核当前不提供的工具，标灰但不隐藏。 */
+.ed-chiprow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ed-chip {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--r-full);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--fs-micro);
+  padding: 2px 9px;
+}
+
+.ed-chip.ghost {
+  color: var(--text-faint);
+  opacity: 0.7;
+}
+
+.ed-chip.deny {
+  border-color: var(--danger, #c0392b);
+  color: var(--danger, #c0392b);
+}
+
+/* 工具映射追溯行 */
+.ed-maplist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ed-maprow {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.ed-maprow code {
+  background: var(--surface-2);
+  border-radius: var(--r-sm, 4px);
+  font-size: var(--fs-micro);
+  padding: 1px var(--sp-2);
+}
+
+.ed-maparrow {
+  color: var(--text-faint);
 }
 
 /* 来源标记：导入 / 本地创建。只读，避免编辑一次就看不出定义来路。 */
@@ -344,15 +461,6 @@
 .ed-source[data-source='imported'] {
   border-color: var(--border-strong, var(--border));
   color: var(--text-dim);
-}
-
-.ed-tool-name {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: var(--fs-xs);
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .ed-create label > span {

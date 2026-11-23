@@ -23,6 +23,6 @@
   background: var(--bg-elev);
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
-  padding: 1px 5px;
+  padding: 1px var(--sp-2);
   color: var(--accent);
 }

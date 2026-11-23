@@ -70,6 +70,7 @@ const PATHS: Record<string, string> = {
   'arrow-left': 'M19 12H5M12 19l-7-7 7-7',
   'arrow-right': 'M5 12h14M12 5l7 7-7 7',
   'chevron-down': 'M6 9l6 6 6-6',
+  'chevron-up': 'M18 15l-6-6-6 6',
   'chevron-right': 'M9 18l6-6-6-6',
   'chevron-left': 'M15 18l-6-6 6-6',
   'more-horizontal': 'M5 12h.01M12 12h.01M19 12h.01',
@@ -82,6 +83,11 @@ const PATHS: Record<string, string> = {
   edit: 'M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z',
   'layout-sidebar': 'M4 4h16v16H4zM9 4v16',
   inbox: 'M22 12h-6l-2 3H10l-2-3H2v8a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2zM2 12V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v6',
+  // 邮件（lucide mail）：「邮件撰写」曾经是提交上箭头的复用，语义不对。
+  mail: 'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM22 7l-10 6L2 7',
+  // 模式切换（lucide sliders-horizontal）：菜单里「模式」行曾经也是提交上箭头。
+  sliders:
+    'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6',
   database: 'M12 2C7.58 2 4 3.79 4 6s3.58 4 8 4 8-1.79 8-4-3.58-4-8-4M4 12c0 2.21 3.58 4 8 4s8-1.79 8-4M4 18c0 2.21 3.58 4 8 4s8-1.79 8-4v2c0 2.21-3.58 4-8 4s-8-1.79-8-4z',
   'corner-down-left': 'M9 10L4 15l5 5M20 4v7a4 4 0 0 1-4 4H4',
   monitor: 'M2 7a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM12 17v4M8 21h8',
@@ -101,6 +107,9 @@ const PATHS: Record<string, string> = {
   // 文件改动（G2 changed-files）：文件轮廓 + 中部两行差异线。
   'file-diff':
     'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13h6M9 17h3M12 13v4',
+  // 引用（选区「添加到对话」）：双引号块，与附件的 paperclip 区分语义。
+  quote:
+    'M10 8H6a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h2v1a2 2 0 0 1-2 2M18 8h-4a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h2v1a2 2 0 0 1-2 2',
 }
 
 /** 填充图形（实心而非描边）。 */
@@ -117,6 +126,7 @@ const isFilled = computed(() => !(props.name in PATHS) && props.name in FILLED)
   <svg
     class="app-icon"
     :class="{ filled: isFilled }"
+    :data-icon="props.name"
     :width="props.size"
     :height="props.size"
     viewBox="0 0 24 24"

@@ -3,7 +3,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { createApp, h, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import ExpertImportDialog from '@/components/experts/ExpertImportDialog.vue'
-import { resolveImportedTools, type ExpertDefinition, type ImportPreview } from '@/composables/useExperts'
+import { resolveImportedTools, type ExpertDefinition, type ImportPreview, type ScanResult } from '@/composables/useExperts'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
@@ -25,7 +25,10 @@ const definition: ExpertDefinition = {
   max_iterations: null,
 }
 
-function preview(conflict: boolean): ImportPreview {
+function preview(
+  conflict: boolean,
+  tools: Array<{ name: string; suggestion: string | null }> = [{ name: 'read_file', suggestion: 'read' }],
+): ImportPreview {
   return {
     source: '/tmp/code-crew',
     plugin: '/tmp/code-crew/.codebuddy-plugin/plugin.json',
@@ -35,15 +38,21 @@ function preview(conflict: boolean): ImportPreview {
         id: 'code-investigator',
         name: '调查员',
         role: definition.role,
-        definition,
+        definition: tools.some((t2) => t2.name === 'grep_files')
+          ? { ...definition, allowed_tools: ['grep_files', 'bash'] }
+          : definition,
         source_path: '/tmp/code-crew/.codebuddy-plugin/agents/investigator.md',
         conflict,
-        unmapped_tools: [{ name: 'read_file', suggestion: 'read' }],
+        unmapped_tools: tools,
         unmapped_fields: [],
         warnings: [],
       },
     ],
   }
+}
+
+function scan(packs: ScanResult['packages'] = []): ScanResult {
+  return { root: '/Users/dev/.workbuddy/plugins/cache/experts', packages: packs }
 }
 
 async function flush() {
@@ -87,6 +96,7 @@ async function mountDialog() {
   return { host, app }
 }
 
+/** 备选入口：手填路径 → 识别并预览 → 明细态。 */
 async function previewOnce(host: HTMLElement) {
   const input = host.ownerDocument.querySelector<HTMLInputElement>('.import-path input')!
   input.value = '/tmp/code-crew'
@@ -99,11 +109,21 @@ async function previewOnce(host: HTMLElement) {
   await flush()
 }
 
+/** 主路径：扫描清单勾选包 → 「预览 N 个包」 → 明细态。 */
+async function previewViaScan(host: HTMLElement) {
+  const button = [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) =>
+    b.textContent?.includes('预览 '),
+  )!
+  button.click()
+  await flush()
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   Element.prototype.scrollIntoView = vi.fn()
   mockedInvoke.mockImplementation(async (cmd: string) => {
     if (cmd === 'tools_list') return { active: [], catalog: ['read', 'bash', 'grep'], settings_path: '' }
+    if (cmd === 'expert_import_scan') return scan()
     if (cmd === 'expert_import_preview') return preview(false)
     if (cmd === 'expert_import_apply') return []
     return null
@@ -128,79 +148,34 @@ describe('resolveImportedTools', () => {
 })
 
 describe('ExpertImportDialog', () => {
-  it('预览列出未映射工具与未映射字段，并显示待处理项', async () => {
+  it('预览列出未映射工具与未映射字段，决策自动采纳（不再挂待处理）', async () => {
     const { host, app } = await mountDialog()
     await previewOnce(host)
     const text = document.body.textContent ?? ''
     expect(text).toContain('识别到 1 个专家')
     expect(text).toContain('read_file')
     expect(text).toContain('技能引用未映射')
-    expect(text).toContain('还有 1 项未映射工具待处理')
+    // 新契约：有建议自动采纳、无建议自动忽略——不存在「待处理」横幅。
+    expect(text).not.toContain('未映射工具待处理')
+    expect(text).toContain('有建议的已自动采纳')
     expect(document.querySelectorAll('.import-tool-row').length).toBe(1)
     expect(document.getElementById('import-tool-code-investigator-read_file')).not.toBeNull()
+    // 采纳后允许集已是 read，而不是外部名 read_file。
+    expect(text).toContain('工具：read、bash')
     app.unmount()
     host.remove()
   })
 
-  it('未决定前导入按钮不可用，点不动', async () => {
+  it('自动采纳后可直接导入：映射结果与记录一起写入定义', async () => {
     mockedInvoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'tools_list') return { active: [], catalog: ['read', 'bash'], settings_path: '' }
+      if (cmd === 'expert_import_scan') return scan()
       if (cmd === 'expert_import_preview') return preview(false)
       if (cmd === 'expert_import_apply') return [{ id: 'code-investigator', action: 'created', source_path: '/tmp' }]
       return []
     })
     const { host, app } = await mountDialog()
     await previewOnce(host)
-
-    const apply = applyButton()
-    expect(apply.disabled).toBe(true)
-    apply.click()
-    await flush()
-    expect(mockedInvoke).not.toHaveBeenCalledWith('expert_import_apply', expect.anything())
-    app.unmount()
-    host.remove()
-  })
-
-  it('待处理项可一键跳转', async () => {
-    const { host, app } = await mountDialog()
-    await previewOnce(host)
-    const jump = [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) =>
-      b.textContent?.includes('read_file'),
-    )!
-    jump.click()
-    await flush()
-    expect(Element.prototype.scrollIntoView).toHaveBeenCalled()
-    app.unmount()
-    host.remove()
-  })
-
-  it('冲突默认跳过：点导入不会写入任何草稿', async () => {
-    mockedInvoke.mockImplementation(async (cmd: string) => {
-      if (cmd === 'tools_list') return { active: [], catalog: ['read', 'bash'], settings_path: '' }
-      if (cmd === 'expert_import_preview') return preview(true)
-      return []
-    })
-    const { host, app } = await mountDialog()
-    await previewOnce(host)
-    expect(document.body.textContent).toContain('同名专家已存在')
-
-    applyButton().click()
-    await flush()
-    expect(mockedInvoke).not.toHaveBeenCalledWith('expert_import_apply', expect.anything())
-    app.unmount()
-    host.remove()
-  })
-
-  it('显式忽略后才可导入：工具被移出允许集，并留下 ignored 记录', async () => {
-    mockedInvoke.mockImplementation(async (cmd: string) => {
-      if (cmd === 'tools_list') return { active: [], catalog: ['read', 'bash'], settings_path: '' }
-      if (cmd === 'expert_import_preview') return preview(false)
-      if (cmd === 'expert_import_apply') return [{ id: 'code-investigator', action: 'created', source_path: '/tmp' }]
-      return []
-    })
-    const { host, app } = await mountDialog()
-    await previewOnce(host)
-    await decideTool('忽略该工具')
 
     const apply = applyButton()
     expect(apply.disabled).toBe(false)
@@ -208,6 +183,55 @@ describe('ExpertImportDialog', () => {
     await flush()
     const items = appliedItems()
     expect(items[0].id).toBe('code-investigator')
+    expect(items[0].definition.allowed_tools).toEqual(['read', 'bash'])
+    expect(items[0].definition.tool_mapping).toEqual([
+      { from: 'read_file', to: 'read', decision: 'mapped' },
+    ])
+    app.unmount()
+    host.remove()
+  })
+
+  it('无建议的工具自动忽略：移出允许集并留下 ignored 记录', async () => {
+    mockedInvoke.mockImplementation(async (cmd: string) => {
+      if (cmd === 'tools_list') return { active: [], catalog: ['read', 'bash'], settings_path: '' }
+      if (cmd === 'expert_import_scan') return scan()
+      if (cmd === 'expert_import_preview') return preview(false, [{ name: 'grep_files', suggestion: null }])
+      if (cmd === 'expert_import_apply') return [{ id: 'code-investigator', action: 'created', source_path: '/tmp' }]
+      return []
+    })
+    const { host, app } = await mountDialog()
+    await previewOnce(host)
+
+    const apply = applyButton()
+    expect(apply.disabled).toBe(false)
+    apply.click()
+    await flush()
+    const items = appliedItems()
+    expect(items[0].definition.allowed_tools).toEqual(['bash'])
+    expect(items[0].definition.tool_mapping).toEqual([
+      { from: 'grep_files', to: null, decision: 'ignored' },
+    ])
+    app.unmount()
+    host.remove()
+  })
+
+  it('可手动改决策：把自动采纳的映射改成忽略', async () => {
+    mockedInvoke.mockImplementation(async (cmd: string) => {
+      if (cmd === 'tools_list') return { active: [], catalog: ['read', 'bash'], settings_path: '' }
+      if (cmd === 'expert_import_scan') return scan()
+      if (cmd === 'expert_import_preview') return preview(false)
+      if (cmd === 'expert_import_apply') return [{ id: 'code-investigator', action: 'created', source_path: '/tmp' }]
+      return []
+    })
+    const { host, app } = await mountDialog()
+    await previewOnce(host)
+    await decideTool('忽略（内核没有）')
+
+    const apply = applyButton()
+    expect(apply.disabled).toBe(false)
+    apply.click()
+    await flush()
+    const items = appliedItems()
     expect(items[0].definition.allowed_tools).toEqual(['bash'])
     expect(items[0].definition.tool_mapping).toEqual([
       { from: 'read_file', to: null, decision: 'ignored' },
@@ -216,26 +240,64 @@ describe('ExpertImportDialog', () => {
     host.remove()
   })
 
-  it('指定替代工具后可导入：映射结果与记录一起写入定义', async () => {
+  it('冲突默认跳过：导入 0 个专家，点导入不写入任何草稿', async () => {
     mockedInvoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'tools_list') return { active: [], catalog: ['read', 'bash'], settings_path: '' }
-      if (cmd === 'expert_import_preview') return preview(false)
-      if (cmd === 'expert_import_apply') return [{ id: 'code-investigator', action: 'created', source_path: '/tmp' }]
+      if (cmd === 'expert_import_scan') return scan()
+      if (cmd === 'expert_import_preview') return preview(true)
       return []
     })
     const { host, app } = await mountDialog()
     await previewOnce(host)
-    await decideTool('建议映射')
+    expect(document.body.textContent).toContain('同名专家已存在')
+    expect(applyButton().textContent).toContain('导入 0 个专家')
 
-    const apply = applyButton()
-    expect(apply.disabled).toBe(false)
-    apply.click()
+    applyButton().click()
     await flush()
-    const items = appliedItems()
-    expect(items[0].definition.allowed_tools).toEqual(['read', 'bash'])
-    expect(items[0].definition.tool_mapping).toEqual([
-      { from: 'read_file', to: 'read', decision: 'mapped' },
-    ])
+    expect(mockedInvoke).not.toHaveBeenCalledWith('expert_import_apply', expect.anything())
+    app.unmount()
+    host.remove()
+  })
+
+  it('主路径：扫描清单勾选包 → 预览入明细 → 逐包走 preview', async () => {
+    const pack = {
+      slug: 'code-crew',
+      name: '代码小队',
+      version: '1.0.0',
+      path: '/tmp/code-crew',
+      is_team: false,
+      lead: null,
+      member_ids: [],
+      experts: preview(false).experts,
+      conflict: false,
+      error: null,
+    }
+    mockedInvoke.mockImplementation(async (cmd: string) => {
+      if (cmd === 'tools_list') return { active: [], catalog: ['read', 'bash'], settings_path: '' }
+      if (cmd === 'expert_import_scan') return scan([pack])
+      if (cmd === 'expert_import_preview') return preview(false)
+      return []
+    })
+    const { host, app } = await mountDialog()
+    // 扫描态：默认全选，包名与计数可见。
+    const scanText = document.body.textContent ?? ''
+    expect(scanText).toContain('代码小队')
+    expect(scanText).toContain('1 位专家')
+
+    await previewViaScan(host)
+    // 明细态：走的是逐包 preview 链路，路径来自包本身。
+    expect(document.body.textContent).toContain('识别到 1 个专家')
+    expect(mockedInvoke).toHaveBeenCalledWith(
+      'expert_import_preview',
+      expect.objectContaining({ path: '/tmp/code-crew' }),
+    )
+    // 返回清单可退回扫描态。
+    const back = [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) =>
+      b.textContent?.includes('返回清单'),
+    )!
+    back.click()
+    await flush()
+    expect(document.body.textContent).toContain('扫描目录')
     app.unmount()
     host.remove()
   })
